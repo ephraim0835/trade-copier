@@ -1,0 +1,381 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  USER
+}
+
+enum AccountRole {
+  MASTER
+  SUB
+}
+
+enum OrderType {
+  BUY
+  SELL
+  BUY_LIMIT
+  SELL_LIMIT
+  BUY_STOP
+  SELL_STOP
+}
+
+enum OrderState {
+  STARTED
+  PLACED
+  CANCELED
+  PARTIAL
+  FILLED
+  REJECTED
+  EXPIRED
+}
+
+enum PositionType {
+  BUY
+  SELL
+}
+
+enum CommandType {
+  OPEN_ORDER
+  MODIFY_ORDER
+  CLOSE_ORDER
+  CLOSE_PARTIAL
+}
+
+enum CommandStatus {
+  CREATED
+  QUEUED
+  DELIVERED
+  ACKNOWLEDGED
+  EXECUTING
+  EXECUTED
+  REJECTED
+  EXECUTION_UNKNOWN
+  FAILED
+  EXPIRED
+}
+
+enum CopyState {
+  WAITING_FOR_SL
+  APPROVED
+  REJECTED
+  WAITING
+  EXPIRED
+  RECOVERING
+  EXECUTING
+  EXECUTED
+  FAILED
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accounts  Mt5Account[]
+}
+
+model Mt5Account {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  
+  login     String
+  broker    String
+  server    String
+  role      AccountRole
+  isActive  Boolean  @default(true)
+  isDemo    Boolean  @default(true)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Telemetry (Live metrics)
+  balance       Float?
+  equity        Float?
+  margin        Float?
+  freeMargin    Float?
+  floatingPl    Float?
+  currency      String?   @db.VarChar(10)
+
+  eaTokens      EaToken[]
+  orders        Order[]
+  deals         Deal[]
+  positions     Position[]
+  copySettings  CopySettings?
+  tradeCopies   TradeCopy[]
+  auditLogs     AuditLog[]
+  executionCommands ExecutionCommand[]
+  
+  @@unique([login, broker, server])
+}
+
+model EaToken {
+  id           String     @id @default(uuid())
+  mt5AccountId String
+  mt5Account   Mt5Account @relation(fields: [mt5AccountId], references: [id])
+  
+  tokenHash    String
+  name         String     @default("Default EA Token")
+  lastUsedAt   DateTime?
+  expiresAt    DateTime?
+  
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model CopySettings {
+  id                  String     @id @default(uuid())
+  mt5AccountId        String     @unique
+  mt5Account          Mt5Account @relation(fields: [mt5AccountId], references: [id])
+  
+  // Risk Configuration
+  riskMultiplier      Float      @default(1.0)
+  roundingTolerancePct Float     @default(2.0)   // e.g. 2.0 = 2% max rounding excess
+  
+  // Daily Risk
+  dailyRiskEnabled    Boolean    @default(false)
+  maxDailyRisk        Float      @default(0)    // static monetary limit
+  
+  // Max Trades
+  maxTradesEnabled    Boolean    @default(false)
+  maxActiveTrades     Int        @default(0)
+  
+  // Missing TP/SL behavior
+  requireTp           Boolean    @default(true)
+  missingSlTimeoutSec Int        @default(60)
+  
+  // Recovery
+  maxRecoveryRRDegradation Float @default(0.5)
+  
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+}
+
+// Normalized signal originating from Master EA
+model TradeSignal {
+  id           String     @id @default(uuid())
+  ticket       BigInt     @unique
+  masterAcctId String
+  
+  symbol       String
+  type         OrderType
+  volume       Float
+  priceOpen    Float
+  sl           Float      @default(0)
+  tp           Float      @default(0)
+  
+  sequenceNumber Int?
+  
+  time         DateTime   
+  
+  createdAt    DateTime   @default(now())
+  
+  copies       TradeCopy[]
+}
+
+// Maps a TradeSignal to a specific Sub account execution
+model TradeCopy {
+  id              String      @id @default(uuid())
+  signalId        String
+  signal          TradeSignal @relation(fields: [signalId], references: [id])
+  
+  subAccountId    String
+  subAccount      Mt5Account  @relation(fields: [subAccountId], references: [id])
+  
+  state           CopyState   @default(WAITING)
+  
+  // Volume tracking
+  requestedVolume Float?
+  executedVolume  Float?
+  currentVolume   Float?
+  closedVolume    Float       @default(0)
+  remainingVolume Float?
+  
+  // Execution references
+  subOrderTicket  BigInt?
+  subDealTicket   BigInt?
+  subPositionId   BigInt?
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  auditLogs       AuditLog[]
+  commands        ExecutionCommand[]
+
+  @@index([subAccountId])
+  @@index([signalId])
+  @@index([state])
+}
+
+// Pre-execution decision audit
+model AuditLog {
+  id              String     @id @default(uuid())
+  tradeCopyId     String?
+  tradeCopy       TradeCopy? @relation(fields: [tradeCopyId], references: [id])
+  
+  subAccountId    String
+  subAccount      Mt5Account @relation(fields: [subAccountId], references: [id])
+  
+  // State at calculation
+  equity          Float
+  intendedRisk    Float
+  maxPermittedRisk Float
+  calculatedVol   Float
+  executedVol     Float
+  estimatedSlRisk Float
+  roundingDiff    Float
+  dailyRiskBefore Float
+  dailyRiskAfter  Float
+  
+  decision        CopyState
+  rejectionReason String?
+  
+  createdAt       DateTime   @default(now())
+}
+
+// MT5 Order (A request to execute a trade)
+model Order {
+  id           String     @id @default(uuid())
+  mt5AccountId String
+  mt5Account   Mt5Account @relation(fields: [mt5AccountId], references: [id])
+  
+  ticket       BigInt     @unique
+  symbol       String
+  type         OrderType
+  volume       Float
+  filledVolume Float      @default(0) // Added for partial fills
+  price        Float
+  state        OrderState
+  
+  timeSetup    DateTime   
+  
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+// MT5 Deal (The execution of an order)
+model Deal {
+  id           String     @id @default(uuid())
+  mt5AccountId String
+  mt5Account   Mt5Account @relation(fields: [mt5AccountId], references: [id])
+  
+  ticket       BigInt     @unique
+  orderTicket  BigInt     
+  positionId   BigInt     
+  
+  symbol       String
+  type         OrderType  
+  volume       Float
+  price        Float
+  commission   Float      @default(0)
+  swap         Float      @default(0)
+  profit       Float      @default(0)
+  
+  time         DateTime   
+  
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+// MT5 Position (The current open holding)
+model Position {
+  id           String     @id @default(uuid())
+  mt5AccountId String
+  mt5Account   Mt5Account @relation(fields: [mt5AccountId], references: [id])
+  
+  ticket       BigInt     @unique
+  symbol       String
+  type         PositionType
+  volume       Float
+  priceOpen    Float
+  sl           Float      @default(0)
+  tp           Float      @default(0)
+  
+  time         DateTime   
+  
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+// Commands sent to the Sub EA for execution
+model ExecutionCommand {
+  id              String         @id @default(uuid())
+  
+  tradeCopyId     String
+  tradeCopy       TradeCopy      @relation(fields: [tradeCopyId], references: [id])
+  
+  subAccountId    String
+  subAccount      Mt5Account     @relation(fields: [subAccountId], references: [id])
+  
+  status          CommandStatus  @default(CREATED)
+  type            CommandType
+  
+  // Master mapping for execution and reconciliation
+  masterSignalId       String?
+  masterOrderTicket    BigInt?
+  masterPositionTicket BigInt?
+  
+  // Sub execution target mapping (Denormalized to optimize /poll)
+  subOrderTicket       BigInt?
+  subPositionTicket    BigInt?
+  
+  // Execution Payload
+  symbol          String
+  orderType       OrderType
+  direction       PositionType?
+  volume          Float
+  price           Float?
+  sl              Float?
+  tp              Float?
+  magicNumber     BigInt?
+  
+  // Execution Results
+  success         Boolean?
+  mt5Retcode      Int?
+  retcodeDescription String?
+  orderTicket     BigInt?
+  dealTicket      BigInt?
+  executedVolume  Float?
+  executedPrice   Float?
+  requestedPrice  Float?
+  brokerError     String?
+  comment         String?
+  
+  // Telemetry (Latency Tracking)
+  masterEventDetectedAt    DateTime?
+  masterEventQueuedAt      DateTime?
+  masterEventSentAt        DateTime?
+  backendReceivedAt        DateTime?
+  riskDecisionCompletedAt  DateTime?
+  commandCreatedAt         DateTime?
+  subReceivedAt            DateTime?
+  subAcknowledgedAt        DateTime?
+  subExecutionStartedAt    DateTime?
+  subExecutionCompletedAt  DateTime?
+  backendResultReceivedAt  DateTime?
+  
+  // Timestamps
+  deliveredAt     DateTime?
+  acknowledgedAt  DateTime?
+  executedAt      DateTime?
+  expiresAt       DateTime
+  
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([subAccountId])
+  @@index([status])
+  @@index([tradeCopyId])
+}

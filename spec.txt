@@ -1,0 +1,543 @@
+TRADE COPIER
+Technical Specification
+Version 1.0  |  Product + Engineering Source of Truth
+Cloud-hosted, responsive MT5 trade copier with real-time risk-aware execution, recovery, and SaaS-ready architecture.
+Brand direction: Blue-first with selective blue→cyan gradient accents.
+0. Document Purpose
+This document translates the agreed product behavior and architecture into an implementation-ready technical specification for the Trade Copier platform. It is the source of truth that the implementation agent/developers should follow before writing production code.
+Field
+Value
+Product
+Trade Copier
+Document
+Technical Specification v1.0
+Primary execution layer
+MQL5 Expert Advisors (EAs) inside MT5
+Application type
+Responsive web application
+Hosting model
+Cloud-hosted
+Database platform
+Supabase with PostgreSQL underneath
+Payments
+Flutterwave (future SaaS billing)
+Owner account
+Created server-side during deployment; subscription not required
+Design priority
+Fast, reliable, explainable, modular, maintainable, SaaS-ready
+Change Control
+Any material architectural change should be documented before implementation. Business rules must not be silently altered inside code. Configuration values should be stored centrally and exposed through the dashboard when they are intended to be user-editable.
+1. Product Overview
+The system is a cloud-hosted MT5 trade-copying platform. A user connects one Master account and zero or more Sub accounts. A trading action on the Master is detected by the Master EA, passed into an asynchronous processing pipeline, evaluated for each Sub account, and executed by the relevant Sub EA when approved.
+WEB DASHBOARD
+      │
+      ▼
+   BACKEND
+      │
+  EVENT / QUEUE
+      │
+ ┌────┴────┐
+ ▼         ▼
+MASTER   RISK ENGINE
+ EA          │
+ │           ▼
+ └──────► COPY ENGINE
+             │
+      ┌──────┼──────┐
+      ▼      ▼      ▼
+   SUB A EA SUB B EA SUB C EA
+2. Core Architecture
+The platform uses a hybrid architecture. MT5 EAs are responsible for time-sensitive MT5-native event detection and execution. The backend owns business logic, risk decisions, mapping, recovery, security, configuration, and the web API. The dashboard is a control and observability layer, not the authority for trading decisions.
+Layer
+Primary responsibilities
+Web dashboard
+Responsive UI, account settings, risk settings, live activity, trade details, admin UI
+Backend/API
+Authentication, authorization, business logic, orchestration, risk engine, copy engine, recovery, audit
+Event/queue layer
+Asynchronous processing, ordering/correlation, idempotency
+Master EA
+Detect Master MT5 events quickly, normalize and queue events, heartbeat
+Sub EA
+Receive validated commands, execute on MT5, return execution acknowledgements, heartbeat
+Database
+Persistent application state, mappings, calculations, logs, subscriptions
+Cloud environment manager
+Provision/assign cloud execution environments and monitor health
+Performance Architecture
+The Master EA event handler must remain lightweight. It should not perform large database operations, blocking HTTP calls, or heavy business logic inside the critical event callback. It should capture/normalize the event and hand it off to a local queue or asynchronous worker so the handler can return quickly.
+3. Technology Stack
+Component
+Recommended choice
+Notes
+Frontend
+Next.js + TypeScript
+Responsive web app for mobile, tablet, laptop and desktop
+Backend
+Node.js + TypeScript; structured framework such as NestJS
+Modular services and clear boundaries
+Database
+Supabase-managed PostgreSQL
+Relational integrity with managed platform services
+MT5 layer
+MQL5 Expert Advisors
+Fast MT5-native event handling and execution
+Realtime
+WebSockets or managed realtime channel
+Live dashboard updates without refresh
+Payments
+Flutterwave
+Future subscription billing and webhooks
+Cloud
+Cloud compute with Windows environments for MT5 terminals
+Initially optimized for the owner development environment
+The application should avoid unnecessary vendor lock-in. Supabase is the initial managed database/platform choice, but the application should keep business logic decoupled from Supabase-specific implementation details where practical.
+4. Users, Roles, and Owner Access
+Normal users can sign up normally. The backend assigns the role USER. The frontend must never be trusted to assign or elevate roles.
+USER
+├── role = USER
+├── subscription required = YES
+└── admin access = NO
+OWNER
+├── role = OWNER
+├── subscription required = NO
+└── admin access = YES
+Owner creation
+The first/owner account is created through a protected deployment/initialization process. The resulting role is stored server-side. The owner sees an Admin Panel tab, but backend authorization is the actual control. Direct attempts to call admin endpoints by non-owner accounts must be rejected.
+5. MT5 Account Connection
+Accounts are represented by a platform-level record plus MT5-specific connection information. The website display name is an internal label and does not need to match the MT5 account holder name.
+Concept
+Example
+Display name
+₦200K Prop Account
+MT5 login
+12345678
+Server
+ExampleBroker-Live
+Broker/company
+Example Broker
+Currency
+NGN
+Trading/margin mode
+Hedging or Netting
+Credentials and secrets must not be stored in plain text. Connection management must handle authentication failures, reconnects, EA registration, terminal status, and health/heartbeat state.
+6. Master/Sub Account Controls
+Control
+Scope
+Behavior
+Copy trades
+Per Sub
+Allow/deny new trade/position/order copying
+Copy SL
+Per Sub
+Allow/deny SL synchronization
+Copy TP
+Per Sub
+Allow/deny TP synchronization
+Copy modifications
+Per Sub
+Allow/deny relevant trade/position modifications
+Copy closures
+Per Sub
+Allow/deny partial/full closure synchronization
+Daily risk protection
+Per Sub
+Enable/disable daily risk guard
+Maximum trades
+Per Sub
+Enable/disable max open-trade limit
+Global Copying Switch
+The user can activate or stop new copying from the dashboard. Stopping copying must not erase existing mappings or blindly close existing positions. Existing trade synchronization behavior follows explicit account settings.
+7. Trade Lifecycle
+MASTER TRADE
+   ↓
+DETECTED
+   ↓
+VALIDATE / CORRELATE
+   ↓
+WAIT FOR SL IF REQUIRED
+   ↓
+RISK + LIMIT CHECKS
+   ↓
+PER-SUB APPROVAL
+   ↓
+COPY COMMANDS
+   ↓
+SUB EXECUTION ACKS
+   ↓
+TRADE MAPPING
+   ↓
+ONGOING SYNCHRONIZATION
+The Master is the source of truth for the intended trading action. Each Sub independently determines the appropriate executable volume and whether it is allowed to participate.
+8. SL and TP Handling
+Stop Loss requirement
+Because the risk engine needs the SL to determine planned monetary exposure, a new Master trade without an SL enters WAITING_FOR_SL. The default waiting period is 60 seconds and is editable in the dashboard.
+No SL → WAITING_FOR_SL
+SL arrives in time → continue
+Timer expires → EXPIRED / not copied
+SL added after expiry → do not auto-resurrect; optional manual synchronize
+Take Profit
+TP is optional. If a trade has no TP, the system performs risk validation but does not reject the trade because of RR. If TP is added later and Copy TP is enabled, the modification is synchronized.
+9. Pending Orders
+Pending orders are first-class objects with their own lifecycle. The system must support the applicable MT5 order types, including Buy Limit, Sell Limit, Buy Stop, Sell Stop, and stop-limit variants where supported by the instrument/broker.
+Lifecycle
+Examples
+Created
+Pending order placed on Master
+Modified
+Entry, SL, TP, expiration or other supported property changed
+Triggered
+Pending order becomes an active position
+Cancelled
+Master cancels the pending order
+Expired
+Pending order expires
+The mapping layer must preserve the relationship from Master order to the corresponding Sub order and, after triggering, to the resulting position/deal state.
+10. Risk Profiles and Next-Trade Risk
+Setting
+Example
+Account Default
+Uses the Sub account default risk percentage
+Low
+0.50%
+Very Low
+0.25%
+Conservative
+0.35%
+Custom
+Any valid user-entered percentage
+The user may select a Next Trade Risk profile before placing a Master trade. The profile applies to the next qualifying Master trade only, then is consumed and resets. It may have an expiration timer. Each Sub has a Use Master Risk Override toggle. If disabled, the Sub uses its own account default.
+11. Risk Engine
+The Risk Engine makes an independent decision for each Sub account. It is the single source of truth for risk calculations. The frontend must never perform authoritative risk decisions.
+Sub account
+  ↓
+Read equity + currency
+  ↓
+Determine risk % for this trade
+  ↓
+Target monetary risk
+  ↓
+Read entry + SL + direction
+  ↓
+Read MT5 symbol specifications
+  ↓
+Calculate ideal volume
+  ↓
+Apply volume step / min / max
+  ↓
+Apply rounding tolerance
+  ↓
+Check daily risk (if enabled)
+  ↓
+Check max trades (if enabled)
+  ↓
+Check connection/execution feasibility
+  ↓
+APPROVE / REJECT
+Target monetary risk
+Conceptually: Target Monetary Risk = Account Equity × Risk Percentage. The final volume calculation must use the actual MT5 symbol specifications for the specific Sub environment, including contract size, tick size, tick value, volume limits, volume step and applicable currency-conversion behavior.
+12. Smart Lot Rounding and Rounding Tolerance
+Each Sub account has an editable Maximum Rounding Difference. This setting exists only to control the small difference caused by broker volume steps. It does not add a fixed percentage to the normal risk setting.
+Example
+Equity = ₦200,000
+Risk = 1%
+Target risk = ₦2,000
+Rounding difference = 2%
+Allowed excess from rounding = ₦40
+Maximum acceptable rounded risk = ₦2,040
+₦2,025 → allowed
+₦2,100 → too high; round down or reject if necessary
+The dashboard must explain this setting using clear inline help/tooltip language so users cannot reasonably confuse rounding tolerance with additional risk.
+13. Minimum and Maximum Volume Protection
+If the exact calculated volume is below the broker minimum, the system evaluates the actual risk of the minimum executable volume. If the minimum volume exceeds the configured risk/risk-rounding limits, the Sub trade is rejected.
+If the calculated volume exceeds the broker maximum, the system evaluates the risk at the maximum permitted volume. If the maximum volume still fits the configured risk controls, it may execute at the maximum; otherwise, the Sub trade is rejected.
+14. Static Daily Risk
+Daily risk protection is optional per Sub account and is static rather than trailing. Users may configure different daily-risk limits for different accounts.
+Account
+Daily protection
+Example limit
+Sub A
+ON
+3%
+Sub B
+OFF
+No daily-risk restriction
+Sub C
+ON
+5%
+The final implementation must maintain sufficient records to represent realized daily losses and current open SL exposure so the chosen daily-risk policy is auditable and deterministic. New risk cannot push an enabled account beyond its daily limit.
+15. Maximum Number of Trades
+The maximum-trades control is optional per Sub account.
+Maximum Open Trades
+☑ Enabled → Limit = 5
+☐ Disabled → No max-trade restriction
+16. RR Validation and Recovery
+For trades with a TP, the standard minimum RR is 1:2. Trades without TP are not rejected on RR grounds.
+Original RR
+Recovery tolerance
+Minimum recovery RR
+1:3.5
+0.5
+1:3.0
+1:2.5
+0.5
+1:2.0
+1:2.0
+0.5 but absolute floor applies
+1:2.0
+Recovery should not use a simplistic fixed entry-deviation percentage as the primary decision. It should evaluate trade freshness using current price, SL/TP relationship, current RR where TP exists, whether intended risk can still be maintained, and whether the Sub is still executable within its limits.
+17. Trade Mapping and Synchronization
+Every Master trade/order receives a persistent platform identifier. Corresponding Sub executions are mapped to the Master. This mapping is the source of truth for later modifications, partial closes, full closes and recovery.
+Master #152
+  ├── Sub A #837
+  ├── Sub B #294
+  └── Sub C — rejected
+Synchronization events
+New order/position copy
+SL change
+TP change
+Supported order/position modification
+Partial close (proportional)
+Full close
+Pending-order cancellation/expiration
+Trigger from pending order to live position
+18. Hedging vs Netting
+The system automatically detects the account trading/margin mode and uses mode-aware mapping.
+HEDGING
+GBPUSD BUY 0.50
+GBPUSD BUY 0.30
+GBPUSD SELL 0.20
+(each is a separate position)
+NETTING
+Multiple deals may contribute to one net position per symbol.
+The copier must never assume one symbol equals one position.
+19. Partial Close Behavior
+Partial closes are copied proportionally. The system calculates the percentage of the Master position reduced and applies that percentage to each mapped Sub position, then respects the Sub broker volume step and execution constraints.
+Master 1.00 → closes 0.40 = 40% reduction
+Sub A 0.50 → closes 0.20
+Sub B 0.20 → closes 0.08
+20. Recovery and Reconciliation
+Cloud/VPS interruptions are considered expected failure cases. After reconnection, the system reconciles current Master state against stored mappings and Sub state.
+Reconnected
+  ↓
+Find current Master orders/positions
+  ↓
+Compare with mappings
+  ↓
+Already mapped? → restore synchronization
+Not mapped? → recovery validation
+  ↓
+SL exists?
+Trade still exists?
+Risk still valid?
+RR still acceptable?
+Sub executable?
+  ↓
+RECOVER or REJECT
+Already-copied trades do not go through stale-trade recovery; their mappings are restored and synchronization resumes.
+21. Real-Time Dashboard
+The dashboard is a responsive web app that works well on phone, tablet, laptop and desktop. Desktop uses a persistent sidebar and information-dense views; mobile uses compact cards, collapsible sections and bottom navigation.
+Live data
+Examples
+Connection
+Connected / disconnected / last heartbeat
+Account state
+Balance, equity, floating P/L, today P/L
+Positions
+Symbol, side, volume, entry, current price, SL, TP, live P/L
+Orders
+Pending orders and states
+Copy status
+Copied / waiting / rejected / executing
+Risk
+Target, used, remaining, daily status
+Live position P/L and account values should update in real time without requiring a page refresh.
+Terminology
+Heartbeat means connection health. Live Account State means current balance/equity/P&L/positions/orders. Trade Events represent discrete actions or lifecycle transitions.
+22. UI/UX Requirements
+The UI should look like a professionally designed commercial fintech/trading product, not a generic AI-generated dashboard.
+Blue is the unmistakable primary brand colour.
+The logo blue→cyan gradient is used selectively for emphasis, not everywhere.
+Supporting colours may include indigo/violet, teal, amber and red where semantically useful.
+Avoid excessive gradients, glassmorphism, glow, giant rounded cards, decorative charts and meaningless statistics.
+Prioritize clarity, trust, hierarchy and speed over decoration.
+Use consistent spacing, typography, iconography and interaction patterns.
+Provide clear explainable states and reasons for failures/rejections.
+Support light and dark presentation if implemented, while keeping blue visibly dominant.
+Important dashboard states
+🟢 System Online
+🟢 Copying Active
+🟡 Waiting for SL
+🟡 Calculating Risk
+🟢 Copied
+🔴 Rejected — risk limit
+🔴 Rejected — minimum lot too risky
+🔴 Recovery rejected
+🔴 Disconnected
+23. Audit, Logging, and Observability
+Every important decision must be traceable. Risk calculations should produce immutable pre-execution records and subsequent execution events should be recorded separately.
+Sub A — Trade Approved
+Equity: $5,000
+Risk target: 1%
+Target risk: $50.00
+Entry: 1.35000
+SL: 1.34500
+Ideal volume: 0.423
+Selected volume: 0.42
+Estimated SL risk: $49.65
+Rounding difference: -0.7%
+Daily risk: PASS
+Trade limit: PASS
+Decision: APPROVED
+Latency telemetry
+Measure timestamps across the path: Master event detected → backend received → risk calculation finished → command sent → Sub EA received → broker execution confirmed. The system should report measured latency instead of promising an absolute fixed time.
+24. Security Requirements
+All privileged authorization decisions happen server-side.
+MT5 credentials and secrets are encrypted/protected and never exposed in frontend code.
+No credentials or secrets committed to source control.
+Use environment variables or managed secrets for runtime secrets.
+Isolate each tenant/user data scope at the backend and database layers.
+Protect EA-to-backend communication with authenticated instance identities/tokens.
+Record security-sensitive actions in audit logs.
+Use secure session/token handling and appropriate rate limiting.
+25. Database Model
+Initial entities:
+Entity
+Purpose
+users
+Authentication-linked user identity and profile
+roles
+Owner/user privileges
+mt5_accounts
+Master/Sub account connection metadata
+account_settings
+Per-account copy/risk controls
+risk_profiles
+Reusable risk presets
+master_trades
+Master order/position lifecycle state
+sub_trades
+Sub execution state
+trade_mappings
+Master-to-Sub relationships
+trade_events
+Normalized event history
+daily_risk_records
+Daily exposure/loss tracking
+recovery_attempts
+Recovery decision trail
+ea_instances
+EA-to-account/environment registration
+cloud_environments
+Cloud execution environments
+cloud_environment_assignments
+User/environment mapping
+subscriptions
+Future SaaS subscription state
+audit_logs
+User/admin actions
+system_logs
+Operational/technical logs
+26. Cloud Environment Manager
+The platform should be able to manage the cloud environments needed to run MT5 terminals and EAs continuously. Users should not be required to manually rent or configure a VPS as part of the normal product experience.
+User
+ ↓
+Environment Manager
+ ↓
+Assign/provision cloud environment
+ ↓
+Configure MT5 terminals
+ ↓
+Install/register Master/Sub EAs
+ ↓
+Health checks
+ ↓
+🟢 Ready
+For initial development, a single cloud environment is sufficient. The architecture should later scale to multiple environments and users.
+27. SaaS and Subscription Architecture
+The owner account is subscription-free. Normal users may later require an active subscription before their copier environment is activated.
+Customer
+ ↓
+Sign up
+ ↓
+Choose plan
+ ↓
+Flutterwave payment
+ ↓
+Backend verifies webhook/payment
+ ↓
+Subscription active
+ ↓
+Cloud environment assigned
+ ↓
+MT5/EAs configured
+ ↓
+🟢 Ready
+The frontend must never independently declare a payment successful. Subscription state is authoritative in the backend.
+28. Code Quality and Maintainability
+The codebase must be structured so another competent developer can understand, maintain, debug and extend the system without needing the original developer.
+Strong typing and consistent linting/formatting.
+Clear module/service boundaries.
+Centralized business rules and configuration.
+No unexplained magic numbers or duplicated risk logic.
+No giant monolithic files or functions.
+Clear naming and domain terminology.
+Inline documentation for complex algorithms, especially risk and recovery.
+README, architecture, deployment, database, API, MT5 integration and risk-engine documentation.
+Version control with safe branching/review workflow.
+29. Testing Strategy
+Area
+Required tests
+Account types
+USD, NGN, other currencies, hedging, netting
+Orders
+Market BUY/SELL, Buy/Sell Limit, Buy/Sell Stop, stop-limit where supported
+SL/TP
+Immediate SL, delayed SL, no SL, TP/no TP, later SL/TP modifications
+Risk
+Different percentages, custom override, account default, rounding tolerance
+Volume
+Minimum, maximum, volume step, rejection when minimum is too risky
+Limits
+Daily risk ON/OFF, maximum trades ON/OFF
+Mapping
+Multiple simultaneous trades, duplicate events, recovery mapping
+Execution
+Success, rejection, insufficient margin, market closed, invalid symbol
+Resilience
+EA restart, backend restart, cloud interruption, reconnect/reconciliation
+Security
+Tenant isolation, owner authorization, secret handling, API permissions
+30. Definition of Done / Acceptance Criteria
+A user can create an account and securely connect Master/Sub MT5 accounts.
+The Master EA detects manual Master trading activity from MT5 and forwards normalized events.
+The system supports market and supported pending order types.
+The system waits for an SL when risk-based copying requires it and expires the trade after the configurable timeout.
+Each Sub receives an independent risk calculation based on its own account conditions and symbol specifications.
+Minimum/maximum volume and volume-step constraints are enforced.
+Rounding tolerance is configurable per account and clearly explained in the UI.
+Daily risk and maximum-trade protections can be enabled/disabled per account.
+Risk overrides can apply to the next Master trade and can be ignored by individual Sub accounts.
+Master/Sub trade mappings persist through restart/reconnect.
+SL/TP/modification/partial-close/full-close synchronization works according to per-account copy settings.
+Recovery does not blindly copy stale trades and applies the agreed RR/risk validation rules.
+The dashboard updates account state, positions and P/L in real time.
+The Owner account has server-side Admin access and no subscription requirement.
+Normal users cannot elevate themselves to Owner/Admin through the frontend or API.
+The codebase is modular, documented, tested and understandable by another developer.
+Cloud execution environments can be monitored and recovered.
+The system produces actionable logs and pre-execution risk calculation records.
+31. Implementation References
+The following official MetaTrader documentation should be treated as implementation references during EA development. The final implementation must be validated against the current MQL5 documentation rather than relying on assumptions.
+OnTradeTransaction: 
+https://www.mql5.com/en/docs/event_handlers/ontradetransaction
+MqlTradeTransaction structure: 
+https://www.mql5.com/en/docs/constants/structures/mqltradetransaction
+CTrade class: 
+https://www.mql5.com/en/docs/standardlibrary/tradeclasses/ctrade
+Symbol information / trading properties: 
+https://www.mql5.com/en/docs/standardlibrary/tradeclasses/csymbolinfo
+Account information: 
+https://www.mql5.com/en/docs/constants/environment_state/accountinformation
+Note: this specification defines the product and engineering requirements. It is not a guarantee of execution quality, profitability, or uninterrupted connectivity. Production use should begin only after staged testing in controlled/demo environments and compliance review of the relevant prop-firm/broker rules.
+END OF TECHNICAL SPECIFICATION v1.0
