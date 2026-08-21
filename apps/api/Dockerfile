@@ -25,7 +25,7 @@ RUN pnpm run db:generate
 
 # Dynamically find the generated Alpine query engine deep inside pnpm's virtual store 
 # and copy it to a known export directory.
-RUN mkdir -p /app/exported-engines && find /app/node_modules -name "libquery_engine-linux-musl-*" -exec cp {} /app/exported-engines/ \;
+RUN mkdir -p /app/exported-engines && find /app/node_modules -type f \\( -name "*query_engine-linux-musl*" -o -name "*query-engine-linux-musl*" \\) -exec cp {} /app/exported-engines/ \\;
 
 # Build the API
 RUN pnpm --filter @trade-copier/api build
@@ -57,7 +57,7 @@ COPY --from=builder --chown=nestjs:nodejs /app/pruned ./
 # Copy the exported Prisma query engine directly into the /tmp/prisma-engines fallback directory 
 # which Prisma natively searches automatically when it can't find it in node_modules!
 COPY --from=builder --chown=nestjs:nodejs /app/exported-engines/ /tmp/prisma-engines/
-COPY --from=builder --chown=nestjs:nodejs /app/packages/database/schema.prisma /app/packages/database/prisma/schema.prisma
+COPY --from=builder --chown=nestjs:nodejs /app/packages/database/prisma/schema.prisma /app/packages/database/prisma/schema.prisma
 
 USER nestjs
 
