@@ -38,9 +38,8 @@ jobs:
           file: apps/api/Dockerfile
           platforms: linux/amd64
           push: true
+          no-cache: true
           tags: ghcr.io/${{ github.repository_owner }}/trade-copier-api:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Build and Push Web Image
         uses: docker/build-push-action@v5
@@ -49,6 +48,5 @@ jobs:
           file: apps/web/Dockerfile
           platforms: linux/amd64
           push: true
+          no-cache: true
           tags: ghcr.io/${{ github.repository_owner }}/trade-copier-web:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
