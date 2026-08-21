@@ -50,10 +50,9 @@ RUN mkdir -p /app/data && chown -R nestjs:nodejs /app/data
 # Copy the standalone production-ready files
 COPY --from=builder --chown=nestjs:nodejs /app/pruned ./
 
-# Explicitly copy the Prisma engines and schema to the fallback search location
-RUN mkdir -p /app/packages/database/prisma
-COPY --from=builder --chown=nestjs:nodejs /app/node_modules/.prisma/client/ /app/packages/database/prisma/
-COPY --from=builder --chown=nestjs:nodejs /app/packages/database/prisma/schema.prisma /app/packages/database/prisma/schema.prisma
+# Generate the Prisma engines specifically for the Alpine runner environment
+COPY --from=builder --chown=nestjs:nodejs /app/packages/database/schema.prisma ./schema.prisma
+RUN npx prisma generate --schema=./schema.prisma
 
 USER nestjs
 
