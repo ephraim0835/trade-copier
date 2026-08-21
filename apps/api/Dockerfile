@@ -25,7 +25,7 @@ RUN pnpm run db:generate
 
 # Dynamically find the generated Alpine query engine deep inside pnpm's virtual store 
 # and copy it to a known export directory.
-RUN mkdir -p /app/exported-engines && find /app/node_modules -type f \\( -name "*query_engine-linux-musl*" -o -name "*query-engine-linux-musl*" \\) -exec cp {} /app/exported-engines/ \\;
+RUN mkdir -p /app/exported-engines && find /app/node_modules -type f -name "*query*engine*linux*musl*" -exec cp {} /app/exported-engines/ \\;
 
 # Build the API
 RUN pnpm --filter @trade-copier/api build
