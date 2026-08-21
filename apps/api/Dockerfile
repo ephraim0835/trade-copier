@@ -38,6 +38,12 @@ RUN npm i -g pnpm
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nestjs
 
+# Install openssl (required by Prisma on Alpine)
+RUN apk add --no-cache openssl openssl-dev
+
+# Create data directory for HotDispatchService journals
+RUN mkdir -p /app/data && chown -R nestjs:nodejs /app/data
+
 # Copy root workspace configurations for module resolution if necessary
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/pnpm-lock.yaml ./
