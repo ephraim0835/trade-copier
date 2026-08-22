@@ -59,6 +59,9 @@ COPY --from=builder --chown=nestjs:nodejs /app/pruned ./
 COPY --from=builder --chown=nestjs:nodejs /app/exported-engines/ /tmp/prisma-engines/
 COPY --from=builder --chown=nestjs:nodejs /app/packages/database/prisma/schema.prisma /app/packages/database/prisma/schema.prisma
 
+# Generate Prisma client in the production node_modules
+RUN npx prisma generate --schema=/app/packages/database/prisma/schema.prisma
+
 USER nestjs
 
 # Expose port (default 3001)
