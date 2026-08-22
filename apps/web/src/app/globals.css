@@ -58,31 +58,31 @@
   }
 
   .dark {
-    --background: #020617; /* Deep navy/near-black */
-    --foreground: #f8fafc; /* Soft white/gray typography */
+    --background: #0f0f1a; /* Plaiz Void */
+    --foreground: #f6fcff; /* Ice / Soft white */
     
-    --card: #0b1120; /* Slightly lighter navy for cards */
-    --card-foreground: #f8fafc;
+    --card: #1a1a1a; /* Deep Charcoal */
+    --card-foreground: #f6fcff;
     
     /* PLAiz Fintech Brand */
-    --primary: #3b82f6; /* Brighter Blue primary */
+    --primary: #007bff; /* Plaiz Blue */
     --primary-foreground: #ffffff;
     
-    --secondary: #1e293b;
+    --secondary: #272733; /* Slightly lighter than card for hover states */
     --secondary-foreground: #e0f2fe;
     
-    --muted: #0f172a;
-    --muted-foreground: #94a3b8;
+    --muted: #1e1e26;
+    --muted-foreground: #8a8a99;
     
-    --accent: #06b6d4; /* Cyan accent */
-    --accent-foreground: #ffffff;
+    --accent: #3fecff; /* Cyan */
+    --accent-foreground: #000000;
     
-    --destructive: #7f1d1d;
-    --destructive-foreground: #f8fafc;
+    --destructive: #ff3b3b;
+    --destructive-foreground: #ffffff;
 
-    --border: #1e293b;
-    --input: #1e293b;
-    --ring: #06b6d4; /* Cyan ring */
+    --border: #272733; /* Very subtle border */
+    --input: #272733;
+    --ring: #3fecff; /* Cyan ring */
   }
 }
 

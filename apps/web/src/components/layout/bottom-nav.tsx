@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Activity, LayoutDashboard, Settings, ListTree, Download } from 'lucide-react';
+import { Home, Users, ArrowRightLeft, ShieldAlert, Menu, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePwa } from '../pwa-provider';
 
@@ -11,10 +11,11 @@ export function BottomNav() {
   const { isInstallable, installApp } = usePwa();
 
   const navItems = [
-    { name: 'Overview', href: '/', icon: LayoutDashboard },
-    { name: 'Accounts', href: '/accounts', icon: ListTree },
-    { name: 'Positions', href: '/positions', icon: Activity },
-    { name: 'Settings', href: '/settings', icon: Settings },
+    { name: 'Home', href: '/', icon: Home },
+    { name: 'Accounts', href: '/accounts', icon: Users },
+    { name: 'Trades', href: '/positions', icon: ArrowRightLeft },
+    { name: 'Risk', href: '/risk', icon: ShieldAlert },
+    { name: 'More', href: '/settings', icon: Menu },
   ];
 
   return (
@@ -34,7 +35,7 @@ export function BottomNav() {
           </button>
         </div>
       )}
-      <div className="h-16 bg-card border-t border-border">
+      <div className="h-16 bg-card/90 backdrop-blur-xl border-t border-border/50 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.5)]">
         <nav className="flex h-full max-w-md mx-auto">
           {navItems.map((item) => {
             const isActive = pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/');
@@ -43,12 +44,12 @@ export function BottomNav() {
                 key={item.name}
                 href={item.href}
                 className={cn(
-                  'flex-1 flex flex-col items-center justify-center gap-1 transition-colors',
+                  'flex-1 flex flex-col items-center justify-center gap-1 transition-colors active:scale-95',
                   isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
                 )}
               >
-                <item.icon className="w-5 h-5" />
-                <span className="text-[10px] font-medium">{item.name}</span>
+                <item.icon className={cn("w-5 h-5", isActive && "drop-shadow-[0_0_8px_rgba(0,123,255,0.4)]")} />
+                <span className="text-[10px] font-medium tracking-wide">{item.name}</span>
               </Link>
             );
           })}

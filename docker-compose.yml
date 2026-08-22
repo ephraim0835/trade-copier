@@ -1,8 +1,6 @@
 services:
   api:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
+    image: ghcr.io/ephraim0835/trade-copier-api:latest
     container_name: trade-copier-api
     restart: always
     ports:
@@ -18,9 +16,7 @@ services:
         max-file: "5"
 
   web:
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
+    image: ghcr.io/ephraim0835/trade-copier-web:latest
     container_name: trade-copier-web
     restart: always
     ports:

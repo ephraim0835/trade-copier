@@ -34,3 +34,6 @@ packages/database/.env
 
 # Turbo
 .turbo/
+
+.vercel
+.env*
