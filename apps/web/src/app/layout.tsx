@@ -48,8 +48,10 @@ export default async function RootLayout({
                 <RealtimeProvider>
                   <div className="flex min-h-screen">
                     <Sidebar />
-                    <main className="flex-1 flex flex-col min-w-0 overflow-hidden pb-16 lg:pb-0">
-                      {children}
+                    <main className="flex-1 flex flex-col min-w-0 overflow-hidden pb-16 lg:pb-0 relative">
+                      <div className="w-full max-w-7xl mx-auto flex-1 flex flex-col">
+                        {children}
+                      </div>
                     </main>
                     <BottomNav />
                   </div>
