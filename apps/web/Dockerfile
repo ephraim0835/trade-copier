@@ -44,14 +44,11 @@ COPY --from=builder /app/apps/web/public ./apps/web/public
 # Set permissions for nextjs user
 RUN mkdir -p /app/apps/web/.next && chown nextjs:nodejs /app/apps/web/.next
 
-# Automatically leverage output traces to reduce image size
+# Automatically leverage output traces to reduce image size.
+# The Next.js standalone bundle already includes all needed node_modules
+# (including the generated .prisma/client) via output file tracing at build time.
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
-
-COPY --from=builder --chown=nextjs:nodejs /app/packages/database/prisma/schema.prisma /app/packages/database/prisma/schema.prisma
-
-# Generate Prisma client in the production node_modules
-RUN npx prisma generate --schema=/app/packages/database/prisma/schema.prisma
 
 USER nextjs
 

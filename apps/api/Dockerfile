@@ -23,7 +23,7 @@ COPY . .
 RUN pnpm install
 RUN pnpm run db:generate
 
-# Dynamically find the generated Alpine query engine deep inside pnpm's virtual store 
+# Dynamically find the generated Alpine query engine deep inside pnpm's virtual store
 # and copy it to a known export directory.
 RUN mkdir -p /app/exported-engines && find /app/node_modules -type f -name "*query*engine*linux*musl*" -exec cp {} /app/exported-engines/ \;
 
@@ -33,13 +33,17 @@ RUN pnpm --filter @trade-copier/api build
 # Deploy only production dependencies to a pruned directory
 RUN pnpm --filter @trade-copier/api --prod deploy pruned
 
+# pnpm deploy runs a fresh prod install which skips prisma generate postinstall,
+# so the generated .prisma/client code is missing from pruned/node_modules.
+# Copy it from the builder's pnpm virtual store into the pruned output.
+RUN find /app/node_modules/.pnpm -name ".prisma" -type d -exec sh -c \
+      'src="$1"; rel="${src#/app/node_modules/}"; dest="/app/pruned/node_modules/$rel"; mkdir -p "$dest"; cp -r "$src/." "$dest/"' \
+      _ {} \;
+
 # Production image
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV production
-
-# Install pnpm in the runner as well to run prisma scripts if needed
-RUN npm i -g pnpm
 
 # Add a non-root user
 RUN addgroup --system --gid 1001 nodejs
@@ -51,16 +55,14 @@ RUN apk add --no-cache openssl openssl-dev
 # Create data directory for HotDispatchService journals
 RUN mkdir -p /app/data && chown -R nestjs:nodejs /app/data
 
-# Copy the standalone production-ready files
+# Copy the standalone production-ready files (including the restored .prisma/client)
 COPY --from=builder --chown=nestjs:nodejs /app/pruned ./
 
-# Copy the exported Prisma query engine directly into the /tmp/prisma-engines fallback directory 
-# which Prisma natively searches automatically when it can't find it in node_modules!
+# Copy the exported Prisma query engine into /tmp/prisma-engines fallback directory
 COPY --from=builder --chown=nestjs:nodejs /app/exported-engines/ /tmp/prisma-engines/
-COPY --from=builder --chown=nestjs:nodejs /app/packages/database/prisma/schema.prisma /app/packages/database/prisma/schema.prisma
 
-# Generate Prisma client in the production node_modules
-RUN npx prisma generate --schema=/app/packages/database/prisma/schema.prisma
+# Copy the schema so Prisma can find it for any runtime introspection
+COPY --from=builder --chown=nestjs:nodejs /app/packages/database/prisma/schema.prisma /app/packages/database/prisma/schema.prisma
 
 USER nestjs
 
