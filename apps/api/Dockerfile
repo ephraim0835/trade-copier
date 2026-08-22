@@ -66,4 +66,4 @@ EXPOSE 3001
 
 ENV PORT 3001
 
-CMD ["node", "apps/api/dist/src/main.js"]
+CMD ["node", "dist/src/main.js"]
