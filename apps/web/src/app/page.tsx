@@ -1,6 +1,7 @@
 import { Activity, ShieldCheck, ArrowUpRight, Wifi, ShieldAlert, ArrowRightLeft, Users, Clock, AlertTriangle } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { PerformanceChart } from '@/components/dashboard/performance-chart';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 export default async function DashboardOverview() {
   const startOfDay = new Date();
@@ -80,15 +81,20 @@ export default async function DashboardOverview() {
           </p>
         </div>
         
-        {/* System Status Pill */}
-        <div className={`flex items-center gap-3 px-4 py-2.5 rounded-full border shadow-sm ${allConnected ? 'bg-[#1a1a1a] border-[#272733]' : 'bg-destructive/10 border-destructive/20'}`}>
-          <div className="relative flex h-3 w-3">
-            {allConnected && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>}
-            <span className={`relative inline-flex rounded-full h-3 w-3 ${allConnected ? 'bg-emerald-500' : 'bg-destructive'}`}></span>
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="lg:hidden">
+            <ThemeToggle />
           </div>
-          <span className={`text-sm font-medium ${allConnected ? 'text-foreground' : 'text-destructive'}`}>
-            {allConnected ? 'All Systems Operational' : 'Connection Degraded'}
-          </span>
+          {/* System Status Pill */}
+          <div className={`flex items-center gap-3 px-4 py-2.5 rounded-full border shadow-sm ${allConnected ? 'bg-[#1a1a1a] border-[#272733]' : 'bg-destructive/10 border-destructive/20'}`}>
+            <div className="relative flex h-3 w-3">
+              {allConnected && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>}
+              <span className={`relative inline-flex rounded-full h-3 w-3 ${allConnected ? 'bg-emerald-500' : 'bg-destructive'}`}></span>
+            </div>
+            <span className={`text-sm font-medium ${allConnected ? 'text-foreground' : 'text-destructive'}`}>
+              {allConnected ? 'All Systems Operational' : 'Connection Degraded'}
+            </span>
+          </div>
         </div>
       </div>
 

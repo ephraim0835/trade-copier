@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePwa } from '../pwa-provider';
+import { ThemeToggle } from '../theme-toggle';
 
 export function Sidebar() {
   const { isInstallable, installApp } = usePwa();
@@ -79,7 +80,10 @@ export function Sidebar() {
           )}
         </nav>
       </div>
-      <div className="p-4 border-t border-border/50">
+      <div className="p-4 border-t border-border/50 space-y-4">
+        <div className="flex justify-center">
+          <ThemeToggle />
+        </div>
         <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-secondary/30 hover:bg-secondary/60 transition-colors cursor-pointer border border-border/50">
           <UserCircle className="w-9 h-9 text-muted-foreground" />
           <div className="flex flex-col flex-1 min-w-0">

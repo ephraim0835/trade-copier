@@ -28,31 +28,31 @@
 
 @layer base {
   :root {
-    --background: #f8fafc; /* Bright neutral/blue-tinted surface */
-    --foreground: #0f172a; /* Deep charcoal typography */
+    --background: #f8fafc; /* Clean off-white surface */
+    --foreground: #1a1a1a; /* Deep charcoal text */
     
     --card: #ffffff;
-    --card-foreground: #0f172a;
+    --card-foreground: #1a1a1a;
     
     /* PLAiz Fintech Brand */
-    --primary: #0052cc; /* Deep Blue primary */
+    --primary: #007bff; /* Plaiz Blue primary */
     --primary-foreground: #ffffff;
     
-    --secondary: #e0f2fe; /* Light cyan/blue tint */
-    --secondary-foreground: #0284c7;
+    --secondary: #f1f5f9; /* Soft gray for hover states */
+    --secondary-foreground: #007bff;
     
-    --muted: #f1f5f9;
+    --muted: #f8fafc;
     --muted-foreground: #64748b;
     
-    --accent: #06b6d4; /* Cyan accent */
-    --accent-foreground: #ffffff;
+    --accent: #3fecff; /* Cyan accent */
+    --accent-foreground: #000000;
     
     --destructive: #ef4444;
     --destructive-foreground: #ffffff;
 
-    --border: #e2e8f0;
+    --border: #e2e8f0; /* Soft gray borders */
     --input: #e2e8f0;
-    --ring: #06b6d4; /* Cyan ring */
+    --ring: #007bff; /* Blue ring for light mode */
 
     --radius: 0.75rem; /* Smoother cards */
   }
