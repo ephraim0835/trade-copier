@@ -21,14 +21,14 @@ export function BottomNav() {
   return (
     <div className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[95%] max-w-[400px] z-50 flex flex-col gap-3">
       {isInstallable && (
-        <div className="glass-panel rounded-2xl px-4 py-3 flex items-center justify-between mx-4">
+        <div className="glass-panel rounded-[16px] px-4 py-3 flex items-center justify-between mx-4 mb-2">
           <div className="flex flex-col">
             <span className="text-[13px] font-bold text-foreground">Plaiz App</span>
             <span className="text-[11px] text-muted-foreground">Add to home screen</span>
           </div>
           <button
             onClick={installApp}
-            className="flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/20 px-3 py-1.5 rounded-xl text-[11px] font-bold active:scale-95 transition-transform"
+            className="btn-apple btn-secondary py-1.5 px-3 text-[11px]"
           >
             <Download className="w-3.5 h-3.5" />
             Install
@@ -36,7 +36,7 @@ export function BottomNav() {
         </div>
       )}
       
-      <div className="glass-panel rounded-full h-[68px] px-2 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.5)]">
+      <div className="glass-panel rounded-[24px] h-[64px] px-2 shadow-lg">
         <nav className="flex h-full items-center justify-between">
           {navItems.map((item) => {
             const isActive = pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/');
@@ -44,16 +44,16 @@ export function BottomNav() {
               <Link
                 key={item.name}
                 href={item.href}
-                className="flex-1 flex flex-col items-center justify-center h-full relative transition-transform active:scale-90 group"
+                className="flex-1 flex flex-col items-center justify-center h-full relative transition-transform active:scale-95 group"
               >
                 {isActive && (
-                  <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-8 h-[3px] bg-primary rounded-b-full shadow-[0_0_12px_rgba(0,123,255,0.8)]"></div>
+                  <div className="absolute top-1 left-1/2 -translate-x-1/2 w-8 h-[3px] bg-foreground rounded-full"></div>
                 )}
                 <div className={cn(
-                  "p-2 rounded-xl transition-all duration-300",
-                  isActive ? "bg-primary/10 text-primary border border-primary/20" : "text-muted-foreground group-hover:text-foreground"
+                  "p-2 rounded-xl transition-all duration-200 mt-2",
+                  isActive ? "text-foreground" : "text-muted-foreground group-hover:text-foreground/80"
                 )}>
-                  <item.icon className={cn("w-[22px] h-[22px]", isActive && "drop-shadow-[0_0_8px_rgba(0,123,255,0.6)]")} />
+                  <item.icon className={cn("w-[22px] h-[22px]", isActive && "text-primary")} />
                 </div>
               </Link>
             );

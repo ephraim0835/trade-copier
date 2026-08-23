@@ -14,8 +14,14 @@ export function PerformanceChart({ data }: { data: any[] }) {
 
   if (!data || data.length === 0) {
     return (
-      <div className="h-full w-full flex items-center justify-center text-muted-foreground text-sm">
-        No performance data available.
+      <div className="h-full w-full flex flex-col items-center justify-center text-center">
+        <div className="w-12 h-12 rounded-full bg-black/5 dark:bg-white/5 flex items-center justify-center mb-3">
+          <svg className="w-5 h-5 text-muted-foreground opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+          </svg>
+        </div>
+        <p className="text-[13px] font-medium text-foreground">Not enough data yet</p>
+        <p className="text-[11px] text-muted-foreground mt-1">Performance graphs will appear here once trading begins.</p>
       </div>
     );
   }

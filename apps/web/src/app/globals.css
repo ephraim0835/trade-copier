@@ -97,8 +97,50 @@
 @layer components {
   /* 
    * MIXED MATERIAL SYSTEM 
-   * (Do not use glass everywhere. Mix solid, translucent, and glass.) 
+   * (Selective materials for hierarchy and context) 
    */
+   
+  /* Premium Typography */
+  .num-tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+    letter-spacing: -0.02em;
+  }
+  
+  /* Pill Component */
+  .pill {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold tracking-wide transition-all duration-200 cursor-default select-none;
+    box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+  }
+  
+  .pill-interactive {
+    @apply cursor-pointer hover:-translate-y-[1px] active:translate-y-[0px] active:scale-95;
+  }
+  
+  .pill-neutral {
+    @apply bg-card/60 dark:bg-[#272733]/50 text-foreground border border-border/50 hover:bg-card/90 dark:hover:bg-[#272733]/80;
+  }
+  
+  .pill-success {
+    @apply bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20;
+  }
+  
+  .pill-primary {
+    @apply bg-primary text-primary-foreground border border-primary/20 hover:bg-primary/90 shadow-[0_4px_14px_0_rgba(0,123,255,0.39)];
+  }
+
+  /* Button Component */
+  .btn-apple {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:pointer-events-none;
+  }
+  
+  .btn-primary {
+    @apply bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_4px_14px_0_rgba(0,123,255,0.39)] hover:shadow-[0_6px_20px_rgba(0,123,255,0.23)];
+  }
+  
+  .btn-secondary {
+    @apply bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border/50;
+  }
 
   /* Ambient Lighting (Used in layout background) */
   .ambient-glow-primary {
@@ -113,9 +155,9 @@
 
   /* Premium Glass Panel (For floating navigation, sidebars) */
   .glass-panel {
-    @apply bg-card/70 dark:bg-[#1a1a1a]/60 border border-border/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden;
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
+    @apply bg-card/80 dark:bg-[#1a1a1a]/70 border border-border/40 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
   }
   
   .glass-panel::before {
@@ -139,10 +181,8 @@
   }
 
   .hero-panel {
-    @apply bg-card/90 dark:bg-[#1a1a1a]/80 border border-border/60 relative overflow-hidden;
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    @apply bg-card dark:bg-[#15151f] border border-border/40 relative overflow-hidden rounded-[24px];
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025);
   }
   
   .hero-panel::after {

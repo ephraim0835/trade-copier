@@ -27,15 +27,13 @@ export function PwaProvider({ children }: { children: ReactNode }) {
   const [isIosWithFallback, setIsIosWithFallback] = useState(false);
 
   useEffect(() => {
-    // 1. Register Service Worker
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js')
-        .then((registration) => {
-          console.log('SW registered with scope:', registration.scope);
-        })
-        .catch((err) => {
-          console.error('SW registration failed:', err);
-        });
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        for (let registration of registrations) {
+          registration.unregister();
+          console.log('SW unregistered to prevent aggressive caching.');
+        }
+      });
     }
 
     // 2. Check if already installed (standalone mode)
