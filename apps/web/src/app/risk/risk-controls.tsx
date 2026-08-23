@@ -73,7 +73,7 @@ export function RiskControls({ initialAccounts }: { initialAccounts: any[] }) {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-foreground font-medium text-[13px]">
                     <Percent className="w-4 h-4 text-primary" />
-                    Allocation Percentage
+                    Risk Per Trade
                   </div>
                   <div className="flex items-center gap-2">
                     <input 
@@ -89,8 +89,8 @@ export function RiskControls({ initialAccounts }: { initialAccounts: any[] }) {
                 <input 
                   type="range" 
                   min="0" 
-                  max="200" 
-                  step="10"
+                  max="10" 
+                  step="0.5"
                   value={currentPct}
                   onChange={(e) => handleAllocationChange(account.id, Number(e.target.value))}
                   className="w-full h-1.5 bg-black/10 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-primary"
@@ -99,7 +99,7 @@ export function RiskControls({ initialAccounts }: { initialAccounts: any[] }) {
                 <div className="flex items-start gap-3 p-3 rounded-xl bg-primary/5 border border-primary/10 mt-2">
                   <AlertTriangle className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                   <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    At <span className="font-semibold text-foreground">{currentPct}%</span> allocation, a 1.00 lot trade on the Master Account will be executed as exactly <span className="font-semibold text-foreground num-tabular">{(1.00 * (currentPct/100)).toFixed(2)}</span> lots proportionally on this sub-account.
+                    At <span className="font-semibold text-foreground">{currentPct}%</span> risk, the EA will dynamically calculate the exact lot size based on this account's currency, balance, and the Master trade's Stop Loss distance.
                   </p>
                 </div>
               </div>

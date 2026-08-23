@@ -8,6 +8,7 @@ import { getServerSession } from "next-auth/next";
 import { AuthProvider } from '@/components/auth-provider';
 import { PwaProvider } from '@/components/pwa-provider';
 import { PwaIosPrompt } from '@/components/pwa-ios-prompt';
+import { PwaInstallBanner } from '@/components/pwa-install-banner';
 import { ThemeProvider } from '@/components/theme-provider';
 import { CurrencyProvider } from '@/components/currency-provider';
 
@@ -20,7 +21,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Plaiz Copier',
+    title: 'Plaiz Markets App',
   },
 };
 
@@ -51,14 +52,17 @@ export default async function RootLayout({
               <CurrencyProvider>
                 <AuthProvider session={session}>
                   <RealtimeProvider>
-                    <div className="flex min-h-screen relative">
-                      <Sidebar />
-                      <main className="flex-1 flex flex-col min-w-0 overflow-hidden pb-16 lg:pb-0 relative z-10">
-                        <div className="w-full max-w-[1440px] mx-auto flex-1 flex flex-col">
-                          {children}
-                        </div>
-                      </main>
-                      <BottomNav />
+                    <div className="flex flex-col min-h-screen relative">
+                      <PwaInstallBanner />
+                      <div className="flex flex-1 relative">
+                        <Sidebar />
+                        <main className="flex-1 flex flex-col min-w-0 overflow-hidden pb-16 lg:pb-0 relative z-10">
+                          <div className="w-full max-w-[1440px] mx-auto flex-1 flex flex-col">
+                            {children}
+                          </div>
+                        </main>
+                        <BottomNav />
+                      </div>
                     </div>
                     <PwaIosPrompt />
                   </RealtimeProvider>

@@ -127,10 +127,11 @@ export default async function DashboardOverview() {
           
           {/* HERO: TODAY'S P/L */}
           <section className="relative flex flex-col pt-4">
-            <h2 className="text-[11px] font-semibold text-muted-foreground tracking-[0.2em] uppercase mb-4">Today's Performance</h2>
-            
-            <div className={`text-[64px] sm:text-[96px] font-bold tracking-tighter leading-none num-tabular ${isProfit ? 'text-foreground' : 'text-destructive'}`}>
-              {isProfit ? '+' : ''}<MoneyDisplay amount={todaysTotalPl} sourceCurrency="USD" />
+            <div className="flex flex-col mb-10">
+              <span className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] mb-2 font-semibold px-1">Total Live PnL</span>
+              <span className={`text-[64px] sm:text-[72px] lg:text-[84px] font-bold tracking-tighter leading-none num-tabular ${isProfit ? 'text-foreground' : 'text-destructive'}`}>
+                {isProfit ? '+' : ''}<MoneyDisplay amount={todaysTotalPl} sourceCurrency={masterAccount?.currency || 'USD'} />
+              </span>
             </div>
             
             <div className="mt-8 flex items-center gap-8 border-t border-border/40 pt-8">
@@ -195,6 +196,44 @@ export default async function DashboardOverview() {
               </div>
             )}
           </section>
+
+          {/* PORTFOLIO ACCOUNTS SECTION */}
+          {subAccounts.length > 0 && (
+            <section className="mt-10">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">Portfolio Accounts</h3>
+                <Link href="/risk" className="text-[11px] text-primary hover:underline font-medium">Manage</Link>
+              </div>
+              <div className="flex flex-col gap-3">
+                {subAccounts.map((sub: any) => (
+                  <Link key={sub.id} href="/risk" className="group surface-matte p-4 rounded-[16px] flex flex-col sm:flex-row sm:items-center justify-between hover:bg-black/10 dark:hover:bg-white/5 border border-border/30 transition-all cursor-pointer gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isOnline(sub.eaTokens?.[0]) ? 'bg-success/10' : 'bg-black/5 dark:bg-white/5'}`}>
+                        <Users className={`w-4 h-4 ${isOnline(sub.eaTokens?.[0]) ? 'text-success' : 'text-muted-foreground'}`} />
+                      </div>
+                      <div>
+                        <div className="text-[13px] font-bold text-foreground leading-none">{sub.login}</div>
+                        <div className="text-[10px] text-muted-foreground mt-1">{sub.broker}</div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-6 sm:justify-end border-t sm:border-t-0 border-border/10 pt-3 sm:pt-0 mt-1 sm:mt-0">
+                      <div className="flex flex-col sm:text-right">
+                        <span className="text-[9px] text-muted-foreground uppercase tracking-widest mb-1">Balance</span>
+                        <span className="text-[13px] font-semibold text-foreground num-tabular"><MoneyDisplay amount={sub.balance || 0} sourceCurrency={sub.currency || 'USD'} /></span>
+                      </div>
+                      <div className="flex flex-col sm:text-right">
+                        <span className="text-[9px] text-muted-foreground uppercase tracking-widest mb-1">Live PnL</span>
+                        <span className={`text-[13px] font-semibold num-tabular ${(sub.floatingPl || 0) >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>
+                          {(sub.floatingPl || 0) >= 0 ? '+' : ''}<MoneyDisplay amount={sub.floatingPl || 0} sourceCurrency={sub.currency || 'USD'} />
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
 
         {/* =========================================

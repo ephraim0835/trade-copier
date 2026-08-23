@@ -20,23 +20,9 @@ export function BottomNav() {
 
   return (
     <div className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[95%] max-w-[400px] z-50 flex flex-col gap-3">
-      {isInstallable && (
-        <div className="premium-glass rounded-[16px] px-4 py-3 flex items-center justify-between mx-4 mb-2">
-          <div className="flex flex-col">
-            <span className="text-[13px] font-bold text-foreground">Plaiz App</span>
-            <span className="text-[11px] text-muted-foreground">Add to home screen</span>
-          </div>
-          <button
-            onClick={installApp}
-            className="btn-apple btn-secondary py-1.5 px-3 text-[11px]"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Install
-          </button>
-        </div>
-      )}
+
       
-      <div className="premium-glass rounded-[24px] h-[64px] px-2 shadow-lg">
+      <div className="bg-background/95 backdrop-blur-xl border border-border/50 rounded-[24px] h-[64px] px-2 shadow-lg">
         <nav className="flex h-full items-center justify-between">
           {navItems.map((item) => {
             const isActive = pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/');
