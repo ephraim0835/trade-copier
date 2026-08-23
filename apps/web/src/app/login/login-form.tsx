@@ -95,6 +95,13 @@ export function LoginForm() {
           </div>
         </div>
 
+        {/* Forgot password link */}
+        <div className="flex justify-end">
+          <Link href="/forgot-password" className="text-[12px] text-muted-foreground hover:text-primary transition-colors">
+            Forgot password?
+          </Link>
+        </div>
+
         {error && (
           <div className="text-destructive text-[13px] text-center bg-destructive/10 py-3 rounded-xl border border-destructive/20 font-medium">
             {error}

@@ -37,3 +37,5 @@ packages/database/.env
 
 .vercel
 .env*
+
+apps/web/.env
