@@ -40,32 +40,43 @@ export default async function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.className} min-h-screen bg-background text-foreground antialiased`}>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <PwaProvider>
-            <AuthProvider session={session}>
-              {session ? (
-                <RealtimeProvider>
-                  <div className="flex min-h-screen">
-                    <Sidebar />
-                    <main className="flex-1 flex flex-col min-w-0 overflow-hidden pb-16 lg:pb-0 relative">
-                      <div className="w-full max-w-7xl mx-auto flex-1 flex flex-col">
-                        {children}
-                      </div>
-                    </main>
-                    <BottomNav />
-                  </div>
-                  <PwaIosPrompt />
-                </RealtimeProvider>
-              ) : (
-                <main className="flex-1 min-h-screen bg-background">
-                  {children}
-                  <PwaIosPrompt />
-                </main>
-              )}
-            </AuthProvider>
-          </PwaProvider>
-        </ThemeProvider>
+      <body className={`${inter.className} min-h-screen bg-background text-foreground antialiased relative overflow-x-hidden`}>
+        
+        {/* Ambient Lighting Background Layer */}
+        <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+          {/* Top Left Primary Glow */}
+          <div className="ambient-glow-primary w-[60vw] h-[60vw] min-w-[600px] min-h-[600px] -top-[20%] -left-[10%]" />
+          {/* Bottom Right Cyan Glow */}
+          <div className="ambient-glow-accent w-[50vw] h-[50vw] min-w-[500px] min-h-[500px] -bottom-[10%] -right-[5%]" />
+        </div>
+
+        <div className="relative z-10 flex flex-col min-h-screen">
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+            <PwaProvider>
+              <AuthProvider session={session}>
+                {session ? (
+                  <RealtimeProvider>
+                    <div className="flex min-h-screen relative">
+                      <Sidebar />
+                      <main className="flex-1 flex flex-col min-w-0 overflow-hidden pb-16 lg:pb-0 relative z-10">
+                        <div className="w-full max-w-7xl mx-auto flex-1 flex flex-col">
+                          {children}
+                        </div>
+                      </main>
+                      <BottomNav />
+                    </div>
+                    <PwaIosPrompt />
+                  </RealtimeProvider>
+                ) : (
+                  <main className="flex-1 min-h-screen bg-background/50 backdrop-blur-sm relative z-10">
+                    {children}
+                    <PwaIosPrompt />
+                  </main>
+                )}
+              </AuthProvider>
+            </PwaProvider>
+          </ThemeProvider>
+        </div>
       </body>
     </html>
   );

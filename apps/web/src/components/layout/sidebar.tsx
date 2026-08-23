@@ -34,17 +34,17 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden lg:flex flex-col w-[260px] bg-background border-r border-border/40 h-screen sticky top-0 z-40">
-      <div className="h-[88px] flex items-center px-6">
+    <aside className="hidden lg:flex flex-col w-[260px] glass-panel h-[calc(100vh-2rem)] sticky top-4 ml-4 rounded-[24px] z-40 shrink-0">
+      <div className="h-[88px] flex items-center px-8">
         <Link href="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
           <div className="flex gap-1 items-end h-6 pt-1">
-            <div className="w-[5px] h-3 bg-primary rounded-[2px]"></div>
-            <div className="w-[5px] h-[18px] bg-primary rounded-[2px]"></div>
-            <div className="w-[5px] h-6 bg-accent rounded-[2px]"></div>
+            <div className="w-[5px] h-3 bg-primary rounded-[2px] shadow-[0_0_8px_rgba(0,123,255,0.6)]"></div>
+            <div className="w-[5px] h-[18px] bg-primary rounded-[2px] shadow-[0_0_8px_rgba(0,123,255,0.6)]"></div>
+            <div className="w-[5px] h-6 bg-accent rounded-[2px] shadow-[0_0_8px_rgba(63,236,255,0.6)]"></div>
           </div>
           <div className="flex flex-col pt-0.5">
-            <span className="font-bold text-xl tracking-tight text-primary leading-none">Plaiz</span>
-            <span className="text-[9px] uppercase tracking-[0.2em] text-foreground mt-0.5 font-bold">Markets</span>
+            <span className="font-bold text-xl tracking-tight text-foreground leading-none">Plaiz</span>
+            <span className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground mt-0.5 font-bold">Markets</span>
           </div>
         </Link>
       </div>
@@ -58,15 +58,18 @@ export function Sidebar() {
                 key={item.name}
                 href={item.href}
                 className={cn(
-                  'flex items-center gap-3 px-4 py-3 rounded-xl text-[13px] font-medium transition-all duration-200 group',
+                  'flex items-center gap-3 px-4 py-3 rounded-xl text-[13px] font-medium transition-all duration-200 group relative',
                   isActive
-                    ? 'bg-primary text-primary-foreground shadow-[0_4px_12px_-4px_rgba(0,123,255,0.4)]'
-                    : 'text-muted-foreground hover:bg-card hover:text-foreground'
+                    ? 'bg-primary/10 text-primary border border-primary/20'
+                    : 'text-muted-foreground hover:bg-card/50 hover:text-foreground border border-transparent'
                 )}
               >
+                {isActive && (
+                   <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 bg-primary rounded-r-full shadow-[0_0_8px_rgba(0,123,255,0.8)]"></div>
+                )}
                 <item.icon className={cn(
                   'w-[18px] h-[18px] transition-colors', 
-                  isActive ? 'text-primary-foreground' : 'text-muted-foreground group-hover:text-foreground'
+                  isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'
                 )} />
                 {item.name}
               </Link>
@@ -76,7 +79,7 @@ export function Sidebar() {
           {isInstallable && (
             <button
               onClick={installApp}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[13px] font-medium transition-all duration-200 text-primary hover:bg-primary/10 mt-6 border border-primary/20"
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[13px] font-medium transition-all duration-200 text-primary hover:bg-primary/20 mt-6 border border-primary/30"
             >
               <Download className="w-[18px] h-[18px] text-primary" />
               Install App
@@ -86,7 +89,7 @@ export function Sidebar() {
       </div>
       
       <div className="p-4 mt-auto">
-        <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-card border border-border/40 hover:border-border/80 transition-colors cursor-pointer shadow-sm">
+        <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-black/20 border border-border/30 hover:bg-black/30 transition-colors cursor-pointer backdrop-blur-md">
           <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center overflow-hidden">
              <UserCircle className="w-9 h-9 text-muted-foreground" />
           </div>

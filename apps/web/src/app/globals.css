@@ -95,3 +95,109 @@
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 }
+
+@layer components {
+  /* 
+   * MIXED MATERIAL SYSTEM 
+   * (Do not use glass everywhere. Mix solid, translucent, and glass.) 
+   */
+
+  /* Ambient Lighting (Used in layout background) */
+  .ambient-glow-primary {
+    @apply absolute rounded-full blur-[120px] opacity-[0.15] dark:opacity-[0.25] pointer-events-none transition-opacity duration-500;
+    background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
+  }
+  
+  .ambient-glow-accent {
+    @apply absolute rounded-full blur-[120px] opacity-[0.1] dark:opacity-[0.15] pointer-events-none transition-opacity duration-500;
+    background: radial-gradient(circle, var(--accent) 0%, transparent 70%);
+  }
+
+  /* Premium Glass Panel (For floating navigation, sidebars) */
+  .glass-panel {
+    @apply bg-card/70 dark:bg-[#1a1a1a]/60 border border-border/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden;
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+  }
+  
+  .glass-panel::before {
+    content: '';
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(to bottom right, rgba(255, 255, 255, 0.1), transparent);
+    @apply absolute opacity-0 transition-opacity duration-300 pointer-events-none;
+  }
+  
+  @media (prefers-color-scheme: dark) {
+    .glass-panel::before {
+      background: linear-gradient(to bottom right, rgba(255, 255, 255, 0.05), transparent);
+    }
+  }
+  
+  .glass-panel:hover::before {
+    @apply opacity-100;
+  }
+
+  .hero-panel {
+    @apply bg-card/90 dark:bg-[#1a1a1a]/80 border border-border/60 relative overflow-hidden;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+  
+  .hero-panel::after {
+    content: '';
+    background: linear-gradient(to right, transparent, rgba(0, 123, 255, 0.2), transparent);
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 1px;
+    pointer-events: none;
+  }
+  
+  @media (prefers-color-scheme: dark) {
+    .hero-panel::after {
+      background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.1), transparent);
+    }
+  }
+
+  /* Digital Trading Card (Master Account) */
+  .digital-card {
+    @apply bg-gradient-to-br from-card to-card/50 dark:from-[#1a1a1a] dark:to-[#1a1a1a]/40 border border-border/60 relative overflow-hidden transition-all duration-300;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  }
+
+  /* Inner subtle noise/texture could go here, for now using a clean reflection */
+  .digital-card::before {
+    content: '';
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    @apply absolute bg-[linear-gradient(110deg,transparent_25%,rgba(255,255,255,0.02)_50%,transparent_75%)] bg-[length:250%_250%] opacity-0 transition-opacity duration-500 pointer-events-none;
+  }
+  
+  .digital-card:hover::before {
+    @apply opacity-100;
+    animation: shimmer 2.5s infinite linear;
+  }
+
+  /* Mini Sub-Account Card */
+  .mini-card {
+    @apply bg-card/40 dark:bg-card/20 border border-border/40 hover:bg-card/80 hover:border-border/80 transition-all duration-300 relative overflow-hidden;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  }
+
+  /* Utilities */
+  .text-glow {
+    text-shadow: 0 0 10px rgba(0, 123, 255, 0.4);
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
