@@ -2,6 +2,8 @@ import { ShieldAlert, ArrowUpRight, ArrowDownRight, Settings2, BarChart3, Wifi, 
 import { prisma } from '@/lib/prisma';
 import { PerformanceChart } from '@/components/dashboard/performance-chart';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { CurrencySelector } from '@/components/currency-selector';
+import { MoneyDisplay } from '@/components/money-display';
 import Link from 'next/link';
 
 export default async function DashboardOverview() {
@@ -76,9 +78,7 @@ export default async function DashboardOverview() {
   return (
     <div className="flex-1 p-4 md:p-6 lg:p-12 flex flex-col gap-10 pb-32 overflow-y-auto custom-scrollbar relative">
       
-      {/* ATMOSPHERIC BACKGROUND ILLUMINATION */}
-      <div className="absolute w-[600px] h-[600px] -top-[200px] -left-[100px] z-0 pointer-events-none rounded-full blur-[120px] bg-primary/20 dark:bg-primary/10"></div>
-      <div className="absolute w-[400px] h-[400px] top-[20%] -right-[100px] z-0 pointer-events-none rounded-full blur-[100px] bg-cyan-500/10 dark:bg-cyan-500/5"></div>
+      {/* Removed heavy blue gradients in favor of subtle environment lighting */}
 
       {/* HEADER: Calm & Intentional */}
       <header className="relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -107,6 +107,7 @@ export default async function DashboardOverview() {
         
         {/* Top Right Utilities */}
         <div className="flex items-center gap-4">
+          <CurrencySelector />
           <div className="hidden lg:block">
             <ThemeToggle />
           </div>
@@ -129,7 +130,7 @@ export default async function DashboardOverview() {
             <h2 className="text-[11px] font-semibold text-muted-foreground tracking-[0.2em] uppercase mb-4">Today's Performance</h2>
             
             <div className={`text-[64px] sm:text-[96px] font-bold tracking-tighter leading-none num-tabular ${isProfit ? 'text-foreground' : 'text-destructive'}`}>
-              {isProfit ? '+' : ''}{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(todaysTotalPl)}
+              {isProfit ? '+' : ''}<MoneyDisplay amount={todaysTotalPl} sourceCurrency="USD" />
             </div>
             
             <div className="mt-8 flex items-center gap-8 border-t border-border/40 pt-8">
@@ -155,7 +156,7 @@ export default async function DashboardOverview() {
                   <div className="flex flex-col gap-3">
                     <div className="flex items-center gap-2">
                       <div className="pill pill-neutral text-[10px] uppercase tracking-widest">{masterAccount.broker || 'Unknown'}</div>
-                      <div className="pill pill-success text-[10px]"><Wifi className="w-3 h-3" /> {masterOnline ? 'Connected' : 'Offline'}</div>
+                      <div className={`pill text-[10px] ${masterOnline ? 'pill-success' : 'pill-destructive'}`}><Wifi className="w-3 h-3" /> {masterOnline ? 'Connected' : 'Offline'}</div>
                     </div>
                     <h4 className="text-[28px] font-bold text-foreground tracking-tighter leading-none group-hover:text-primary transition-colors">{masterAccount.login}</h4>
                   </div>
@@ -164,7 +165,7 @@ export default async function DashboardOverview() {
                     <div className="bg-card/50 px-4 py-2 rounded-xl border border-border/30 text-right">
                       <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-0.5">Balance</p>
                       <p className="text-[16px] font-semibold text-foreground num-tabular leading-none">
-                        {masterAccount.balance != null ? new Intl.NumberFormat('en-US', { style: 'currency', currency: masterAccount.currency || 'USD' }).format(masterAccount.balance) : 'N/A'}
+                        {masterAccount.balance != null ? <MoneyDisplay amount={masterAccount.balance} sourceCurrency={masterAccount.currency || 'USD'} /> : 'N/A'}
                       </p>
                     </div>
                   </div>
@@ -174,13 +175,13 @@ export default async function DashboardOverview() {
                   <div className="flex flex-col">
                     <span className="text-[10px] text-muted-foreground uppercase tracking-[0.1em] mb-1">Equity</span>
                     <span className="text-[15px] font-semibold text-foreground num-tabular">
-                      {masterAccount.equity != null ? new Intl.NumberFormat('en-US', { style: 'currency', currency: masterAccount.currency || 'USD' }).format(masterAccount.equity) : 'N/A'}
+                      {masterAccount.equity != null ? <MoneyDisplay amount={masterAccount.equity} sourceCurrency={masterAccount.currency || 'USD'} /> : 'N/A'}
                     </span>
                   </div>
                   <div className="flex flex-col">
                     <span className="text-[10px] text-muted-foreground uppercase tracking-[0.1em] mb-1">Floating P/L</span>
                     <span className={`text-[15px] font-semibold num-tabular ${(masterAccount.floatingPl || 0) >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>
-                      {(masterAccount.floatingPl || 0) >= 0 ? '+' : ''}{new Intl.NumberFormat('en-US', { style: 'currency', currency: masterAccount.currency || 'USD' }).format(masterAccount.floatingPl || 0)}
+                      {(masterAccount.floatingPl || 0) >= 0 ? '+' : ''}<MoneyDisplay amount={masterAccount.floatingPl || 0} sourceCurrency={masterAccount.currency || 'USD'} />
                     </span>
                   </div>
                 </div>
@@ -202,14 +203,10 @@ export default async function DashboardOverview() {
         <div className="xl:col-span-5 flex flex-col gap-10">
           
           {/* THE REAL CHART */}
-          <section className="hero-panel p-6">
+          <section className="premium-glass p-6 rounded-[24px]">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">Performance</h3>
-              <div className="flex items-center gap-2">
-                <button className="pill pill-interactive pill-primary text-[10px]">1D</button>
-                <button className="pill pill-interactive pill-neutral text-[10px]">1W</button>
-                <button className="pill pill-interactive pill-neutral text-[10px]">1M</button>
-              </div>
+              {/* Fake timeframe controls removed as per user instruction for honest functionality */}
             </div>
             <div className="h-[220px] -mx-4 -mb-4">
               <PerformanceChart data={chartData} />
@@ -217,16 +214,18 @@ export default async function DashboardOverview() {
           </section>
 
           {/* RISK CONFIGURATION */}
-          <section className="glass-panel p-6 rounded-[20px]">
+          <section className="surface-matte p-6 rounded-[20px]">
              <div className="flex items-center justify-between mb-6">
               <h3 className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">Risk Engine</h3>
-              <Settings2 className="w-4 h-4 text-muted-foreground" />
+              <button className="pill pill-interactive pill-neutral text-[10px] hover:bg-black/5 dark:hover:bg-white/5">
+                <Settings2 className="w-3.5 h-3.5 mr-1" /> Configure
+              </button>
              </div>
 
              <div className="flex flex-col gap-4">
                 <div className="flex items-center justify-between p-3 rounded-xl bg-black/5 dark:bg-white/5 border border-border/30">
-                  <span className="text-[13px] font-medium text-foreground">Multiplier</span>
-                  <span className="text-[13px] font-semibold text-primary num-tabular">1.0x</span>
+                  <span className="text-[13px] font-medium text-foreground">Allocation</span>
+                  <span className="text-[13px] font-semibold text-primary">Custom per Account</span>
                 </div>
                 <div className="flex items-center justify-between p-3 rounded-xl bg-black/5 dark:bg-white/5 border border-border/30">
                   <span className="text-[13px] font-medium text-foreground">Daily Risk Limit</span>
@@ -300,13 +299,13 @@ export default async function DashboardOverview() {
                   <div className="flex flex-col">
                     <span className="text-[10px] text-muted-foreground uppercase tracking-[0.1em] mb-0.5">Balance</span>
                     <span className="text-[13px] font-semibold text-foreground num-tabular">
-                      {sub.balance != null ? new Intl.NumberFormat('en-US', { style: 'currency', currency: sub.currency || 'USD' }).format(sub.balance) : 'N/A'}
+                      {sub.balance != null ? <MoneyDisplay amount={sub.balance} sourceCurrency={sub.currency || 'USD'} /> : 'N/A'}
                     </span>
                   </div>
                   <div className="flex flex-col items-end">
                     <span className="text-[10px] text-muted-foreground uppercase tracking-[0.1em] mb-0.5">P/L</span>
                     <span className={`text-[13px] font-semibold num-tabular ${sub.floatingPl && sub.floatingPl > 0 ? 'text-emerald-500' : sub.floatingPl && sub.floatingPl < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
-                      {sub.floatingPl && sub.floatingPl > 0 ? '+' : ''}{sub.floatingPl ? new Intl.NumberFormat('en-US', { style: 'currency', currency: sub.currency || 'USD' }).format(sub.floatingPl) : '$0.00'}
+                      {sub.floatingPl && sub.floatingPl > 0 ? '+' : ''}{sub.floatingPl ? <MoneyDisplay amount={sub.floatingPl} sourceCurrency={sub.currency || 'USD'} /> : '$0.00'}
                     </span>
                   </div>
                 </div>

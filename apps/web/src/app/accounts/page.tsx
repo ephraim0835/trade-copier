@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
 import { Settings2, Activity, AlertCircle } from 'lucide-react';
+import { MoneyDisplay } from '@/components/money-display';
 
 export default async function AccountsPage() {
   const accounts = await prisma.mt5Account.findMany({
@@ -50,7 +51,7 @@ export default async function AccountsPage() {
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Balance</span>
                     <span className="font-mono">
-                      {account.balance != null ? new Intl.NumberFormat('en-US', { style: 'currency', currency: account.currency || 'USD' }).format(account.balance) : 'N/A'}
+                      {account.balance != null ? <MoneyDisplay amount={account.balance} sourceCurrency={account.currency || 'USD'} /> : 'N/A'}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">

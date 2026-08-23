@@ -15,13 +15,13 @@ export function BottomNav() {
     { name: 'Accounts', href: '/accounts', icon: Users },
     { name: 'Trades', href: '/positions', icon: ArrowRightLeft },
     { name: 'Risk', href: '/risk', icon: ShieldAlert },
-    { name: 'More', href: '/settings', icon: Menu },
+    { name: 'Settings', href: '/settings', icon: Menu }
   ];
 
   return (
     <div className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[95%] max-w-[400px] z-50 flex flex-col gap-3">
       {isInstallable && (
-        <div className="glass-panel rounded-[16px] px-4 py-3 flex items-center justify-between mx-4 mb-2">
+        <div className="premium-glass rounded-[16px] px-4 py-3 flex items-center justify-between mx-4 mb-2">
           <div className="flex flex-col">
             <span className="text-[13px] font-bold text-foreground">Plaiz App</span>
             <span className="text-[11px] text-muted-foreground">Add to home screen</span>
@@ -36,7 +36,7 @@ export function BottomNav() {
         </div>
       )}
       
-      <div className="glass-panel rounded-[24px] h-[64px] px-2 shadow-lg">
+      <div className="premium-glass rounded-[24px] h-[64px] px-2 shadow-lg">
         <nav className="flex h-full items-center justify-between">
           {navItems.map((item) => {
             const isActive = pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/');
@@ -53,7 +53,7 @@ export function BottomNav() {
                   "p-2 rounded-xl transition-all duration-200 mt-2",
                   isActive ? "text-foreground" : "text-muted-foreground group-hover:text-foreground/80"
                 )}>
-                  <item.icon className={cn("w-[22px] h-[22px]", isActive && "text-primary")} />
+                  <item.icon className={cn("w-[22px] h-[22px]", isActive && "text-foreground")} />
                 </div>
               </Link>
             );

@@ -91,6 +91,9 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+    /* Ultra-subtle environment lighting */
+    background-image: radial-gradient(circle at 50% -20%, rgba(0, 123, 255, 0.03), transparent 60%),
+                      radial-gradient(circle at 80% 120%, rgba(63, 236, 255, 0.02), transparent 50%);
   }
 }
 
@@ -125,8 +128,12 @@
     @apply bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20;
   }
   
+  .pill-destructive {
+    @apply bg-destructive/10 text-destructive dark:text-destructive border border-destructive/20;
+  }
+  
   .pill-primary {
-    @apply bg-primary text-primary-foreground border border-primary/20 hover:bg-primary/90 shadow-[0_4px_14px_0_rgba(0,123,255,0.39)];
+    @apply bg-primary text-primary-foreground border border-primary/20 hover:bg-primary/90 shadow-[0_4px_14px_0_rgba(0,123,255,0.2)] hover:shadow-[0_6px_20px_rgba(0,123,255,0.3)];
   }
 
   /* Button Component */
@@ -142,42 +149,24 @@
     @apply bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border/50;
   }
 
-  /* Ambient Lighting (Used in layout background) */
-  .ambient-glow-primary {
-    @apply absolute rounded-full blur-[120px] opacity-[0.15] dark:opacity-[0.25] pointer-events-none transition-opacity duration-500;
-    background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
-  }
-  
-  .ambient-glow-accent {
-    @apply absolute rounded-full blur-[120px] opacity-[0.1] dark:opacity-[0.15] pointer-events-none transition-opacity duration-500;
-    background: radial-gradient(circle, var(--accent) 0%, transparent 70%);
-  }
-
-  /* Premium Glass Panel (For floating navigation, sidebars) */
-  .glass-panel {
-    @apply bg-card/80 dark:bg-[#1a1a1a]/70 border border-border/40 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.12)] relative overflow-hidden;
+  /* Premium Glass (For Navigation and Performance Instrument) */
+  .premium-glass {
+    @apply bg-white/60 dark:bg-white/[0.03] border border-black/5 dark:border-white/[0.06] shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] relative overflow-hidden;
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-  }
-  
-  .glass-panel::before {
-    content: '';
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(to bottom right, rgba(255, 255, 255, 0.1), transparent);
-    @apply absolute opacity-0 transition-opacity duration-300 pointer-events-none;
+    box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.6);
   }
   
   @media (prefers-color-scheme: dark) {
-    .glass-panel::before {
-      background: linear-gradient(to bottom right, rgba(255, 255, 255, 0.05), transparent);
+    .premium-glass {
+      box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.05), 0 8px 30px rgb(0 0 0 / 0.2);
     }
   }
-  
-  .glass-panel:hover::before {
-    @apply opacity-100;
+
+  /* Grounded Content Surface */
+  .surface-matte {
+    @apply bg-card dark:bg-[#15151f] border border-border/40 relative overflow-hidden rounded-[24px];
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
   }
 
   .hero-panel {

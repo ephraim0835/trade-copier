@@ -22,10 +22,10 @@ export function Sidebar() {
   const { isInstallable, installApp } = usePwa();
   const navItems = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-    { name: 'Master Account', href: '/master', icon: ShieldCheck },
+    { name: 'Master Source', href: '/master', icon: ShieldCheck },
     { name: 'Sub Accounts', href: '/accounts', icon: Users },
-    { name: 'Trades', href: '/positions', icon: ArrowRightLeft },
-    { name: 'Risk Management', href: '/risk', icon: ShieldAlert },
+    { name: 'Live Trades', href: '/positions', icon: ArrowRightLeft },
+    { name: 'Risk Engine', href: '/risk', icon: ShieldAlert },
     { name: 'Performance', href: '/performance', icon: LineChart },
     { name: 'Activity', href: '/activity', icon: Activity },
     { name: 'Settings', href: '/settings', icon: Settings },
@@ -34,7 +34,7 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden lg:flex flex-col w-[260px] glass-panel h-[calc(100vh-2rem)] sticky top-4 ml-4 rounded-[24px] z-40 shrink-0">
+    <aside className="hidden lg:flex flex-col w-[260px] premium-glass h-[calc(100vh-2rem)] sticky top-4 ml-4 rounded-[24px] z-40 shrink-0">
       <div className="h-[88px] flex items-center px-8">
         <Link href="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
           <div className="flex gap-1 items-end h-6 pt-1">
@@ -60,7 +60,7 @@ export function Sidebar() {
                 className={cn(
                   'flex items-center gap-3 px-4 py-3 rounded-xl text-[13px] font-medium transition-all duration-200 group relative',
                   isActive
-                    ? 'bg-card text-foreground shadow-sm font-semibold'
+                    ? 'bg-black/5 dark:bg-white/10 text-foreground font-semibold shadow-sm'
                     : 'text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5 hover:text-foreground border border-transparent'
                 )}
               >
@@ -69,7 +69,7 @@ export function Sidebar() {
                 )}
                 <item.icon className={cn(
                   'w-[18px] h-[18px] transition-colors', 
-                  isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'
+                  isActive ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground'
                 )} />
                 {item.name}
               </Link>
