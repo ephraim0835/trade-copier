@@ -1,10 +1,10 @@
-import { LoginForm } from "./login-form";
 import { getServerSession } from "next-auth/next";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { SignupForm } from "./signup-form";
 
-export default async function LoginPage() {
+export default async function SignupPage() {
   const session = await getServerSession();
   
   // If already authenticated, redirect to dashboard
@@ -29,7 +29,7 @@ export default async function LoginPage() {
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/10 via-background to-background"></div>
 
       <div className="flex-1 flex flex-col items-center justify-center p-4">
-        <LoginForm />
+        <SignupForm />
       </div>
     </div>
   );

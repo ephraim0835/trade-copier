@@ -6,29 +6,7 @@ export default function MarketingHomepage() {
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col relative overflow-hidden">
       
-      {/* Navbar */}
-      <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-md supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto max-w-7xl px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <img src="/plaiz-logo.png" alt="Plaiz Markets" className="h-8 w-auto" />
-            <span className="font-bold text-xl tracking-tight hidden sm:inline-block">PLAIZ MARKETS</span>
-          </div>
-          <nav className="hidden md:flex gap-8 text-sm font-medium text-muted-foreground">
-            <a href="#features" className="hover:text-foreground transition-colors">Features</a>
-            <a href="#infrastructure" className="hover:text-foreground transition-colors">Infrastructure</a>
-            <a href="#pricing" className="hover:text-foreground transition-colors">Pricing</a>
-          </nav>
-          <div className="flex items-center gap-4">
-            <ThemeToggle />
-            <Link href="/login" className="text-sm font-medium hover:text-primary transition-colors hidden sm:inline-block">
-              Sign in
-            </Link>
-            <Link href="/dashboard" className="plaiz-btn plaiz-plaiz-btn-primary rounded-full px-5">
-              Get Started
-            </Link>
-          </div>
-        </div>
-      </header>
+
 
       {/* Hero Section */}
       <section className="relative pt-24 pb-32 lg:pt-36 lg:pb-48 flex items-center justify-center flex-col text-center px-4 z-10">
@@ -51,11 +29,11 @@ export default function MarketingHomepage() {
         </p>
         
         <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-          <Link href="/dashboard" className="plaiz-btn plaiz-plaiz-btn-primary text-base h-12 px-8 rounded-full shadow-lg shadow-primary/25">
+          <Link href="/dashboard" className="plaiz-btn plaiz-btn-primary text-base h-12 px-8 rounded-full shadow-lg shadow-primary/25">
             Start Copying
             <ChevronRight className="w-4 h-4 ml-1" />
           </Link>
-          <a href="#features" className="plaiz-btn plaiz-plaiz-btn-secondary text-base h-12 px-8 rounded-full">
+          <a href="#features" className="plaiz-btn plaiz-btn-secondary text-base h-12 px-8 rounded-full">
             Explore Features
           </a>
         </div>

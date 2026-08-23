@@ -9,7 +9,7 @@ import { ThemeProvider } from '@/components/theme-provider';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Plaiz Markets | Professional Trade Copier',
+  title: 'Plaiz Markets | Professional Trade Copying',
   description: 'Premium fintech trade copying and risk management platform.',
   manifest: '/manifest.json',
   appleWebApp: {

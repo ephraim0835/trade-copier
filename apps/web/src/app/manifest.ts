@@ -2,8 +2,8 @@ import { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Plaiz Trade Copier',
-    short_name: 'Plaiz Copier',
+    name: 'Plaiz Markets',
+    short_name: 'Plaiz Markets',
     description: 'Professional fintech trade copying and risk management platform.',
     start_url: '/',
     display: 'standalone',

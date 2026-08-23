@@ -26,14 +26,18 @@ export default async function AdminLayout({
     <div className="min-h-screen bg-background flex">
       {/* Admin Sidebar */}
       <aside className="w-64 border-r border-border/40 bg-card/50 flex flex-col hidden md:flex shrink-0">
-        <div className="h-16 flex items-center px-6 border-b border-border/40">
+        <div className="h-16 flex items-center px-6 border-b border-border/40 gap-3">
+          <img src="/plaiz-logo.png" alt="Plaiz Markets" className="h-5 w-auto grayscale" />
+          <span className="font-bold text-lg tracking-tight text-foreground">PLAIZ ADMIN</span>
+        </div>
+        <div className="px-6 py-4 border-b border-border/40">
           <Link href="/dashboard" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-sm font-medium">
             <ArrowLeft className="w-4 h-4" />
-            Exit Admin
+            Exit to User App
           </Link>
         </div>
         <div className="p-6 pb-2">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4">Admin Console</h2>
+          <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4">Console Modules</h2>
           <nav className="flex flex-col gap-1">
             <Link href="/admin" className="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary font-medium text-sm">
               <Activity className="w-4 h-4" />
