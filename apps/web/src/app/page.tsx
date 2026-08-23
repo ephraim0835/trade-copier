@@ -50,7 +50,7 @@ export default async function DashboardOverview() {
   // ==========================================
   // DATA PROCESSING (PRESERVED EXACTLY)
   // ==========================================
-  const masterAccount = accounts.find((a: any) => a.role === 'MASTER');
+  const masterAccounts = accounts.filter((a: any) => a.role === 'MASTER');
   const subAccounts = accounts.filter((a: any) => a.role === 'SUB');
   const activeSubs = subAccounts.filter((a: any) => a.isActive).length;
   
@@ -148,44 +148,80 @@ export default async function DashboardOverview() {
 
           {/* MASTER ACCOUNT: Functional Digital Card */}
           <section>
-            <h3 className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground font-semibold mb-4">Master Source</h3>
+            <h3 className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground font-semibold mb-4">Master Sources & Portfolios</h3>
             
-            {masterAccount ? (
-              <Link href="/master" className="group block digital-card p-6 rounded-[20px]">
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6 mb-8">
-                  <div className="flex flex-col gap-3">
-                    <div className="flex items-center gap-2">
-                      <div className="pill pill-neutral text-[10px] uppercase tracking-widest">{masterAccount.broker || 'Unknown'}</div>
-                      <div className={`pill text-[10px] ${masterOnline ? 'pill-success' : 'pill-destructive'}`}><Wifi className="w-3 h-3" /> {masterOnline ? 'Connected' : 'Offline'}</div>
-                    </div>
-                    <h4 className="text-[28px] font-bold text-foreground tracking-tighter leading-none group-hover:text-primary transition-colors">{masterAccount.login}</h4>
-                  </div>
+            {masterAccounts.length > 0 ? (
+              <div className="flex flex-col gap-10">
+                {masterAccounts.map((master: any) => {
+                  const masterOnline = isOnline(master.eaTokens?.[0]);
+                  // Currently mocking the relationship. In the future this will be `master.subAccounts`
+                  const tiedSubs = subAccounts; 
                   
-                  <div className="flex items-center gap-2">
-                    <div className="bg-card/50 px-4 py-2 rounded-xl border border-border/30 text-right">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-0.5">Balance</p>
-                      <p className="text-[16px] font-semibold text-foreground num-tabular leading-none">
-                        {masterAccount.balance != null ? <MoneyDisplay amount={masterAccount.balance} sourceCurrency={masterAccount.currency || 'USD'} /> : 'N/A'}
-                      </p>
+                  return (
+                    <div key={master.id} className="flex flex-col gap-4">
+                      <Link href="/master" className="group block digital-card p-6 rounded-[20px]">
+                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6 mb-8">
+                          <div className="flex flex-col gap-3">
+                            <div className="flex items-center gap-2">
+                              <div className="pill pill-neutral text-[10px] uppercase tracking-widest">{master.broker || 'Unknown'}</div>
+                              <div className={`pill text-[10px] ${masterOnline ? 'pill-success' : 'pill-destructive'}`}><Wifi className="w-3 h-3" /> {masterOnline ? 'Connected' : 'Offline'}</div>
+                            </div>
+                            <h4 className="text-[28px] font-bold text-foreground tracking-tighter leading-none group-hover:text-primary transition-colors">{master.login}</h4>
+                          </div>
+                          
+                          <div className="flex items-center gap-2">
+                            <div className="bg-card/50 px-4 py-2 rounded-xl border border-border/30 text-right">
+                              <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-0.5">Balance</p>
+                              <p className="text-[16px] font-semibold text-foreground num-tabular leading-none">
+                                {master.balance != null ? <MoneyDisplay amount={master.balance} sourceCurrency={master.currency || 'USD'} /> : 'N/A'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4 pt-6 border-t border-border/20">
+                          <div className="flex flex-col">
+                            <span className="text-[10px] text-muted-foreground uppercase tracking-[0.1em] mb-1">Equity</span>
+                            <span className="text-[15px] font-semibold text-foreground num-tabular">
+                              {master.equity != null ? <MoneyDisplay amount={master.equity} sourceCurrency={master.currency || 'USD'} /> : 'N/A'}
+                            </span>
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[10px] text-muted-foreground uppercase tracking-[0.1em] mb-1">Floating P/L</span>
+                            <span className={`text-[15px] font-semibold num-tabular ${(master.floatingPl || 0) >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>
+                              {(master.floatingPl || 0) >= 0 ? '+' : ''}<MoneyDisplay amount={master.floatingPl || 0} sourceCurrency={master.currency || 'USD'} />
+                            </span>
+                          </div>
+                        </div>
+                      </Link>
+
+                      {/* Tied Sub Accounts */}
+                      {tiedSubs.length > 0 && (
+                        <div className="ml-6 pl-6 border-l-2 border-border/20 flex flex-col gap-3">
+                          <h4 className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-semibold mt-2 mb-1">Tied Portfolios</h4>
+                          {tiedSubs.map((sub: any) => (
+                            <Link key={sub.id} href="/risk" className="group surface-matte p-4 rounded-[16px] flex items-center justify-between hover:bg-black/10 dark:hover:bg-white/5 border border-border/30 transition-all cursor-pointer">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/5 border border-border/30 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                                  <Users className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                                </div>
+                                <div>
+                                  <div className="text-[13px] font-bold text-foreground leading-none">{sub.login}</div>
+                                  <div className="text-[10px] text-muted-foreground mt-1">{sub.broker}</div>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-[13px] font-semibold text-foreground num-tabular"><MoneyDisplay amount={sub.balance || 0} sourceCurrency={sub.currency || 'USD'} /></div>
+                                <div className="text-[10px] text-muted-foreground mt-1">Multiplier: {sub.copySettings?.riskMultiplier || 1.0}x</div>
+                              </div>
+                            </Link>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4 pt-6 border-t border-border/20">
-                  <div className="flex flex-col">
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-[0.1em] mb-1">Equity</span>
-                    <span className="text-[15px] font-semibold text-foreground num-tabular">
-                      {masterAccount.equity != null ? <MoneyDisplay amount={masterAccount.equity} sourceCurrency={masterAccount.currency || 'USD'} /> : 'N/A'}
-                    </span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-[0.1em] mb-1">Floating P/L</span>
-                    <span className={`text-[15px] font-semibold num-tabular ${(masterAccount.floatingPl || 0) >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>
-                      {(masterAccount.floatingPl || 0) >= 0 ? '+' : ''}<MoneyDisplay amount={masterAccount.floatingPl || 0} sourceCurrency={masterAccount.currency || 'USD'} />
-                    </span>
-                  </div>
-                </div>
-              </Link>
+                  );
+                })}
+              </div>
             ) : (
               <div className="hero-panel p-8 flex flex-col items-center justify-center text-center">
                 <ShieldAlert className="w-8 h-8 mb-3 text-muted-foreground" />
