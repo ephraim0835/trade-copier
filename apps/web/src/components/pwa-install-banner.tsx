@@ -1,33 +1,86 @@
 'use client';
 
-import { Download, X } from 'lucide-react';
-import { usePwa } from './pwa-provider';
+import { useState, useEffect } from 'react';
+import { X, Download } from 'lucide-react';
 
-import Image from 'next/image';
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
 
 export function PwaInstallBanner() {
-  const { isInstallable, installApp } = usePwa();
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [isVisible, setIsVisible] = useState(false);
+  const [isDismissed, setIsDismissed] = useState(false);
 
-  if (!isInstallable) return null;
+  useEffect(() => {
+    if (sessionStorage.getItem('pwa-banner-dismissed')) return;
+
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e as BeforeInstallPromptEvent);
+      setTimeout(() => setIsVisible(true), 4000);
+    };
+
+    window.addEventListener('beforeinstallprompt', handler);
+
+    // iOS doesn't fire beforeinstallprompt — show manually
+    const isIos = /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase());
+    const isStandalone = ('standalone' in window.navigator) && (window.navigator as any).standalone;
+    if (isIos && !isStandalone) {
+      setTimeout(() => setIsVisible(true), 4000);
+    }
+
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (installPrompt) {
+      await installPrompt.prompt();
+      const { outcome } = await installPrompt.userChoice;
+    }
+    handleDismiss();
+  };
+
+  const handleDismiss = () => {
+    setIsVisible(false);
+    setIsDismissed(true);
+    sessionStorage.setItem('pwa-banner-dismissed', '1');
+  };
+
+  if (!isVisible || isDismissed) return null;
 
   return (
-    <div className="bg-primary text-primary-foreground px-4 py-3 flex items-center justify-between z-50">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-[10px] bg-black/20 overflow-hidden shadow-sm border border-white/10 shrink-0">
-          <Image src="/logo.png" alt="Plaiz Markets Logo" width={40} height={40} className="object-cover w-full h-full scale-[1.15]" />
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-sm animate-in slide-in-from-bottom-4 fade-in duration-500">
+      <div className="plaiz-card bg-card/90 backdrop-blur-xl border border-border/50 rounded-2xl px-4 py-3 flex items-center gap-3 shadow-2xl shadow-black/30">
+        {/* Logo */}
+        <div className="shrink-0 w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center overflow-hidden">
+          <img src="/plaiz-logo.png" alt="Plaiz Markets" className="w-7 h-7 object-contain" />
         </div>
-        <div className="flex flex-col">
-          <span className="text-[13px] font-bold">Plaiz Markets App</span>
-          <span className="text-[11px] opacity-80">Add to home screen for the best experience</span>
+
+        {/* Text */}
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] font-semibold text-foreground leading-tight">Add to Home Screen</p>
+          <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">Get the Plaiz Markets app</p>
         </div>
+
+        {/* Install button */}
+        <button
+          onClick={handleInstall}
+          className="shrink-0 flex items-center gap-1.5 bg-primary text-primary-foreground text-[12px] font-semibold px-3 py-1.5 rounded-full hover:opacity-90 transition-opacity"
+        >
+          <Download className="w-3 h-3" />
+          Install
+        </button>
+
+        {/* Dismiss */}
+        <button
+          onClick={handleDismiss}
+          className="shrink-0 p-1 text-muted-foreground hover:text-foreground transition-colors rounded-full hover:bg-secondary/50"
+        >
+          <X className="w-4 h-4" />
+        </button>
       </div>
-      <button
-        onClick={installApp}
-        className="bg-white/20 hover:bg-white/30 text-white transition-colors rounded-full py-1.5 px-4 text-[12px] font-medium flex items-center gap-1.5"
-      >
-        <Download className="w-3.5 h-3.5" />
-        Install
-      </button>
     </div>
   );
 }

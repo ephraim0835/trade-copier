@@ -1,4 +1,5 @@
 import { MarketingHeader } from "@/components/layout/marketing-header";
+import { PwaInstallBanner } from "@/components/pwa-install-banner";
 
 export default function MarketingLayout({
   children,
@@ -11,6 +12,7 @@ export default function MarketingLayout({
       <main className="pt-24 min-h-screen">
         {children}
       </main>
+      <PwaInstallBanner />
     </>
   );
 }
