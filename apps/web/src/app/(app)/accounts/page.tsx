@@ -29,14 +29,14 @@ export default async function AccountsPage() {
             : false;
           
           return (
-            <div key={account.id} className="bg-card rounded-xl border border-border p-6 shadow-sm flex flex-col justify-between">
+            <div key={account.id} className="plaiz-card p-6 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <div className={`w-3 h-3 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-destructive'}`} />
-                    <span className="font-semibold">{account.login}</span>
+                    <span className="font-semibold text-lg">{account.login}</span>
                   </div>
-                  <span className="text-xs text-muted-foreground bg-secondary px-2 py-1 rounded-md">
+                  <span className="plaiz-pill plaiz-pill-neutral text-[10px]">
                     {account.broker}
                   </span>
                 </div>
@@ -50,26 +50,26 @@ export default async function AccountsPage() {
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Balance</span>
-                    <span className="font-mono">
+                    <span className="font-bold num-tabular text-foreground">
                       {account.balance != null ? <MoneyDisplay amount={account.balance} sourceCurrency={account.currency || 'USD'} /> : 'N/A'}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Risk Multiplier</span>
-                    <span className="font-mono">{account.copySettings?.riskMultiplier?.toFixed(2) || '1.00'}x</span>
+                    <span className="font-bold num-tabular text-foreground">{account.copySettings?.riskMultiplier?.toFixed(2) || '1.00'}x</span>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 mt-4 pt-4 border-t border-border">
+              <div className="flex items-center gap-3 mt-4 pt-4 border-t border-border/40">
                 <Link 
                   href={`/accounts/${account.id}/settings`}
-                  className="flex-1 flex items-center justify-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                  className="plaiz-btn plaiz-btn-primary flex-1 justify-center"
                 >
                   <Settings2 className="w-4 h-4" />
                   Risk Controls
                 </Link>
-                <button className="p-2 border border-border rounded-lg text-muted-foreground hover:bg-secondary transition-colors" title="View Logs">
+                <button className="plaiz-btn plaiz-btn-secondary px-3" title="View Logs">
                   <Activity className="w-4 h-4" />
                 </button>
               </div>
@@ -78,9 +78,9 @@ export default async function AccountsPage() {
         })}
 
         {accounts.length === 0 && (
-          <div className="col-span-full py-12 flex flex-col items-center justify-center text-center bg-secondary/20 rounded-xl border border-dashed border-border">
-            <AlertCircle className="w-8 h-8 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium">No Sub Accounts</h3>
+          <div className="col-span-full py-12 flex flex-col items-center justify-center text-center plaiz-card bg-secondary/20 border-dashed">
+            <AlertCircle className="w-8 h-8 text-muted-foreground mb-4 opacity-50" />
+            <h3 className="text-lg font-bold">No Sub Accounts</h3>
             <p className="text-sm text-muted-foreground mt-1 max-w-sm">
               You haven't connected any sub accounts yet. Launch the Sub EA to connect a terminal.
             </p>

@@ -28,7 +28,7 @@ export default async function RiskPage() {
         {subAccounts.length > 0 ? (
           <RiskControls initialAccounts={subAccounts} />
         ) : (
-          <div className="surface-matte p-12 rounded-[24px] flex flex-col items-center justify-center text-center">
+          <div className="plaiz-card bg-secondary/30 p-12 rounded-[24px] flex flex-col items-center justify-center text-center">
             <Users className="w-10 h-10 mb-4 text-muted-foreground opacity-50" />
             <h2 className="text-[16px] font-bold text-foreground mb-2">No Sub Accounts Found</h2>
             <p className="text-[13px] text-muted-foreground max-w-md">Connect portfolio accounts to configure their risk allocation settings.</p>

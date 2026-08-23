@@ -69,16 +69,13 @@ export class RiskEngineService {
     decision.intendedRisk = profile.equity * (intendedRiskPct / 100);
     decision.maxPermittedRisk = decision.intendedRisk;
 
-    // ── STEP 4: Per-lot risk using tick geometry ─────────────
-    // riskPerLot ($) = (slDistancePips / tickSize) * tickValue
-    // tickValue is already expressed in account currency per tick per lot
-    const slDistance = Math.abs(signal.priceOpen - signal.sl);
-    if (slDistance === 0) {
-      decision.rejectionReason = 'SL distance is 0 — cannot calculate risk';
-      return decision;
-    }
-    const riskPerLot = (slDistance / specs.tickSize) * specs.tickValue;
-    decision.calculatedVol = decision.intendedRisk / riskPerLot;
+    // ── STEP 4: Absolute lot sizing is skipped here ──────────
+    // The MQL5 EA will calculate the final volume using its local dynamic
+    // tickValue and tickSize to avoid complex currency conversions in Node.js.
+    // We only pass down the `$ intended risk`.
+    decision.calculatedVol = 0;
+    decision.estimatedSlRisk = decision.intendedRisk;
+    decision.roundingDiff = 0;
 
     // ── STEP 5: RR Validation ───────────────────────────────
     let nominalRR = this.computeRR(signal.priceOpen, signal.sl, signal.tp);
@@ -118,41 +115,8 @@ export class RiskEngineService {
       }
     }
 
-    // ── STEP 6: Lot-step rounding & min/max clamp ───────────
-    // Must happen before the margin check so we validate the actual order size.
-    let roundedVol = Math.round(decision.calculatedVol / specs.volumeStep) * specs.volumeStep;
-    if (roundedVol < specs.volumeMin) roundedVol = specs.volumeMin;
-    if (roundedVol > specs.volumeMax) roundedVol = specs.volumeMax;
-
-    // ── STEP 7: Rounding Tolerance ───────────────────────────
-    // roundingDiff = additional $ risk caused PURELY by rounding up.
-    // Negative values mean we rounded down (acceptable, always).
-    let estimatedSlRisk = roundedVol * riskPerLot;
-    let roundingDiff = estimatedSlRisk - decision.intendedRisk;
-    const maxRoundingExcess = decision.intendedRisk * (profile.roundingTolerancePct / 100);
-
-    if (roundingDiff > maxRoundingExcess) {
-      // Round down one step to stay within tolerance
-      const lowerVol = roundedVol - specs.volumeStep;
-      if (lowerVol < specs.volumeMin) {
-        decision.rejectionReason =
-          `Rounding excess ($${this.fmt(roundingDiff)}) exceeds tolerance ` +
-          `($${this.fmt(maxRoundingExcess)}) and rounding down violates min lot`;
-        return decision;
-      }
-      roundedVol = lowerVol;
-      estimatedSlRisk = roundedVol * riskPerLot;
-      roundingDiff = estimatedSlRisk - decision.intendedRisk;
-    }
-
-    // ── STEP 8: Insufficient Margin (uses clamped volume) ────
-    if (specs.marginRequiredPerLot !== undefined) {
-      const marginRequired = roundedVol * specs.marginRequiredPerLot;
-      if (marginRequired > profile.marginFree) {
-        decision.rejectionReason = `Insufficient free margin: need $${this.fmt(marginRequired)}, have $${this.fmt(profile.marginFree)}`;
-        return decision;
-      }
-    }
+    // Since the API no longer checks margin or volume limits, we approve it here.
+    // The SubCopier EA will perform final validation of margin and lot sizes natively.
 
     // ── STEP 7: Hedging / Netting account logic ──────────────
     // On a NETTING account the broker nets offsetting positions on the same symbol.
@@ -184,15 +148,14 @@ export class RiskEngineService {
       return decision;
     }
 
-    // (Lot rounding and tolerance already computed above in Steps 6–7)
-
-    decision.executedVol = roundedVol;
-    decision.estimatedSlRisk = estimatedSlRisk;
-    decision.roundingDiff = roundingDiff; // positive = rounded up, negative = rounded down
+    // (Lot sizing logic removed, handled by EA locally)
+    decision.executedVol = 0; // Volume is 0 because the EA will calculate it dynamically
+    decision.estimatedSlRisk = decision.intendedRisk;
+    decision.roundingDiff = 0;
 
     // Update projected daily risk
     if (profile.dailyRiskEnabled) {
-      decision.dailyRiskAfter = profile.currentDailyRisk + estimatedSlRisk;
+      decision.dailyRiskAfter = profile.currentDailyRisk + decision.intendedRisk;
     }
 
     // ── STEP 12: Final Approval ──────────────────────────────

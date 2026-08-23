@@ -12,6 +12,10 @@ interface CachedSubAccount {
   isDemo: boolean;
   isActive: boolean;
   copySettings: CopySettings | null;
+  equity: number;
+  balance: number;
+  freeMargin: number;
+  currency: string;
 }
 
 interface InFlightTradeSignal {
@@ -47,8 +51,8 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
   private sweeperInterval: NodeJS.Timeout | null = null;
   private cacheRefreshInterval: NodeJS.Timeout | null = null;
 
-  // In-memory Sub Accounts & CopySettings cache (30s TTL with auto-refresh)
-  private subAccountsCache: CachedSubAccount[] = [];
+  // In-memory Sub Accounts & CopySettings cache mapped by MasterAccountId (30s TTL with auto-refresh)
+  private subAccountsCache = new Map<string, CachedSubAccount[]>();
   private lastSubCacheRefresh = 0;
 
   // In-memory active signals and copy mappings (O(1) lookups for modify/close)
@@ -82,25 +86,58 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
 
   private async refreshSubAccountsCache() {
     try {
-      const accounts = await this.prisma.mt5Account.findMany({
+      // Fetch all active subscriptions including subAccount and copySettings
+      const subscriptions = await this.prisma.accountSubscription.findMany({
         where: {
-          role: 'SUB',
           isActive: true,
-          isDemo: true, // Strict DEMO_ONLY lock
+          subAccount: {
+            isActive: true,
+            isDemo: true, // Strict DEMO_ONLY lock
+          }
         },
         include: {
-          copySettings: true,
+          subAccount: {
+            include: {
+              copySettings: true,
+            }
+          }
         },
       });
 
-      this.subAccountsCache = accounts.map(a => ({
-        id: a.id,
-        isDemo: a.isDemo,
-        isActive: a.isActive,
-        copySettings: a.copySettings,
-      }));
+      const newCache = new Map<string, CachedSubAccount[]>();
+      
+      for (const sub of subscriptions) {
+        const a = sub.subAccount;
+        
+        // Merge the subscription risk override with the account copySettings if needed
+        const mergedSettings = a.copySettings ? { ...a.copySettings } : null;
+        if (mergedSettings && sub.riskMultiplier !== null) {
+          mergedSettings.riskMultiplier = sub.riskMultiplier;
+        }
+
+        const cached: CachedSubAccount = {
+          id: a.id,
+          isDemo: a.isDemo,
+          isActive: a.isActive,
+          copySettings: mergedSettings,
+          equity: a.equity ?? 0,
+          balance: a.balance ?? 0,
+          freeMargin: a.freeMargin ?? 0,
+          currency: a.currency ?? 'USD',
+        };
+
+        if (!newCache.has(sub.masterAccountId)) {
+          newCache.set(sub.masterAccountId, []);
+        }
+        newCache.get(sub.masterAccountId)!.push(cached);
+      }
+
+      this.subAccountsCache = newCache;
       this.lastSubCacheRefresh = Date.now();
-      this.logger.debug(`[MasterSignal] Sub accounts cache updated: ${this.subAccountsCache.length} active demo accounts`);
+      
+      let totalSubs = 0;
+      for (const subs of newCache.values()) totalSubs += subs.length;
+      this.logger.debug(`[MasterSignal] Sub accounts cache updated: ${totalSubs} active subscriptions mapped`);
     } catch (err: any) {
       this.logger.warn(`[MasterSignal] DB error refreshing sub accounts: ${err.message}. Using existing cache.`);
     }
@@ -111,7 +148,11 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
     for (const signal of this.activeSignalsByTicket.values()) {
       for (const copy of signal.copies.values()) {
         if (copy.state === CopyState.WAITING_FOR_SL) {
-          const sub = this.subAccountsCache.find(s => s.id === copy.subAccountId);
+          let sub: CachedSubAccount | undefined;
+          for (const subs of this.subAccountsCache.values()) {
+            sub = subs.find(s => s.id === copy.subAccountId);
+            if (sub) break;
+          }
           const timeoutSec = sub?.copySettings?.missingSlTimeoutSec ?? 60;
           if (now - copy.createdAt.getTime() > timeoutSec * 1000) {
             copy.state = CopyState.EXPIRED;
@@ -142,21 +183,22 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
     return specs;
   }
 
-  private buildRiskProfile(copySettings: any) {
+  private buildRiskProfile(sub: CachedSubAccount) {
+    const copySettings = sub.copySettings || ({} as any);
     return {
-      equity: 10000,
-      currency: 'USD',
-      marginFree: 10000,
+      equity: sub.equity > 0 ? sub.equity : 10000,
+      currency: sub.currency,
+      marginFree: sub.freeMargin > 0 ? sub.freeMargin : 10000,
       accountType: 'HEDGING' as const,
-      riskMultiplier: copySettings.riskMultiplier,
-      roundingTolerancePct: copySettings.roundingTolerancePct,
-      dailyRiskEnabled: copySettings.dailyRiskEnabled,
-      maxDailyRisk: copySettings.maxDailyRisk,
-      maxTradesEnabled: copySettings.maxTradesEnabled,
-      maxActiveTrades: copySettings.maxActiveTrades,
-      requireTp: copySettings.requireTp,
-      missingSlTimeoutSec: copySettings.missingSlTimeoutSec,
-      maxRecoveryRRDegradation: copySettings.maxRecoveryRRDegradation,
+      riskMultiplier: copySettings.riskMultiplier ?? 1.0,
+      roundingTolerancePct: copySettings.roundingTolerancePct ?? 2.0,
+      dailyRiskEnabled: copySettings.dailyRiskEnabled ?? false,
+      maxDailyRisk: copySettings.maxDailyRisk ?? 0,
+      maxTradesEnabled: copySettings.maxTradesEnabled ?? false,
+      maxActiveTrades: copySettings.maxActiveTrades ?? 0,
+      requireTp: copySettings.requireTp ?? true,
+      missingSlTimeoutSec: copySettings.missingSlTimeoutSec ?? 60,
+      maxRecoveryRRDegradation: copySettings.maxRecoveryRRDegradation ?? 0.5,
       currentDailyRisk: 0,
       currentActiveTrades: 0,
     };
@@ -223,11 +265,12 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
     const tradeCopiesData: any[] = [];
     const executionCommandsData: HotCommandData[] = [];
 
-    // 3. Authoritative Risk Engine evaluation in-memory for all active Demo sub-accounts
-    for (const sub of this.subAccountsCache) {
+    // 3. Authoritative Risk Engine evaluation in-memory for subscribed active Demo sub-accounts
+    const subscribedSubs = this.subAccountsCache.get(masterAccountId) || [];
+    for (const sub of subscribedSubs) {
       if (!sub.copySettings || !sub.isDemo || !sub.isActive) continue;
 
-      const riskProfile = this.buildRiskProfile(sub.copySettings);
+      const riskProfile = this.buildRiskProfile(sub);
       const signalInput = {
         signalId,
         symbol: dto.symbol,
@@ -275,6 +318,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
           symbol: dto.symbol,
           orderType: dto.type,
           volume: decision.executedVol,
+          intendedRisk: decision.intendedRisk,
           price: 0,
           sl: dto.sl ?? 0,
           tp: dto.tp ?? 0,
@@ -356,11 +400,12 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
       for (const copy of signal.copies.values()) {
         // Case 1: Transition WAITING_FOR_SL -> APPROVED
         if (copy.state === CopyState.WAITING_FOR_SL && dto.sl && dto.sl > 0) {
-          const sub = this.subAccountsCache.find(s => s.id === copy.subAccountId);
+          const subscribedSubs = this.subAccountsCache.get(masterAccountId) || [];
+          const sub = subscribedSubs.find(s => s.id === copy.subAccountId);
           if (!sub?.copySettings) continue;
 
           const specs = this.getMockSymbolSpecs(signal.symbol);
-          const profile = this.buildRiskProfile(sub.copySettings);
+          const profile = this.buildRiskProfile(sub);
           const signalInput = {
             signalId: signal.id,
             symbol: signal.symbol,
@@ -389,6 +434,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
               symbol: signal.symbol,
               orderType: signal.type as any,
               volume: decision.executedVol,
+              intendedRisk: decision.intendedRisk,
               price: 0,
               sl: dto.sl,
               tp: dto.tp ?? signal.tp,

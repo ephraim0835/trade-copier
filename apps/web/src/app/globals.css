@@ -26,61 +26,63 @@
 
 @layer base {
   :root {
-    --background: #f8fafc; /* Clean off-white surface */
-    --foreground: #1a1a1a; /* Deep charcoal text */
+    /* LIGHT MODE */
+    --background: #fdfdfd; /* Extremely clean, warm off-white */
+    --foreground: #111111; /* Charcoal black */
     
     --card: #ffffff;
-    --card-foreground: #1a1a1a;
+    --card-foreground: #111111;
     
     /* PLAiz Fintech Brand */
-    --primary: #007bff; /* Plaiz Blue primary */
+    --primary: #0066FF; /* Deeper, more professional blue for light mode */
     --primary-foreground: #ffffff;
     
-    --secondary: #f1f5f9; /* Soft gray for hover states */
-    --secondary-foreground: #007bff;
+    --secondary: #f4f4f5; /* Clean light gray */
+    --secondary-foreground: #18181b;
     
-    --muted: #f8fafc;
-    --muted-foreground: #64748b;
+    --muted: #f4f4f5;
+    --muted-foreground: #71717a;
     
-    --accent: #3fecff; /* Cyan accent */
-    --accent-foreground: #000000;
+    --accent: #e0f2fe; /* Very soft blue for accents */
+    --accent-foreground: #0066FF;
     
     --destructive: #ef4444;
     --destructive-foreground: #ffffff;
 
-    --border: #e2e8f0; /* Soft gray borders */
-    --input: #e2e8f0;
-    --ring: #007bff; /* Blue ring for light mode */
+    --border: #e4e4e7; /* Soft but visible gray border */
+    --input: #e4e4e7;
+    --ring: #0066FF;
 
-    --radius: 0.75rem; /* Smoother cards */
+    --radius: 0.75rem; /* Clean curves */
   }
 
   .dark {
-    --background: #0f0f1a; /* Plaiz Void */
-    --foreground: #f6fcff; /* Ice / Soft white */
+    /* DARK MODE */
+    --background: #09090b; /* Deep void/black canvas */
+    --foreground: #fafafa; /* Clean white */
     
-    --card: #1a1a1a; /* Deep Charcoal */
-    --card-foreground: #f6fcff;
+    --card: #121214; /* Extremely dark matte surface */
+    --card-foreground: #fafafa;
     
     /* PLAiz Fintech Brand */
     --primary: #007bff; /* Plaiz Blue */
     --primary-foreground: #ffffff;
     
-    --secondary: #272733; /* Slightly lighter than card for hover states */
-    --secondary-foreground: #e0f2fe;
+    --secondary: #1f1f22; /* Slightly elevated surface */
+    --secondary-foreground: #fafafa;
     
-    --muted: #1e1e26;
-    --muted-foreground: #8a8a99;
+    --muted: #1f1f22;
+    --muted-foreground: #a1a1aa;
     
-    --accent: #3fecff; /* Cyan */
-    --accent-foreground: #000000;
+    --accent: #1e293b; /* Deep blue-gray accent */
+    --accent-foreground: #38bdf8; /* Cyan accent text */
     
-    --destructive: #ff3b3b;
+    --destructive: #ef4444;
     --destructive-foreground: #ffffff;
 
-    --border: #272733; /* Very subtle border */
-    --input: #272733;
-    --ring: #3fecff; /* Cyan ring */
+    --border: #27272a; /* Restrained border */
+    --input: #27272a;
+    --ring: #007bff;
   }
 }
 
@@ -91,140 +93,84 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
-    /* Ultra-subtle environment lighting */
-    background-image: radial-gradient(circle at 50% -20%, rgba(0, 123, 255, 0.03), transparent 60%),
-                      radial-gradient(circle at 80% 120%, rgba(63, 236, 255, 0.02), transparent 50%);
+  }
+
+  /* Ultra-subtle illumination only in dark mode */
+  .dark body {
+    background-image: radial-gradient(circle at 50% 0%, rgba(0, 123, 255, 0.02), transparent 40%),
+                      radial-gradient(circle at 100% 100%, rgba(63, 236, 255, 0.015), transparent 40%);
   }
 }
 
 @layer components {
   /* 
-   * MIXED MATERIAL SYSTEM 
-   * (Selective materials for hierarchy and context) 
+   * PLAIZ MARKETS COMPONENT PRIMITIVES
+   * (Standardized reusable design system)
    */
-   
-  /* Premium Typography */
+
+  /* Typography */
   .num-tabular {
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum";
-    letter-spacing: -0.02em;
+    letter-spacing: -0.01em;
   }
   
-  /* Pill Component */
-  .pill {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold tracking-wide transition-all duration-200 cursor-default select-none;
-    box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+  /* PlaizPill */
+  .plaiz-pill {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-medium tracking-wide transition-all duration-200 select-none;
   }
-  
-  .pill-interactive {
-    @apply cursor-pointer hover:-translate-y-[1px] active:translate-y-[0px] active:scale-95;
+  .plaiz-pill-interactive {
+    @apply cursor-pointer hover:bg-secondary/80 active:scale-95;
   }
-  
-  .pill-neutral {
-    @apply bg-card/60 dark:bg-[#272733]/50 text-foreground border border-border/50 hover:bg-card/90 dark:hover:bg-[#272733]/80;
+  .plaiz-pill-neutral {
+    @apply bg-secondary/50 text-foreground border border-border/50;
   }
-  
-  .pill-success {
+  .plaiz-pill-success {
     @apply bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20;
   }
-  
-  .pill-destructive {
+  .plaiz-pill-destructive {
     @apply bg-destructive/10 text-destructive dark:text-destructive border border-destructive/20;
   }
-  
-  .pill-primary {
-    @apply bg-primary text-primary-foreground border border-primary/20 hover:bg-primary/90 shadow-[0_4px_14px_0_rgba(0,123,255,0.2)] hover:shadow-[0_6px_20px_rgba(0,123,255,0.3)];
+  .plaiz-pill-active {
+    @apply bg-primary text-primary-foreground border-transparent shadow-sm;
   }
 
-  /* Button Component */
-  .btn-apple {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:pointer-events-none;
+  /* PlaizButton */
+  .plaiz-btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-150 active:scale-95 disabled:opacity-50 disabled:pointer-events-none;
   }
-  
-  .btn-primary {
-    @apply bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_4px_14px_0_rgba(0,123,255,0.39)] hover:shadow-[0_6px_20px_rgba(0,123,255,0.23)];
+  .plaiz-btn-primary {
+    @apply bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm border border-primary/20;
   }
-  
-  .btn-secondary {
+  .plaiz-btn-secondary {
     @apply bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border/50;
   }
-
-  /* Premium Glass (For Navigation and Performance Instrument) */
-  .premium-glass {
-    @apply bg-white/60 dark:bg-white/[0.03] border border-black/5 dark:border-white/[0.06] shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] relative overflow-hidden;
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.6);
-  }
-  
-  @media (prefers-color-scheme: dark) {
-    .premium-glass {
-      box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.05), 0 8px 30px rgb(0 0 0 / 0.2);
-    }
+  .plaiz-btn-ghost {
+    @apply hover:bg-secondary/50 text-foreground;
   }
 
-  /* Grounded Content Surface */
-  .surface-matte {
-    @apply bg-card dark:bg-[#15151f] border border-border/40 relative overflow-hidden rounded-[24px];
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  /* PlaizCard (Grounded, Matte Content) */
+  .plaiz-card {
+    @apply bg-card text-card-foreground rounded-2xl border border-border/50 shadow-sm transition-all duration-200 relative overflow-hidden;
   }
 
-  .hero-panel {
-    @apply bg-card dark:bg-[#15151f] border border-border/40 relative overflow-hidden rounded-[24px];
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025);
-  }
-  
-  .hero-panel::after {
-    content: '';
-    background: linear-gradient(to right, transparent, rgba(0, 123, 255, 0.2), transparent);
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 0;
-    height: 1px;
-    pointer-events: none;
-  }
-  
-  @media (prefers-color-scheme: dark) {
-    .hero-panel::after {
-      background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.1), transparent);
-    }
+  /* PlaizGlass (Functional UI Layer only) */
+  .plaiz-glass {
+    @apply bg-background/80 backdrop-blur-md border border-border/50 supports-[backdrop-filter]:bg-background/60;
   }
 
-  /* Digital Trading Card (Master Account) */
-  .digital-card {
-    @apply bg-gradient-to-br from-card to-card/50 dark:from-[#1a1a1a] dark:to-[#1a1a1a]/40 border border-border/60 relative overflow-hidden transition-all duration-300;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  /* Smooth scrollbars */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
   }
-
-  /* Inner subtle noise/texture could go here, for now using a clean reflection */
-  .digital-card::before {
-    content: '';
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    @apply absolute bg-[linear-gradient(110deg,transparent_25%,rgba(255,255,255,0.02)_50%,transparent_75%)] bg-[length:250%_250%] opacity-0 transition-opacity duration-500 pointer-events-none;
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
   }
-  
-  .digital-card:hover::before {
-    @apply opacity-100;
-    animation: shimmer 2.5s infinite linear;
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
   }
-
-  /* Mini Sub-Account Card */
-  .mini-card {
-    @apply bg-card/40 dark:bg-card/20 border border-border/40 hover:bg-card/80 hover:border-border/80 transition-all duration-300 relative overflow-hidden;
-    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  .custom-scrollbar:hover::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/50;
   }
-
-  /* Utilities */
-  .text-glow {
-    text-shadow: 0 0 10px rgba(0, 123, 255, 0.4);
-  }
-}
-
-@keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
 }

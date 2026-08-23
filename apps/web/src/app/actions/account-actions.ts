@@ -3,6 +3,8 @@
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 
+import { encrypt } from '@/lib/encryption';
+
 export async function createMt5Account(data: {
   login: string;
   broker: string;
@@ -24,11 +26,13 @@ export async function createMt5Account(data: {
       });
     }
 
+    const encryptedPassword = data.password ? encrypt(data.password) : undefined;
+
     const account = await prisma.mt5Account.create({
       data: {
         userId: user.id,
         login: data.login,
-        password: data.password, // TODO: Implement AES encryption using a shared secret before production
+        password: encryptedPassword,
         broker: data.broker,
         server: data.server,
         role: data.role,
@@ -37,7 +41,7 @@ export async function createMt5Account(data: {
       }
     });
 
-    // If it's a sub-account, we should create default copy settings
+    // If it's a sub-account, we should create default copy settings and subscribe it
     if (data.role === 'SUB') {
       await prisma.copySettings.create({
         data: {
@@ -45,6 +49,21 @@ export async function createMt5Account(data: {
           riskMultiplier: 1.0,
         }
       });
+
+      // Temporarily auto-subscribe to the first Master account to prevent breakage until UI is built
+      const firstMaster = await prisma.mt5Account.findFirst({
+        where: { role: 'MASTER' }
+      });
+      
+      if (firstMaster) {
+        await prisma.accountSubscription.create({
+          data: {
+            masterAccountId: firstMaster.id,
+            subAccountId: account.id,
+            isActive: true,
+          }
+        });
+      }
     }
 
     revalidatePath('/');

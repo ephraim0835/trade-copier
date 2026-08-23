@@ -14,6 +14,7 @@ export interface HotCommandData {
   orderType: OrderType;
   direction?: PositionType | null;
   volume: number;
+  intendedRisk?: number | null;
   price?: number | null;
   sl?: number | null;
   tp?: number | null;

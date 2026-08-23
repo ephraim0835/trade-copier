@@ -34,12 +34,12 @@ export default async function MasterPage() {
       <div className="relative z-10 flex flex-col gap-10">
         {masterAccount ? (
           <>
-            <section className="digital-card p-8 rounded-[24px]">
+            <section className="plaiz-card p-8 rounded-[24px]">
               <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6 mb-8">
                 <div className="flex flex-col gap-3">
                   <div className="flex items-center gap-2">
-                    <div className="pill pill-neutral text-[10px] uppercase tracking-widest">{masterAccount.broker || 'Unknown'}</div>
-                    <div className={`pill text-[10px] ${masterOnline ? 'pill-success' : 'pill-destructive'}`}><Wifi className="w-3 h-3" /> {masterOnline ? 'Connected' : 'Offline'}</div>
+                    <div className="plaiz-pill plaiz-pill-neutral text-[10px] uppercase tracking-widest">{masterAccount.broker || 'Unknown'}</div>
+                    <div className={`plaiz-pill text-[10px] ${masterOnline ? 'plaiz-pill-success' : 'plaiz-pill-destructive'}`}><Wifi className="w-3 h-3" /> {masterOnline ? 'Connected' : 'Offline'}</div>
                   </div>
                   <h2 className="text-[36px] font-bold text-foreground tracking-tighter leading-none">{masterAccount.login}</h2>
                   <span className="text-[13px] text-muted-foreground font-mono">{masterAccount.server}</span>
@@ -80,7 +80,7 @@ export default async function MasterPage() {
               </div>
             </section>
 
-            <section className="surface-matte rounded-[24px] overflow-hidden">
+            <section className="plaiz-card bg-secondary/30 rounded-[24px] overflow-hidden">
               <div className="p-6 border-b border-border/30">
                 <h3 className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">Recent Signals</h3>
               </div>
@@ -104,7 +104,7 @@ export default async function MasterPage() {
                             {signal.symbol}
                           </td>
                           <td className="px-6 py-4">
-                            <span className={`pill text-[10px] ${signal.type === 'BUY' ? 'pill-success' : 'pill-destructive'}`}>
+                            <span className={`plaiz-pill text-[10px] ${signal.type === 'BUY' ? 'plaiz-pill-success' : 'plaiz-pill-destructive'}`}>
                               {signal.type}
                             </span>
                           </td>
@@ -133,7 +133,7 @@ export default async function MasterPage() {
             </section>
           </>
         ) : (
-          <div className="surface-matte p-12 rounded-[24px] flex flex-col items-center justify-center text-center">
+          <div className="plaiz-card bg-secondary/30 p-12 rounded-[24px] flex flex-col items-center justify-center text-center">
             <ShieldCheck className="w-10 h-10 mb-4 text-muted-foreground opacity-50" />
             <h2 className="text-[16px] font-bold text-foreground mb-2">No Master Source Connected</h2>
             <p className="text-[13px] text-muted-foreground max-w-md">Connect an MT5 account and assign it the Master role to start broadcasting trades to your portfolio.</p>

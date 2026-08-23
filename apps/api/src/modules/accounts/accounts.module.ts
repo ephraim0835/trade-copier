@@ -5,10 +5,12 @@ import { DatabaseModule } from '../../database/database.module';
 
 import { EaAuthModule } from '../ea-auth/ea-auth.module';
 
+import { EncryptionService } from './services/encryption.service';
+
 @Module({
   imports: [DatabaseModule, EaAuthModule],
   controllers: [AccountsController],
-  providers: [AccountsService],
-  exports: [AccountsService],
+  providers: [AccountsService, EncryptionService],
+  exports: [AccountsService, EncryptionService],
 })
 export class AccountsModule {}

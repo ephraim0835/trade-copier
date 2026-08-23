@@ -13,23 +13,30 @@ describe('MasterSignalService - Hot Path Suite', () => {
   let asyncPersistence: AsyncPersistenceService;
 
   const mockPrisma = {
-    mt5Account: {
+    accountSubscription: {
       findMany: jest.fn().mockResolvedValue([
         {
           id: 'sub-1',
-          isDemo: true,
+          masterAccountId: 'master-1',
+          subAccountId: 'sub-1',
           isActive: true,
-          copySettings: {
-            riskMultiplier: 1.0,
-            roundingTolerancePct: 5,
-            dailyRiskEnabled: false,
-            maxDailyRisk: 500,
-            maxTradesEnabled: false,
-            maxActiveTrades: 10,
-            requireTp: false,
-            missingSlTimeoutSec: 60,
-            maxRecoveryRRDegradation: 0.5,
-          },
+          riskMultiplier: null,
+          subAccount: {
+            id: 'sub-1',
+            isDemo: true,
+            isActive: true,
+            copySettings: {
+              riskMultiplier: 1.0,
+              roundingTolerancePct: 5,
+              dailyRiskEnabled: false,
+              maxDailyRisk: 500,
+              maxTradesEnabled: false,
+              maxActiveTrades: 10,
+              requireTp: false,
+              missingSlTimeoutSec: 60,
+              maxRecoveryRRDegradation: 0.5,
+            },
+          }
         },
       ]),
     },

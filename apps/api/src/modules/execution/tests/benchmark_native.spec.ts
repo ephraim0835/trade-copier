@@ -15,9 +15,16 @@ async function runBenchmark() {
   };
 
   const mockPrisma = {
-    mt5Account: {
+    accountSubscription: {
       findMany: jest.fn().mockResolvedValue([
-        { id: 'sub-1', isDemo: true, isActive: true, copySettings: { riskMultiplier: 1 } },
+        {
+          id: 'sub-1',
+          masterAccountId: 'master-1',
+          subAccountId: 'sub-1',
+          isActive: true,
+          riskMultiplier: null,
+          subAccount: { id: 'sub-1', isDemo: true, isActive: true, copySettings: { riskMultiplier: 1 } },
+        }
       ]),
     },
     tradeSignal: { upsert: jest.fn(), update: jest.fn() },

@@ -85,6 +85,7 @@ model User {
   updatedAt DateTime @updatedAt
 
   accounts Mt5Account[]
+  subscription Subscription?
 }
 
 model Mt5Account {
@@ -119,6 +120,8 @@ model Mt5Account {
   tradeCopies       TradeCopy[]
   auditLogs         AuditLog[]
   executionCommands ExecutionCommand[]
+  masterSubscriptions AccountSubscription[] @relation("MasterSubscriptions")
+  subSubscriptions    AccountSubscription[] @relation("SubSubscriptions")
 
   @@unique([login, broker, server])
 }
@@ -135,6 +138,24 @@ model EaToken {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model AccountSubscription {
+  id              String     @id @default(uuid())
+  masterAccountId String
+  masterAccount   Mt5Account @relation("MasterSubscriptions", fields: [masterAccountId], references: [id])
+  subAccountId    String
+  subAccount      Mt5Account @relation("SubSubscriptions", fields: [subAccountId], references: [id])
+
+  isActive        Boolean    @default(true)
+  
+  // Specific risk overrides for this subscription
+  riskMultiplier  Float?     // If null, falls back to subAccount.copySettings.riskMultiplier
+  
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@unique([masterAccountId, subAccountId])
 }
 
 model CopySettings {
@@ -380,4 +401,36 @@ model ExecutionCommand {
   @@index([subAccountId])
   @@index([status])
   @@index([tradeCopyId])
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+  INTERNAL_FREE
+}
+
+model Subscription {
+  id               String             @id @default(uuid())
+  userId           String             @unique
+  user             User               @relation(fields: [userId], references: [id])
+  status           SubscriptionStatus @default(TRIAL)
+  planId           String?
+  stripeCustomerId String?
+  currentPeriodEnd DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+}
+
+model VpsEnvironment {
+  id               String   @id @default(uuid())
+  name             String   @unique
+  status           String   @default("HEALTHY")
+  cpuPercent       Float    @default(0)
+  ramPercent       Float    @default(0)
+  diskPercent      Float    @default(0)
+  activeTerminals  Int      @default(0)
+  lastHeartbeatAt  DateTime @default(now())
 }

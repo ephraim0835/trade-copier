@@ -17,7 +17,7 @@ export default function SettingsPage() {
       </header>
 
       <div className="relative z-10 max-w-3xl">
-        <section className="surface-matte p-8 rounded-[24px]">
+        <section className="plaiz-card bg-secondary/30 p-8 rounded-[24px]">
           <SettingsControls />
         </section>
       </div>

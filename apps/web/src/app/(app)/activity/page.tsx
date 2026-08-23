@@ -27,7 +27,7 @@ export default async function ActivityPage() {
       </header>
 
       <div className="relative z-10">
-        <section className="surface-matte rounded-[24px] overflow-hidden">
+        <section className="plaiz-card bg-secondary/30 rounded-[24px] overflow-hidden">
           {recentActivity.length > 0 ? (
             <div className="overflow-x-auto custom-scrollbar">
               <table className="w-full text-left border-collapse">
@@ -64,7 +64,7 @@ export default async function ActivityPage() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           <span className="text-[13px] font-medium text-foreground">{activity.subAccount?.login}</span>
-                          <span className="pill pill-neutral text-[9px] uppercase">{activity.subAccount?.broker || 'MT5'}</span>
+                          <span className="plaiz-plaiz-pill plaiz-pill-neutral text-[9px] uppercase">{activity.subAccount?.broker || 'MT5'}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4 text-[13px] text-muted-foreground text-right">

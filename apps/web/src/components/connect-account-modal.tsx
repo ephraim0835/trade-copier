@@ -50,7 +50,7 @@ export function ConnectAccountModal({ isOpen, onClose, defaultRole = 'SUB' }: Co
         onClick={onClose}
       />
       
-      <div className="relative w-full max-w-md surface-matte rounded-[32px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 border border-border/30">
+      <div className="relative w-full max-w-md plaiz-card bg-secondary/30 rounded-[32px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 border border-border/30">
         
         {/* Header */}
         <div className="px-8 py-6 border-b border-border/20 flex items-center justify-between">

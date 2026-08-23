@@ -43,7 +43,7 @@ export function RiskControls({ initialAccounts }: { initialAccounts: any[] }) {
           <button 
             onClick={saveSettings}
             disabled={isSaving}
-            className="btn-apple btn-primary py-2 px-4 text-[12px]"
+            className="plaiz-btn plaiz-btn-primary py-2 px-4 text-[12px]"
           >
             {isSaving ? 'Saving...' : <><Save className="w-3.5 h-3.5" /> Save Changes</>}
           </button>
@@ -55,11 +55,11 @@ export function RiskControls({ initialAccounts }: { initialAccounts: any[] }) {
           const currentPct = account.copySettings?.riskPercentage || 100;
           
           return (
-            <div key={account.id} className="surface-matte p-6 rounded-[24px]">
+            <div key={account.id} className="plaiz-card bg-secondary/30 p-6 rounded-[24px]">
               <div className="flex items-start justify-between mb-8 border-b border-border/30 pb-6">
                 <div>
                   <h3 className="text-[18px] font-bold text-foreground tracking-tight leading-none mb-2">{account.login}</h3>
-                  <span className="pill pill-neutral text-[10px] uppercase tracking-widest">{account.broker || 'Unknown'}</span>
+                  <span className="plaiz-pill plaiz-pill-neutral text-[10px] uppercase tracking-widest">{account.broker || 'Unknown'}</span>
                 </div>
                 <div className="text-right">
                   <span className="text-[10px] text-muted-foreground uppercase tracking-widest mb-1 block">Balance</span>

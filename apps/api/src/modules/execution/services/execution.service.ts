@@ -45,6 +45,7 @@ export class ExecutionService {
       orderType: c.orderType,
       direction: c.direction ?? undefined,
       volume: c.volume,
+      intendedRisk: c.intendedRisk ?? undefined,
       price: c.price ?? undefined,
       sl: c.sl ?? undefined,
       tp: c.tp ?? undefined,

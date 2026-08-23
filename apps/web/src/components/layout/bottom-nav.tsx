@@ -11,7 +11,7 @@ export function BottomNav() {
   const { isInstallable, installApp } = usePwa();
 
   const navItems = [
-    { name: 'Home', href: '/', icon: Home },
+    { name: 'Home', href: '/dashboard', icon: Home },
     { name: 'Accounts', href: '/accounts', icon: Users },
     { name: 'Trades', href: '/positions', icon: ArrowRightLeft },
     { name: 'Risk', href: '/risk', icon: ShieldAlert },

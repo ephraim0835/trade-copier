@@ -151,7 +151,34 @@ void ProcessCommand(string json, ulong subReceivedAt)
       return;
      }
      
+   // Extract parameters early to calculate volume if needed
+   string commandType = CMqlJson::GetString(json, "type");
+   string orderType = CMqlJson::GetString(json, "orderType");
+   double sl = CMqlJson::GetDouble(json, "sl");
+   double tp = CMqlJson::GetDouble(json, "tp");
+   double price = CMqlJson::GetDouble(json, "price");
+   
+   if(price == 0 && (orderType == "BUY" || orderType == "BUY_LIMIT" || orderType == "BUY_STOP")) price = SymbolInfoDouble(symbol, SYMBOL_ASK);
+   if(price == 0 && (orderType == "SELL" || orderType == "SELL_LIMIT" || orderType == "SELL_STOP")) price = SymbolInfoDouble(symbol, SYMBOL_BID);
+
    double volume = CMqlJson::GetDouble(json, "volume");
+   double intendedRisk = CMqlJson::GetDouble(json, "intendedRisk");
+   
+   if(intendedRisk > 0 && sl > 0 && price > 0)
+     {
+      double tickSize = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_SIZE);
+      double tickValue = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_VALUE);
+      if(tickSize > 0 && tickValue > 0)
+        {
+         double slDistance = MathAbs(price - sl);
+         double riskPerLot = (slDistance / tickSize) * tickValue;
+         if(riskPerLot > 0)
+           {
+            volume = intendedRisk / riskPerLot;
+           }
+        }
+     }
+
    double minVol = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MIN);
    double maxVol = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MAX);
    
@@ -163,11 +190,6 @@ void ProcessCommand(string json, ulong subReceivedAt)
      }
 
    // 3. Execute based on command type
-   string commandType = CMqlJson::GetString(json, "type");
-   string orderType = CMqlJson::GetString(json, "orderType");
-   double sl = CMqlJson::GetDouble(json, "sl");
-   double tp = CMqlJson::GetDouble(json, "tp");
-   double price = CMqlJson::GetDouble(json, "price");
    
    ulong subPositionTicket = 0;
    string subTicketStr = CMqlJson::GetString(json, "subPositionTicket");

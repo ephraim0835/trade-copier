@@ -17,7 +17,7 @@ export default function PerformancePage() {
       </header>
 
       <div className="relative z-10 flex-1 flex flex-col">
-        <section className="premium-glass p-8 md:p-16 rounded-[32px] flex-1 flex flex-col items-center justify-center text-center min-h-[500px]">
+        <section className="plaiz-card p-8 md:p-16 rounded-[32px] flex-1 flex flex-col items-center justify-center text-center min-h-[500px]">
           <div className="w-20 h-20 rounded-full bg-black/5 dark:bg-white/5 border border-border/20 flex items-center justify-center mb-6 shadow-sm">
             <LineChart className="w-8 h-8 text-muted-foreground opacity-50" />
           </div>
@@ -28,10 +28,10 @@ export default function PerformancePage() {
           </p>
           
           <div className="flex flex-col sm:flex-row items-center gap-4">
-            <Link href="/" className="btn-apple btn-secondary">
+            <Link href="/" className="plaiz-btn plaiz-plaiz-btn-secondary">
               Return to Dashboard
             </Link>
-            <Link href="/accounts" className="btn-apple btn-primary">
+            <Link href="/accounts" className="plaiz-btn plaiz-plaiz-btn-primary">
               Connect Accounts
             </Link>
           </div>

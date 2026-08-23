@@ -5,23 +5,23 @@ import Link from 'next/link';
 // Helper to determine the consolidated status
 function getStatusDisplay(copy: any, commands: any[]) {
   if (copy.state === 'WAITING_FOR_SL') {
-    return { label: 'Waiting for SL', icon: Clock, color: 'text-amber-500 bg-amber-500/10' };
+    return { label: 'Waiting for SL', icon: Clock, color: 'text-amber-500 bg-amber-500/10 border-amber-500/20' };
   }
   if (copy.state === 'REJECTED' || copy.state === 'FAILED') {
-    return { label: 'Rejected / Failed', icon: XCircle, color: 'text-destructive bg-destructive/10' };
+    return { label: 'Rejected / Failed', icon: XCircle, color: 'plaiz-pill-destructive' };
   }
   
   // Check commands to see if a CLOSE command exists and was executed
   const closeCommand = commands?.find((c: any) => c.type === 'CLOSE_ORDER' && c.status === 'EXECUTED');
   if (closeCommand) {
-    return { label: 'Closed / Completed', icon: CheckCircle2, color: 'text-muted-foreground bg-secondary' };
+    return { label: 'Closed / Completed', icon: CheckCircle2, color: 'plaiz-pill-neutral' };
   }
 
   if (copy.state === 'EXECUTED' || copy.state === 'APPROVED') {
-    return { label: 'Copied / Synchronized', icon: CheckCircle2, color: 'text-emerald-500 bg-emerald-500/10' };
+    return { label: 'Copied / Synchronized', icon: CheckCircle2, color: 'plaiz-pill-success' };
   }
   
-  return { label: copy.state || 'Unknown', icon: AlertCircle, color: 'text-muted-foreground bg-secondary' };
+  return { label: copy.state || 'Unknown', icon: AlertCircle, color: 'plaiz-pill-neutral' };
 }
 
 export default async function PositionsPage() {
@@ -57,10 +57,10 @@ export default async function PositionsPage() {
         </p>
       </div>
 
-      <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+      <div className="plaiz-card rounded-[24px] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
-            <thead className="bg-secondary/50 text-muted-foreground font-medium border-b border-border">
+            <thead className="bg-black/5 dark:bg-white/5 text-muted-foreground font-semibold text-xs uppercase tracking-widest border-b border-border/40">
               <tr>
                 <th className="px-4 py-3">Time</th>
                 <th className="px-4 py-3">Master Signal</th>
@@ -106,8 +106,8 @@ export default async function PositionsPage() {
                         <div>TP: {signal.tp || 'None'}</div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-muted-foreground bg-secondary">
-                          <AlertCircle className="w-3.5 h-3.5" />
+                        <span className="plaiz-pill plaiz-pill-neutral text-[10px]">
+                          <AlertCircle className="w-3 h-3" />
                           Unmapped
                         </span>
                       </td>
@@ -120,7 +120,7 @@ export default async function PositionsPage() {
                   const Icon = status.icon;
 
                   return (
-                    <tr key={copy.id} className="hover:bg-secondary/20 transition-colors">
+                    <tr key={copy.id} className="hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                       <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
                         {new Date(signal.createdAt).toLocaleTimeString()}
                       </td>
@@ -171,8 +171,8 @@ export default async function PositionsPage() {
 
                       {/* Status */}
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium ${status.color}`}>
-                          <Icon className="w-3.5 h-3.5" />
+                        <span className={`plaiz-pill text-[10px] ${status.color}`}>
+                          <Icon className="w-3 h-3" />
                           {status.label}
                         </span>
                       </td>

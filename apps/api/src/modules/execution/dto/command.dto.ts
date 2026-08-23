@@ -11,6 +11,7 @@ export class CommandDto {
   orderType: string;
   direction?: string;
   volume: number;
+  intendedRisk?: number;
   price?: number;
   sl?: number;
   tp?: number;

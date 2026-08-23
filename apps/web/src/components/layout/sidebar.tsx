@@ -20,8 +20,8 @@ import { ThemeToggle } from '../theme-toggle';
 
 export function Sidebar() {
   const { isInstallable, installApp } = usePwa();
-  const navItems = [
-    { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+    const navItems = [
+      { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Master Source', href: '/master', icon: ShieldCheck },
     { name: 'Sub Accounts', href: '/accounts', icon: Users },
     { name: 'Live Trades', href: '/positions', icon: ArrowRightLeft },
@@ -34,14 +34,10 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden lg:flex flex-col w-[260px] premium-glass h-[calc(100vh-2rem)] sticky top-4 ml-4 rounded-[24px] z-40 shrink-0">
+    <aside className="hidden lg:flex flex-col w-[260px] plaiz-card h-[calc(100vh-2rem)] sticky top-4 ml-4 rounded-[24px] z-40 shrink-0">
       <div className="h-[88px] flex items-center px-8">
-        <Link href="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
-          <div className="flex gap-1 items-end h-6 pt-1">
-            <div className="w-[5px] h-3 bg-primary rounded-[2px] shadow-[0_0_8px_rgba(0,123,255,0.6)]"></div>
-            <div className="w-[5px] h-[18px] bg-primary rounded-[2px] shadow-[0_0_8px_rgba(0,123,255,0.6)]"></div>
-            <div className="w-[5px] h-6 bg-accent rounded-[2px] shadow-[0_0_8px_rgba(63,236,255,0.6)]"></div>
-          </div>
+        <Link href="/dashboard" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
+          <img src="/plaiz-logo.png" alt="Plaiz Markets" className="h-6 w-auto" />
           <div className="flex flex-col pt-0.5">
             <span className="font-bold text-xl tracking-tight text-foreground leading-none">Plaiz</span>
             <span className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground mt-0.5 font-bold">Markets</span>

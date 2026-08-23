@@ -1,6 +1,12 @@
-services:
-  api:
-    image: ghcr.io/ephraim0835/trade-copier-api:latest
+  vps-manager:
+    build: ./apps/vps-manager
+    container_name: vps-manager
+    env_file:
+      - .env.vps
+    restart: unless-stopped
+    depends_on:
+      - api
+
     container_name: trade-copier-api
     restart: always
     ports:

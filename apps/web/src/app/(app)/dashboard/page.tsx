@@ -89,12 +89,12 @@ export default async function DashboardOverview() {
             </h1>
             {/* Functional Status Pill */}
             {allConnected ? (
-              <div className="pill pill-success shadow-sm">
+              <div className="plaiz-plaiz-pill plaiz-pill-success shadow-sm">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                 Copying
               </div>
             ) : (
-              <div className="pill pill-neutral text-destructive border-destructive/20 shadow-sm">
+              <div className="plaiz-plaiz-pill plaiz-pill-neutral text-destructive border-destructive/20 shadow-sm">
                 <span className="w-1.5 h-1.5 rounded-full bg-destructive animate-pulse"></span>
                 Degraded
               </div>
@@ -152,12 +152,12 @@ export default async function DashboardOverview() {
             <h3 className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground font-semibold mb-4">Master Source</h3>
             
             {masterAccount ? (
-              <Link href="/master" className="group block digital-card p-6 rounded-[20px]">
+              <Link href="/master" className="group block plaiz-card p-6 rounded-[20px]">
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6 mb-8">
                   <div className="flex flex-col gap-3">
                     <div className="flex items-center gap-2">
-                      <div className="pill pill-neutral text-[10px] uppercase tracking-widest">{masterAccount.broker || 'Unknown'}</div>
-                      <div className={`pill text-[10px] ${masterOnline ? 'pill-success' : 'pill-destructive'}`}><Wifi className="w-3 h-3" /> {masterOnline ? 'Connected' : 'Offline'}</div>
+                      <div className="plaiz-plaiz-pill plaiz-pill-neutral text-[10px] uppercase tracking-widest">{masterAccount.broker || 'Unknown'}</div>
+                      <div className={`plaiz-pill text-[10px] ${masterOnline ? 'pill-success' : 'pill-destructive'}`}><Wifi className="w-3 h-3" /> {masterOnline ? 'Connected' : 'Offline'}</div>
                     </div>
                     <h4 className="text-[28px] font-bold text-foreground tracking-tighter leading-none group-hover:text-primary transition-colors">{masterAccount.login}</h4>
                   </div>
@@ -188,11 +188,11 @@ export default async function DashboardOverview() {
                 </div>
               </Link>
             ) : (
-              <div className="hero-panel p-8 flex flex-col items-center justify-center text-center">
+              <div className="plaiz-card bg-muted/50 p-8 flex flex-col items-center justify-center text-center">
                 <ShieldAlert className="w-8 h-8 mb-3 text-muted-foreground" />
                 <p className="text-[13px] font-medium text-foreground">No Master Source</p>
                 <p className="text-[11px] text-muted-foreground mt-1 mb-4">A master account is required to copy trades.</p>
-                <Link href="/master" className="btn-apple btn-secondary">Connect Master</Link>
+                <Link href="/master" className="plaiz-btn plaiz-plaiz-btn-secondary">Connect Master</Link>
               </div>
             )}
           </section>
@@ -206,7 +206,7 @@ export default async function DashboardOverview() {
               </div>
               <div className="flex flex-col gap-3">
                 {subAccounts.map((sub: any) => (
-                  <Link key={sub.id} href="/risk" className="group surface-matte p-4 rounded-[16px] flex flex-col sm:flex-row sm:items-center justify-between hover:bg-black/10 dark:hover:bg-white/5 border border-border/30 transition-all cursor-pointer gap-4">
+                  <Link key={sub.id} href="/risk" className="group plaiz-card bg-secondary/30 p-4 rounded-[16px] flex flex-col sm:flex-row sm:items-center justify-between hover:bg-black/10 dark:hover:bg-white/5 border border-border/30 transition-all cursor-pointer gap-4">
                     <div className="flex items-center gap-3">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isOnline(sub.eaTokens?.[0]) ? 'bg-success/10' : 'bg-black/5 dark:bg-white/5'}`}>
                         <Users className={`w-4 h-4 ${isOnline(sub.eaTokens?.[0]) ? 'text-success' : 'text-muted-foreground'}`} />
@@ -242,7 +242,7 @@ export default async function DashboardOverview() {
         <div className="xl:col-span-5 flex flex-col gap-10">
           
           {/* THE REAL CHART */}
-          <section className="premium-glass p-6 rounded-[24px]">
+          <section className="plaiz-card p-6 rounded-[24px]">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">Performance</h3>
               {/* Fake timeframe controls removed as per user instruction for honest functionality */}
@@ -253,10 +253,10 @@ export default async function DashboardOverview() {
           </section>
 
           {/* RISK CONFIGURATION */}
-          <section className="surface-matte p-6 rounded-[20px]">
+          <section className="plaiz-card bg-secondary/30 p-6 rounded-[20px]">
              <div className="flex items-center justify-between mb-6">
               <h3 className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">Risk Engine</h3>
-              <button className="pill pill-interactive pill-neutral text-[10px] hover:bg-black/5 dark:hover:bg-white/5">
+              <button className="plaiz-plaiz-pill plaiz-pill-interactive pill-neutral text-[10px] hover:bg-black/5 dark:hover:bg-white/5">
                 <Settings2 className="w-3.5 h-3.5 mr-1" /> Configure
               </button>
              </div>
@@ -268,7 +268,7 @@ export default async function DashboardOverview() {
                 </div>
                 <div className="flex items-center justify-between p-3 rounded-xl bg-black/5 dark:bg-white/5 border border-border/30">
                   <span className="text-[13px] font-medium text-foreground">Daily Risk Limit</span>
-                  <span className="pill pill-neutral">Not Configured</span>
+                  <span className="plaiz-plaiz-pill plaiz-pill-neutral">Not Configured</span>
                 </div>
              </div>
           </section>
@@ -280,7 +280,7 @@ export default async function DashboardOverview() {
               <Link href="/activity" className="text-[11px] text-primary hover:underline font-medium px-1">View all</Link>
             </div>
             
-            <div className="glass-panel rounded-[20px] overflow-hidden">
+            <div className="plaiz-card rounded-[20px] overflow-hidden">
               {recentActivity.length > 0 ? (
                 <div className="flex flex-col divide-y divide-border/30">
                   {recentActivity.slice(0, 4).map((activity) => (
@@ -325,7 +325,7 @@ export default async function DashboardOverview() {
         {subAccounts.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {subAccounts.map((sub) => (
-              <Link key={sub.id} href="/accounts" className="group glass-panel p-5 rounded-[16px] hover:border-border/80 transition-colors">
+              <Link key={sub.id} href="/accounts" className="group plaiz-card p-5 rounded-[16px] hover:border-border/80 transition-colors">
                 <div className="flex items-start justify-between mb-4">
                   <div>
                     <h4 className="text-[16px] font-bold text-foreground tracking-tight group-hover:text-primary transition-colors leading-none">{sub.login}</h4>
@@ -352,11 +352,11 @@ export default async function DashboardOverview() {
             ))}
           </div>
         ) : (
-          <div className="glass-panel p-8 rounded-[20px] flex flex-col items-center justify-center text-center">
+          <div className="plaiz-card p-8 rounded-[20px] flex flex-col items-center justify-center text-center">
             <Users className="w-8 h-8 mb-3 text-muted-foreground opacity-50" />
             <p className="text-[13px] font-medium text-foreground">No Sub Accounts</p>
             <p className="text-[11px] text-muted-foreground mt-1 mb-4">Connect portfolio accounts to receive trades.</p>
-            <Link href="/accounts" className="btn-apple btn-secondary">Add Account</Link>
+            <Link href="/accounts" className="plaiz-btn plaiz-plaiz-btn-secondary">Add Account</Link>
           </div>
         )}
       </section>
