@@ -93,6 +93,7 @@ model Mt5Account {
   user   User   @relation(fields: [userId], references: [id])
 
   login    String
+  password String?
   broker   String
   server   String
   role     AccountRole

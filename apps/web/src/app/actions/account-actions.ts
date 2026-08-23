@@ -28,6 +28,7 @@ export async function createMt5Account(data: {
       data: {
         userId: user.id,
         login: data.login,
+        password: data.password, // TODO: Implement AES encryption using a shared secret before production
         broker: data.broker,
         server: data.server,
         role: data.role,
