@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { X, Server, ShieldCheck, Key, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { createMt5Account } from '@/app/actions/account-actions';
+import { useRouter } from 'next/navigation';
 
 interface ConnectAccountModalProps {
   isOpen: boolean;
@@ -11,19 +13,34 @@ interface ConnectAccountModalProps {
 }
 
 export function ConnectAccountModal({ isOpen, onClose, defaultRole = 'SUB' }: ConnectAccountModalProps) {
+  const router = useRouter();
   const [role, setRole] = useState<'MASTER' | 'SUB'>(defaultRole);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
-    // Simulate API call for the demo
-    setTimeout(() => {
-      setLoading(false);
+    setError(null);
+    
+    const formData = new FormData(e.currentTarget);
+    const login = formData.get('login') as string;
+    const broker = formData.get('broker') as string;
+    const server = formData.get('server') as string;
+    const password = formData.get('password') as string;
+
+    const res = await createMt5Account({ login, broker, server, password, role });
+    
+    setLoading(false);
+    
+    if (res.success) {
+      router.refresh();
       onClose();
-    }, 1500);
+    } else {
+      setError(res.error || 'Failed to connect account');
+    }
   };
 
   return (
@@ -86,6 +103,7 @@ export function ConnectAccountModal({ isOpen, onClose, defaultRole = 'SUB' }: Co
                 </div>
                 <input 
                   type="text" 
+                  name="broker"
                   required
                   placeholder="e.g. MetaQuotes-Demo" 
                   className="w-full bg-black/5 dark:bg-white/5 border border-border/30 rounded-2xl py-3 pl-11 pr-4 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 ring-primary/20 transition-all"
@@ -102,6 +120,7 @@ export function ConnectAccountModal({ isOpen, onClose, defaultRole = 'SUB' }: Co
                 </div>
                 <input 
                   type="text" 
+                  name="login"
                   required
                   placeholder="MT5 Account Number" 
                   className="w-full bg-black/5 dark:bg-white/5 border border-border/30 rounded-2xl py-3 pl-11 pr-4 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 ring-primary/20 transition-all font-mono"
@@ -118,13 +137,18 @@ export function ConnectAccountModal({ isOpen, onClose, defaultRole = 'SUB' }: Co
                 </div>
                 <input 
                   type="password" 
+                  name="password"
                   required
                   placeholder="••••••••" 
                   className="w-full bg-black/5 dark:bg-white/5 border border-border/30 rounded-2xl py-3 pl-11 pr-4 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 ring-primary/20 transition-all font-mono"
                 />
               </div>
             </div>
+            {/* Hidden field for server (often combined with broker for MT5) */}
+            <input type="hidden" name="server" value="Auto" />
           </div>
+
+          {error && <div className="text-destructive text-sm text-center">{error}</div>}
 
           <div className="mt-2">
             <button 
