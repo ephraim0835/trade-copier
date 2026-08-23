@@ -28,4 +28,20 @@ export class AuthService {
       access_token: this.jwtService.sign(payload),
     };
   }
+
+  async register(email: string, pass: string, name?: string) {
+    const existing = await this.prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      throw new Error('User already exists');
+    }
+    const hashedPassword = await argon2.hash(pass);
+    const user = await this.prisma.user.create({
+      data: {
+        email,
+        password: hashedPassword,
+        name,
+      },
+    });
+    return this.login(user);
+  }
 }

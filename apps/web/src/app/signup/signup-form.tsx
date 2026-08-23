@@ -7,6 +7,7 @@ import Link from "next/link";
 import { signIn } from "next-auth/react";
 
 export function SignupForm() {
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -46,13 +47,11 @@ export function SignupForm() {
     setError("");
 
     try {
-      // Create user using our Nest API
-      // Since it's a demo flow, we mock standard error handling or assume API has a POST /auth/register
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9001/api/v1';
       const res = await fetch(`${apiUrl}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password, name })
       });
 
       if (!res.ok) {
@@ -95,6 +94,23 @@ export function SignupForm() {
 
       <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
         <div className="space-y-4">
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-muted-foreground">
+              <User className="h-4 w-4" />
+            </div>
+            <input
+              id="name"
+              name="name"
+              type="text"
+              autoComplete="name"
+              required
+              className="appearance-none rounded-xl relative block w-full px-4 py-3 pl-11 border border-border/50 placeholder-muted-foreground text-foreground bg-black/5 dark:bg-white/5 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm transition-all"
+              placeholder="Full Name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </div>
+
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-muted-foreground">
               <Mail className="h-4 w-4" />

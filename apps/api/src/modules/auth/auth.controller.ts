@@ -1,4 +1,4 @@
-import { Controller, Post, UseGuards, Request, NotFoundException } from '@nestjs/common';
+import { Controller, Post, UseGuards, Request, Body, ConflictException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
@@ -11,11 +11,19 @@ export class AuthController {
     private readonly authService: AuthService
   ) {}
 
-  @Throttle({ default: { limit: 10, ttl: 60000 } }) // Strict brute-force protection
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @UseGuards(AuthGuard('local'))
   @Post('login')
   async login(@Request() req: any) {
     return this.authService.login(req.user);
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Post('register')
+  async register(@Body() body: any) {
+    if (!body.email || !body.password) {
+      throw new ConflictException('Email and password are required');
+    }
+    return this.authService.register(body.email, body.password, body.name);
+  }
 }
