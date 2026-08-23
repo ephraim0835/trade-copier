@@ -1,6 +1,7 @@
 import { ShieldCheck, Wifi, ArrowRightLeft, Clock } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { MoneyDisplay } from '@/components/money-display';
+import { MasterActions } from '@/components/master/master-actions';
 
 export default async function MasterPage() {
   const masterAccount = await prisma.mt5Account.findFirst({
@@ -27,6 +28,7 @@ export default async function MasterPage() {
             The source account driving all portfolio executions.
           </p>
         </div>
+        <MasterActions />
       </header>
 
       <div className="relative z-10 flex flex-col gap-10">

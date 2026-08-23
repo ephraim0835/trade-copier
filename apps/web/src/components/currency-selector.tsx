@@ -35,7 +35,7 @@ export function CurrencySelector() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-32 glass-panel rounded-xl py-1 z-50 animate-in fade-in zoom-in-95 duration-200">
+        <div className="absolute right-0 top-full mt-2 w-32 premium-glass rounded-xl py-1 z-50 animate-in fade-in zoom-in-95 duration-200">
           <button
             onClick={() => {
               setCurrency('USD');

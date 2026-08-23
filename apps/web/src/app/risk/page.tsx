@@ -1,6 +1,7 @@
 import { ShieldAlert, Users, SlidersHorizontal, Info } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { RiskControls } from './risk-controls';
+import { RiskActions } from '@/components/risk/risk-actions';
 
 export default async function RiskPage() {
   const subAccounts = await prisma.mt5Account.findMany({
@@ -20,6 +21,7 @@ export default async function RiskPage() {
             Configure custom allocation profiles per sub-account. The allocation percentage determines the proportional lot size copied relative to the master account's balance.
           </p>
         </div>
+        <RiskActions />
       </header>
 
       <div className="relative z-10 flex flex-col gap-6">

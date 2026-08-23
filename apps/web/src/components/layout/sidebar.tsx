@@ -79,7 +79,7 @@ export function Sidebar() {
           {isInstallable && (
             <button
               onClick={installApp}
-              className="w-full btn-secondary mt-6"
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 mt-8 text-[13px] font-semibold text-foreground bg-black/20 hover:bg-black/30 dark:bg-white/5 dark:hover:bg-white/10 border border-border/30 rounded-2xl transition-all duration-200 backdrop-blur-md"
             >
               <Download className="w-4 h-4" />
               Install App
@@ -89,15 +89,15 @@ export function Sidebar() {
       </div>
       
       <div className="p-4 mt-auto">
-        <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-black/20 border border-border/30 hover:bg-black/30 transition-colors cursor-pointer backdrop-blur-md">
-          <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center overflow-hidden">
-             <UserCircle className="w-9 h-9 text-muted-foreground" />
+        <Link href="/settings" className="flex items-center gap-3 px-3 py-3 rounded-2xl bg-black/5 dark:bg-black/20 border border-border/30 hover:bg-black/10 dark:hover:bg-black/40 transition-colors cursor-pointer backdrop-blur-md group">
+          <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center overflow-hidden group-hover:ring-2 ring-primary/20 transition-all">
+             <UserCircle className="w-9 h-9 text-muted-foreground group-hover:text-foreground transition-colors" />
           </div>
           <div className="flex flex-col flex-1 min-w-0">
             <span className="text-[13px] font-semibold truncate text-foreground leading-tight">Admin</span>
-            <span className="text-[11px] text-muted-foreground truncate">Administrator</span>
+            <span className="text-[11px] text-muted-foreground truncate group-hover:text-primary transition-colors">Manage Account</span>
           </div>
-        </div>
+        </Link>
       </div>
     </aside>
   );
