@@ -1,6 +1,6 @@
 import { Users, Search, Shield, CreditCard } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
-import { SubscriptionStatus } from '@prisma/client';
+import { SubscriptionStatus } from '@trade-copier/database';
 
 export default async function UsersAdminPage() {
   let users: any[] = [];
