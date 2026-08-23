@@ -81,7 +81,7 @@ export default async function DashboardOverview() {
       {/* Removed heavy blue gradients in favor of subtle environment lighting */}
 
       {/* HEADER: Calm & Intentional */}
-      <header className="relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <header className="relative z-50 flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
           <div className="flex items-center gap-3 mb-2">
             <h1 className="text-2xl font-bold tracking-tight text-foreground">
