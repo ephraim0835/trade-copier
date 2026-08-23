@@ -132,6 +132,36 @@ export default function MarketingHomepage() {
         </div>
       </section>
 
+      {/* Get the App */}
+      <section className="py-20 relative z-10">
+        <div className="container mx-auto max-w-3xl px-4 text-center">
+          <div className="plaiz-card bg-card/50 border border-border/50 rounded-[32px] px-8 py-12 flex flex-col items-center gap-6 relative overflow-hidden">
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent -z-0"></div>
+            <div className="relative z-10 flex flex-col items-center gap-6">
+              <div className="w-16 h-16 rounded-2xl bg-black/5 dark:bg-white/5 border border-border/50 flex items-center justify-center shadow-sm">
+                <img src="/plaiz-logo.png" alt="Plaiz Markets" className="w-10 h-10 object-contain" />
+              </div>
+              <div>
+                <h2 className="text-2xl md:text-3xl font-bold tracking-tight mb-3">Available as an App</h2>
+                <p className="text-muted-foreground text-[15px] max-w-md mx-auto">
+                  Install Plaiz Markets on your device for a native app experience — no App Store required.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3 items-center text-[13px] text-muted-foreground">
+                <div className="flex items-center gap-2 bg-secondary/50 border border-border/50 rounded-full px-4 py-2">
+                  <span>📱</span>
+                  <span><strong className="text-foreground">iPhone:</strong> Safari → Share → Add to Home Screen</span>
+                </div>
+                <div className="flex items-center gap-2 bg-secondary/50 border border-border/50 rounded-full px-4 py-2">
+                  <span>🤖</span>
+                  <span><strong className="text-foreground">Android:</strong> Chrome → Menu → Add to Home Screen</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Footer */}
       <footer className="border-t border-border/40 py-12 mt-auto">
         <div className="container mx-auto max-w-7xl px-4 flex flex-col md:flex-row items-center justify-between gap-6">
