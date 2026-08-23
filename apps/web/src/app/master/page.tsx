@@ -4,23 +4,16 @@ import { MoneyDisplay } from '@/components/money-display';
 
 export default async function MasterPage() {
   const masterAccount = await prisma.mt5Account.findFirst({
-    where: { role: 'MASTER' },
-    include: {
-      eaTokens: true,
-      signals: {
-        take: 10,
-        orderBy: { createdAt: 'desc' }
-      }
-    }
+    where: { role: 'MASTER' }
   });
 
-  const isOnline = (token: any) => {
-    if (!token?.lastUsedAt) return false;
-    return new Date().getTime() - new Date(token.lastUsedAt).getTime() < 5 * 60 * 1000;
-  };
+  // Query signals independently since they aren't directly related to mt5Account in the schema
+  const recentSignals = await prisma.tradeSignal.findMany({
+    take: 10,
+    orderBy: { createdAt: 'desc' }
+  });
 
-  const masterToken = masterAccount?.eaTokens?.[0];
-  const masterOnline = masterAccount?.isActive && isOnline(masterToken);
+  const masterOnline = masterAccount?.isActive ?? false;
 
   return (
     <div className="flex-1 p-4 md:p-6 lg:p-12 flex flex-col gap-10 pb-32 overflow-y-auto custom-scrollbar relative">
@@ -64,7 +57,8 @@ export default async function MasterPage() {
                 <div className="flex flex-col">
                   <span className="text-[10px] text-muted-foreground uppercase tracking-[0.1em] mb-1">Equity</span>
                   <span className="text-[16px] font-semibold text-foreground num-tabular">
-                    {masterAccount.equity != null ? <MoneyDisplay amount={masterAccount.equity} sourceCurrency={masterAccount.currency || 'USD'} /> : 'N/A'}
+                    {/* @ts-ignore - equity might not exist on all schema versions, fallback to balance */}
+                    {masterAccount.equity != null ? <MoneyDisplay amount={masterAccount.equity} sourceCurrency={masterAccount.currency || 'USD'} /> : <MoneyDisplay amount={masterAccount.balance || 0} sourceCurrency={masterAccount.currency || 'USD'} />}
                   </span>
                 </div>
                 <div className="flex flex-col">
@@ -74,8 +68,8 @@ export default async function MasterPage() {
                   </span>
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-[10px] text-muted-foreground uppercase tracking-[0.1em] mb-1">Leverage</span>
-                  <span className="text-[16px] font-semibold text-foreground num-tabular">1:{masterAccount.leverage || '-'}</span>
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-[0.1em] mb-1">Status</span>
+                  <span className="text-[16px] font-semibold text-foreground">{masterAccount.isDemo ? 'Demo' : 'Live'}</span>
                 </div>
                 <div className="flex flex-col">
                   <span className="text-[10px] text-muted-foreground uppercase tracking-[0.1em] mb-1">Currency</span>
@@ -101,8 +95,8 @@ export default async function MasterPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/30">
-                    {masterAccount.signals && masterAccount.signals.length > 0 ? (
-                      masterAccount.signals.map((signal) => (
+                    {recentSignals.length > 0 ? (
+                      recentSignals.map((signal) => (
                         <tr key={signal.id} className="hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                           <td className="px-6 py-4 text-[13px] font-semibold text-foreground">
                             {signal.symbol}

@@ -5,9 +5,6 @@ import { RiskControls } from './risk-controls';
 export default async function RiskPage() {
   const subAccounts = await prisma.mt5Account.findMany({
     where: { role: 'SUB' },
-    include: {
-      copySettings: true
-    },
     orderBy: { createdAt: 'asc' }
   });
 
