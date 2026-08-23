@@ -19,8 +19,9 @@
     "db:generate": "cd packages/database && npx prisma generate"
   },
   "devDependencies": {
-    "turbo": "^2.0.0",
+    "playwright": "^1.62.1",
     "prettier": "^3.0.0",
+    "turbo": "^2.0.0",
     "typescript": "^5.4.0"
   },
   "engines": {
