@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma';
 import { UsersClient } from './users-client';
 
+export const dynamic = 'force-dynamic';
+
 export default async function UsersAdminPage() {
   let users: any[] = [];
   try {

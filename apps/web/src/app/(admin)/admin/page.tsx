@@ -2,6 +2,8 @@ import { Server, Users, ArrowRightLeft, ShieldAlert } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
 
+export const dynamic = 'force-dynamic';
+
 export default async function AdminOverviewPage() {
   // Safe backend fetch for overview stats
   let totalUsers = 0;

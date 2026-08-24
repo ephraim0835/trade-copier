@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma';
 import { Server, Cpu, HardDrive, Wifi, Activity } from 'lucide-react';
 
+export const dynamic = 'force-dynamic';
+
 export default async function InfrastructureAdminPage() {
   let vpsEnvs: any[] = [];
   try {

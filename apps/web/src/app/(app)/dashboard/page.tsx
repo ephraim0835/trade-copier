@@ -6,6 +6,8 @@ import { CurrencySelector } from '@/components/currency-selector';
 import { MoneyDisplay } from '@/components/money-display';
 import Link from 'next/link';
 
+export const dynamic = 'force-dynamic';
+
 export default async function DashboardOverview() {
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
