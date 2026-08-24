@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Users, ArrowRightLeft, ShieldAlert, Menu, Download } from 'lucide-react';
+import { Home, Users, ArrowRightLeft, ShieldAlert, Settings, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePwa } from '../pwa-provider';
 
@@ -15,7 +15,7 @@ export function BottomNav() {
     { name: 'Accounts', href: '/accounts', icon: Users },
     { name: 'Trades', href: '/positions', icon: ArrowRightLeft },
     { name: 'Risk', href: '/risk', icon: ShieldAlert },
-    { name: 'Settings', href: '/settings', icon: Menu }
+    { name: 'Settings', href: '/settings', icon: Settings }
   ];
 
   return (

@@ -92,7 +92,7 @@ export function Sidebar() {
           <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center overflow-hidden group-hover:ring-2 ring-primary/20 transition-all">
             {session?.user?.name || session?.user?.email ? (
               <div className="w-full h-full bg-foreground flex items-center justify-center text-background font-bold text-[13px] tracking-tighter">
-                {(session.user.name || session.user.email).charAt(0).toUpperCase()}
+                {(session?.user?.name || session?.user?.email || 'U').charAt(0).toUpperCase()}
               </div>
             ) : (
               <UserCircle className="w-9 h-9 text-muted-foreground group-hover:text-foreground transition-colors" />

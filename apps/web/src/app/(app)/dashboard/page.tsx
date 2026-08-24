@@ -1,4 +1,4 @@
-import { ShieldAlert, ArrowUpRight, ArrowDownRight, Settings2, BarChart3, Wifi, Clock, ArrowRight, Users, Play } from 'lucide-react';
+import { ShieldAlert, ArrowUpRight, ArrowDownRight, Settings2, BarChart3, Wifi, Clock, ArrowRight, Users, Play, Home } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { PerformanceChart } from '@/components/dashboard/performance-chart';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -141,12 +141,15 @@ export default async function DashboardOverview() {
         
         {/* Top Right Utilities */}
         <div className="flex items-center gap-4">
+          <Link href="/" className="hidden lg:flex items-center justify-center w-9 h-9 rounded-full bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors border border-border/50 text-muted-foreground hover:text-foreground">
+            <Home className="w-4 h-4" />
+          </Link>
           <CurrencySelector />
           <div className="hidden lg:block">
             <ThemeToggle />
           </div>
           <div className="w-9 h-9 rounded-full bg-foreground flex items-center justify-center overflow-hidden shadow-sm border border-border/50 text-background font-bold text-[13px] tracking-tighter">
-            {(user.name || user.email).charAt(0).toUpperCase()}
+            {(user.name || user.email || 'U').charAt(0).toUpperCase()}
           </div>
         </div>
       </header>

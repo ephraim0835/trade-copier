@@ -1,8 +1,15 @@
 import Link from 'next/link';
 import { Shield, Zap, Lock, Globe, Server, BarChart3, ChevronRight } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { getServerSession } from 'next-auth/next';
+import { redirect } from 'next/navigation';
 
-export default function MarketingHomepage() {
+export default async function MarketingHomepage() {
+  const session = await getServerSession();
+  if (session?.user) {
+    redirect('/dashboard');
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col relative overflow-hidden">
       
