@@ -10,7 +10,31 @@ const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'Plaiz Markets | Professional Trade Copying',
-  description: 'Premium fintech trade copying and risk management platform.',
+  description: 'Premium fintech trade copying and risk management platform for professional traders.',
+  keywords: ['trade copier', 'forex', 'prop firm', 'risk management', 'metatrader', 'mt5', 'automated trading'],
+  authors: [{ name: 'Plaiz Markets' }],
+  openGraph: {
+    title: 'Plaiz Markets | Professional Trade Copying',
+    description: 'Lightning fast, ultra-reliable trade copying across MetaTrader accounts.',
+    url: 'https://plaiz-markets.online',
+    siteName: 'Plaiz Markets',
+    images: [
+      {
+        url: '/plaiz-logo.png',
+        width: 800,
+        height: 600,
+        alt: 'Plaiz Markets Logo',
+      },
+    ],
+    locale: 'en_US',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Plaiz Markets',
+    description: 'Professional trade copying and risk management.',
+    images: ['/plaiz-logo.png'],
+  },
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
