@@ -3,7 +3,7 @@ services:
     name: plaiz-markets-api
     env: node
     buildCommand: npm install -g pnpm@9.15.9 && pnpm install --prod=false && cd packages/database && pnpm exec prisma generate && cd ../.. && cd apps/api && pnpm run build
-    startCommand: cd apps/api && pnpm run start:prod
+    startCommand: cd apps/api && pnpm run start
     envVars:
       - key: SUPABASE_URL
         sync: false
