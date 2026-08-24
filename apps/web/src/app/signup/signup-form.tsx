@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Lock, Mail, Eye, EyeOff, User } from "lucide-react";
 import Link from "next/link";
-import { sendVerification } from "@/app/actions/email-auth-actions";
+import { sendVerification, registerUser } from "@/app/actions/email-auth-actions";
 
 export function SignupForm() {
   const [name, setName] = useState("");
@@ -47,16 +47,10 @@ export function SignupForm() {
     setError("");
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9001/api/v1';
-      const res = await fetch(`${apiUrl}/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, name })
-      });
+      const res = await registerUser(email, password, name);
 
-      if (!res.ok) {
-        const data = await res.json();
-        setError(data.message || "Failed to create account");
+      if (res.error) {
+        setError(res.error || "Failed to create account");
         setLoading(false);
         return;
       }

@@ -5,6 +5,29 @@ import { sendVerificationEmail, sendPasswordResetEmail } from '@/lib/email';
 import { randomBytes } from 'crypto';
 import * as argon2 from 'argon2';
 
+export async function registerUser(email: string, passwordPlain: string, name: string) {
+  try {
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) return { error: 'Email already exists' };
+
+    const passwordHash = await argon2.hash(passwordPlain);
+
+    const user = await prisma.user.create({
+      data: {
+        email,
+        password: passwordHash,
+        name,
+        role: 'USER',
+      },
+    });
+    
+    return { success: true, user: { id: user.id, email: user.email } };
+  } catch (error) {
+    console.error('Registration error:', error);
+    return { error: 'Failed to create account' };
+  }
+}
+
 // Send / resend verification email
 export async function sendVerification(email: string) {
   const user = await prisma.user.findUnique({ where: { email } });
