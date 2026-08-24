@@ -2,7 +2,7 @@ services:
   - type: web
     name: plaiz-markets-api
     env: node
-    buildCommand: pnpm install && cd packages/database && pnpm exec prisma generate && cd ../.. && cd apps/api && pnpm run build
+    buildCommand: npm install -g pnpm && pnpm install && cd packages/database && pnpm exec prisma generate && cd ../.. && cd apps/api && pnpm run build
     startCommand: cd apps/api && pnpm run start:prod
     envVars:
       - key: SUPABASE_URL
