@@ -2,10 +2,25 @@ import { ShieldAlert, Users, SlidersHorizontal, Info } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { RiskControls } from './risk-controls';
 import { RiskActions } from '@/components/risk/risk-actions';
+import { getServerSession } from 'next-auth/next';
+import { redirect } from 'next/navigation';
 
 export default async function RiskPage() {
+  const session = await getServerSession();
+  if (!session?.user?.email) {
+    redirect('/login');
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { email: session.user.email }
+  });
+
+  if (!user) {
+    redirect('/login');
+  }
+
   const subAccounts = await prisma.mt5Account.findMany({
-    where: { role: 'SUB' },
+    where: { role: 'SUB', userId: user.id },
     orderBy: { createdAt: 'asc' }
   });
 

@@ -91,11 +91,9 @@ export function Sidebar() {
         <Link href="/settings" className="flex items-center gap-3 px-3 py-3 rounded-2xl bg-black/5 dark:bg-black/20 border border-border/30 hover:bg-black/10 dark:hover:bg-black/40 transition-colors cursor-pointer backdrop-blur-md group">
           <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center overflow-hidden group-hover:ring-2 ring-primary/20 transition-all">
             {session?.user?.name || session?.user?.email ? (
-              <img 
-                src={`https://api.dicebear.com/7.x/notionists/svg?seed=${session.user.name || session.user.email}&backgroundColor=transparent`} 
-                alt="User" 
-                className="w-full h-full object-cover" 
-              />
+              <div className="w-full h-full bg-foreground flex items-center justify-center text-background font-bold text-[13px] tracking-tighter">
+                {(session.user.name || session.user.email).charAt(0).toUpperCase()}
+              </div>
             ) : (
               <UserCircle className="w-9 h-9 text-muted-foreground group-hover:text-foreground transition-colors" />
             )}

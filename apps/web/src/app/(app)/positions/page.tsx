@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma';
 import { ArrowRight, CheckCircle2, XCircle, Clock, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import { getServerSession } from 'next-auth/next';
+import { redirect } from 'next/navigation';
 
 // Helper to determine the consolidated status
 function getStatusDisplay(copy: any, commands: any[]) {
@@ -25,13 +27,35 @@ function getStatusDisplay(copy: any, commands: any[]) {
 }
 
 export default async function PositionsPage() {
+  const session = await getServerSession();
+  if (!session?.user?.email) {
+    redirect('/login');
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { email: session.user.email }
+  });
+
+  if (!user) {
+    redirect('/login');
+  }
+
+  // Get user's master accounts
+  const masterAccounts = await prisma.mt5Account.findMany({
+    where: { role: 'MASTER', userId: user.id }
+  });
+  
+  const masterAccountIds = masterAccounts.map((a: any) => a.id);
+
   // Query all trade signals (representing master orders/positions)
   // And include their mappings (TradeCopies) and the executed commands
-  const signals = await prisma.tradeSignal.findMany({
+  const signals = masterAccountIds.length > 0 ? await prisma.tradeSignal.findMany({
+    where: { masterAcctId: { in: masterAccountIds } },
     orderBy: { createdAt: 'desc' },
     take: 50,
     include: {
       copies: {
+        where: { subAccount: { userId: user.id } }, // double check copies belong to user too
         include: {
           subAccount: true,
           commands: {
@@ -40,12 +64,8 @@ export default async function PositionsPage() {
         }
       }
     }
-  });
+  }) : [];
 
-  // Get master accounts to display master name
-  const masterAccounts = await prisma.mt5Account.findMany({
-    where: { role: 'MASTER' }
-  });
   const masterMap = new Map(masterAccounts.map((a: any) => [a.id, a.login]));
 
   return (

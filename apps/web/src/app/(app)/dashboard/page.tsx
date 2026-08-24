@@ -116,17 +116,17 @@ export default async function DashboardOverview() {
             </h1>
             {/* Functional Status Pill */}
             {accounts.length === 0 ? (
-              <div className="plaiz-plaiz-pill plaiz-pill-neutral shadow-sm text-foreground">
-                <Play className="w-3 h-3 text-muted-foreground mr-1" />
-                Getting Started
+              <div className="flex items-center gap-1.5 bg-black/80 dark:bg-white/10 text-white backdrop-blur-md border border-black/10 dark:border-white/10 px-3 py-1 rounded-full text-[11px] font-semibold tracking-wide shadow-sm">
+                <Play className="w-3 h-3 text-primary fill-primary" />
+                GETTING STARTED
               </div>
             ) : allConnected ? (
-              <div className="plaiz-plaiz-pill plaiz-pill-success shadow-sm">
+              <div className="plaiz-pill plaiz-pill-success shadow-sm">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                 Copying
               </div>
             ) : (
-              <div className="plaiz-plaiz-pill plaiz-pill-neutral text-destructive border-destructive/20 shadow-sm">
+              <div className="plaiz-pill plaiz-pill-neutral text-destructive border-destructive/20 shadow-sm">
                 <span className="w-1.5 h-1.5 rounded-full bg-destructive animate-pulse"></span>
                 Degraded
               </div>
@@ -145,12 +145,8 @@ export default async function DashboardOverview() {
           <div className="hidden lg:block">
             <ThemeToggle />
           </div>
-          <div className="w-9 h-9 rounded-full bg-secondary overflow-hidden shadow-sm border border-border/50">
-            <img 
-              src={`https://api.dicebear.com/7.x/notionists/svg?seed=${user.name || user.email}&backgroundColor=transparent`} 
-              alt={user.name || 'User'} 
-              className="w-full h-full object-cover" 
-            />
+          <div className="w-9 h-9 rounded-full bg-foreground flex items-center justify-center overflow-hidden shadow-sm border border-border/50 text-background font-bold text-[13px] tracking-tighter">
+            {(user.name || user.email).charAt(0).toUpperCase()}
           </div>
         </div>
       </header>
@@ -163,24 +159,55 @@ export default async function DashboardOverview() {
             ========================================= */}
         <div className="xl:col-span-7 flex flex-col gap-12">
           
-          {/* HERO: TODAY'S P/L */}
-          <section className="relative flex flex-col pt-4">
-            <div className="flex flex-col mb-10">
-              <span className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] mb-2 font-semibold px-1">Total Live PnL</span>
-              <span className={`text-[64px] sm:text-[72px] lg:text-[84px] font-bold tracking-tighter leading-none num-tabular ${isProfit ? 'text-foreground' : 'text-destructive'}`}>
-                {isProfit ? '+' : ''}<MoneyDisplay amount={todaysTotalPl} sourceCurrency={masterAccount?.currency || 'USD'} />
-              </span>
-            </div>
-            
-            <div className="mt-8 flex items-center gap-8 border-t border-border/40 pt-8">
-              <div className="flex flex-col">
-                <span className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] mb-1">Execution</span>
-                <span className="text-[20px] font-semibold text-foreground tracking-tight num-tabular">{copiedTradesToday} <span className="text-[13px] text-muted-foreground font-normal">trades</span></span>
-              </div>
-              <div className="w-[1px] h-8 bg-border/40"></div>
-              <div className="flex flex-col">
-                <span className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] mb-1">Routing</span>
-                <span className="text-[20px] font-semibold text-foreground tracking-tight num-tabular">{activeSubs} <span className="text-[13px] text-muted-foreground font-normal">/ {subAccounts.length}</span></span>
+          {/* GLASS VAULT: PREMIUM BALANCE & PNL CARD */}
+          <section className="relative">
+            <div className="absolute inset-0 bg-gradient-to-br from-black/5 to-transparent dark:from-white/5 dark:to-transparent rounded-[24px] pointer-events-none"></div>
+            <div className="relative bg-card/40 backdrop-blur-3xl border border-border/50 rounded-[24px] p-8 lg:p-10 shadow-2xl overflow-hidden">
+              
+              {/* Subtle accent glow */}
+              <div className="absolute -top-20 -right-20 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none"></div>
+
+              <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
+                {/* Total Balance (Sum of master + all subs) */}
+                <div className="flex flex-col z-10">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center">
+                      <div className="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
+                    </div>
+                    <span className="text-[11px] text-muted-foreground uppercase tracking-[0.2em] font-semibold">Total Vault Balance</span>
+                  </div>
+                  <span className="text-[48px] sm:text-[64px] font-bold tracking-tighter leading-none num-tabular text-foreground">
+                    <MoneyDisplay amount={accounts.reduce((sum, a) => sum + (a.balance || 0), 0)} sourceCurrency={masterAccount?.currency || 'USD'} />
+                  </span>
+                  <div className="mt-4 flex items-center gap-2">
+                    <span className="px-2 py-1 bg-black/5 dark:bg-white/5 border border-border/50 rounded-md text-[10px] text-muted-foreground font-semibold">
+                      {accounts.length} CONNECTED ACCOUNTS
+                    </span>
+                  </div>
+                </div>
+
+                {/* Live PnL */}
+                <div className="flex flex-col md:items-end z-10">
+                  <span className="text-[11px] text-muted-foreground uppercase tracking-[0.2em] mb-2 font-semibold md:text-right">Live Floating PnL</span>
+                  <div className="flex items-baseline gap-2">
+                    <span className={`text-[32px] sm:text-[40px] font-bold tracking-tighter leading-none num-tabular ${isProfit ? 'text-emerald-500' : 'text-destructive'}`}>
+                      {isProfit ? '+' : ''}<MoneyDisplay amount={todaysTotalPl} sourceCurrency={masterAccount?.currency || 'USD'} />
+                    </span>
+                  </div>
+                  
+                  {/* Stats */}
+                  <div className="mt-4 flex items-center gap-4 border-t border-border/30 pt-4 w-full md:justify-end">
+                    <div className="flex flex-col md:items-end">
+                      <span className="text-[9px] text-muted-foreground uppercase tracking-[0.2em] mb-0.5">Execution</span>
+                      <span className="text-[13px] font-semibold text-foreground num-tabular">{copiedTradesToday} trades</span>
+                    </div>
+                    <div className="w-[1px] h-6 bg-border/40"></div>
+                    <div className="flex flex-col md:items-end">
+                      <span className="text-[9px] text-muted-foreground uppercase tracking-[0.2em] mb-0.5">Routing</span>
+                      <span className="text-[13px] font-semibold text-foreground num-tabular">{activeSubs} active</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </section>
