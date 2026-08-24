@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { requestPasswordReset } from '@/app/actions/email-auth-actions';
 import { Mail, ArrowLeft, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
@@ -9,13 +9,29 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [timer, setTimer] = useState(0);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (timer > 0) {
+      interval = setInterval(() => {
+        setTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [timer]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (timer > 0) return;
     setLoading(true);
     await requestPasswordReset(email);
     setSent(true);
+    setTimer(60); // 60 seconds cooldown
     setLoading(false);
+    
+    // Allow trying again after 5 seconds
+    setTimeout(() => setSent(false), 5000);
   };
 
   return (
@@ -62,10 +78,10 @@ export default function ForgotPasswordPage() {
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || timer > 0}
                 className="w-full plaiz-btn plaiz-btn-primary h-12 rounded-2xl font-semibold text-[15px] disabled:opacity-60"
               >
-                {loading ? 'Sending...' : 'Send Reset Link'}
+                {loading ? 'Sending...' : timer > 0 ? `Try again in ${timer}s` : 'Send Reset Link'}
               </button>
             </form>
           </div>
@@ -82,9 +98,6 @@ export default function ForgotPasswordPage() {
                 we've sent a password reset link. It expires in 1 hour.
               </p>
             </div>
-            <Link href="/login" className="block text-[13px] text-muted-foreground hover:text-foreground transition-colors">
-              ← Back to login
-            </Link>
           </div>
         )}
       </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { sendVerification } from '@/app/actions/email-auth-actions';
 import { Mail, RefreshCw, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
@@ -8,18 +8,33 @@ import Link from 'next/link';
 export default function VerifyEmailPage() {
   const [resent, setResent] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [timer, setTimer] = useState(0);
 
   // Email stored in session storage during signup
   const email = typeof window !== 'undefined' 
     ? sessionStorage.getItem('signup_email') || '' 
     : '';
 
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (timer > 0) {
+      interval = setInterval(() => {
+        setTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [timer]);
+
   const handleResend = async () => {
-    if (!email) return;
+    if (!email || timer > 0) return;
     setLoading(true);
     await sendVerification(email);
     setResent(true);
+    setTimer(60); // 60 seconds cooldown
     setLoading(false);
+    
+    // Hide the success message after 5 seconds but keep the timer running
+    setTimeout(() => setResent(false), 5000);
   };
 
   return (
@@ -59,21 +74,29 @@ export default function VerifyEmailPage() {
         </div>
 
         {/* Resend */}
-        {!resent ? (
-          <button
-            onClick={handleResend}
-            disabled={loading || !email}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-border/50 text-[14px] font-medium text-muted-foreground hover:text-foreground hover:border-border transition-all disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            {loading ? 'Sending...' : 'Resend verification email'}
-          </button>
-        ) : (
-          <div className="flex items-center justify-center gap-2 text-emerald-500 text-[14px] font-medium">
-            <CheckCircle className="w-4 h-4" />
-            Email resent!
-          </div>
-        )}
+        <div className="space-y-4">
+          {!resent ? (
+            <button
+              onClick={handleResend}
+              disabled={loading || !email || timer > 0}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-border/50 text-[14px] font-medium text-muted-foreground hover:text-foreground hover:border-border transition-all disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              {loading ? 'Sending...' : timer > 0 ? `Resend again in ${timer}s` : 'Resend verification email'}
+            </button>
+          ) : (
+            <div className="flex items-center justify-center gap-2 text-emerald-500 text-[14px] font-medium py-3">
+              <CheckCircle className="w-4 h-4" />
+              Email resent!
+            </div>
+          )}
+          
+          {timer > 0 && !resent && (
+            <p className="text-[12px] text-muted-foreground text-center">
+              Please wait before requesting another email.
+            </p>
+          )}
+        </div>
 
         <Link href="/login" className="block text-[13px] text-muted-foreground hover:text-foreground transition-colors">
           ← Back to login
