@@ -11,6 +11,16 @@ services:
         sync: false
       - key: ENCRYPTION_KEY
         sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: EA_TOKEN_SIGNING_SECRET
+        generateValue: true
       - key: FRONTEND_URL
         value: https://plaiz-markets.vercel.app
       - key: NODE_ENV
