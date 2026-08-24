@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
+import { getServerSession } from 'next-auth/next';
 
 import { encrypt } from '@/lib/encryption';
 
@@ -13,17 +14,25 @@ export async function createMt5Account(data: {
   password?: string;
 }) {
   try {
-    // We assume the user is the only user for now (or fetch the first user)
-    // In a real app with auth, you would get the user ID from the session
-    let user = await prisma.user.findFirst();
+    const session = await getServerSession();
+    if (!session?.user?.email) {
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      include: { subscription: true }
+    });
+
     if (!user) {
-      user = await prisma.user.create({
-        data: {
-          email: 'admin@plaiz.com',
-          password: 'mock_password',
-          role: 'ADMIN'
-        }
-      });
+      return { success: false, error: 'User not found' };
+    }
+
+    const hasActiveSubscription = user.role === 'ADMIN' || 
+      (user.subscription && ['ACTIVE', 'TRIAL', 'INTERNAL_FREE'].includes(user.subscription.status));
+
+    if (!hasActiveSubscription) {
+      return { success: false, error: 'Active subscription required' };
     }
 
     const encryptedPassword = data.password ? encrypt(data.password) : undefined;

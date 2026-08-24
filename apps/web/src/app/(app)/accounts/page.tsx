@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
 import { Settings2, Activity, AlertCircle } from 'lucide-react';
 import { MoneyDisplay } from '@/components/money-display';
+import { ProtectedAction } from '@/components/protected-action';
 
 export default async function AccountsPage() {
   const accounts = await prisma.mt5Account.findMany({
@@ -62,16 +63,20 @@ export default async function AccountsPage() {
               </div>
 
               <div className="flex items-center gap-3 mt-4 pt-4 border-t border-border/40">
-                <Link 
-                  href={`/accounts/${account.id}/settings`}
-                  className="plaiz-btn plaiz-btn-primary flex-1 justify-center"
-                >
-                  <Settings2 className="w-4 h-4" />
-                  Risk Controls
-                </Link>
-                <button className="plaiz-btn plaiz-btn-secondary px-3" title="View Logs">
-                  <Activity className="w-4 h-4" />
-                </button>
+                <ProtectedAction className="flex-1 flex">
+                  <Link 
+                    href={`/accounts/${account.id}/settings`}
+                    className="plaiz-btn plaiz-btn-primary flex-1 justify-center"
+                  >
+                    <Settings2 className="w-4 h-4" />
+                    Risk Controls
+                  </Link>
+                </ProtectedAction>
+                <ProtectedAction>
+                  <button className="plaiz-btn plaiz-btn-secondary px-3" title="View Logs">
+                    <Activity className="w-4 h-4" />
+                  </button>
+                </ProtectedAction>
               </div>
             </div>
           );

@@ -4,6 +4,7 @@ import { PerformanceChart } from '@/components/dashboard/performance-chart';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { CurrencySelector } from '@/components/currency-selector';
 import { MoneyDisplay } from '@/components/money-display';
+import { ProtectedAction } from '@/components/protected-action';
 import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
@@ -194,7 +195,9 @@ export default async function DashboardOverview() {
                 <ShieldAlert className="w-8 h-8 mb-3 text-muted-foreground" />
                 <p className="text-[13px] font-medium text-foreground">No Master Source</p>
                 <p className="text-[11px] text-muted-foreground mt-1 mb-4">A master account is required to copy trades.</p>
-                <Link href="/master" className="plaiz-btn plaiz-plaiz-btn-secondary">Connect Master</Link>
+                <ProtectedAction>
+                  <Link href="/master" className="plaiz-btn plaiz-plaiz-btn-secondary">Connect Master</Link>
+                </ProtectedAction>
               </div>
             )}
           </section>
@@ -258,9 +261,11 @@ export default async function DashboardOverview() {
           <section className="plaiz-card bg-secondary/30 p-6 rounded-[20px]">
              <div className="flex items-center justify-between mb-6">
               <h3 className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">Risk Engine</h3>
-              <button className="plaiz-plaiz-pill plaiz-pill-interactive pill-neutral text-[10px] hover:bg-black/5 dark:hover:bg-white/5">
-                <Settings2 className="w-3.5 h-3.5 mr-1" /> Configure
-              </button>
+              <ProtectedAction>
+                <button className="plaiz-plaiz-pill plaiz-pill-interactive pill-neutral text-[10px] hover:bg-black/5 dark:hover:bg-white/5">
+                  <Settings2 className="w-3.5 h-3.5 mr-1" /> Configure
+                </button>
+              </ProtectedAction>
              </div>
 
              <div className="flex flex-col gap-4">
@@ -358,7 +363,9 @@ export default async function DashboardOverview() {
             <Users className="w-8 h-8 mb-3 text-muted-foreground opacity-50" />
             <p className="text-[13px] font-medium text-foreground">No Sub Accounts</p>
             <p className="text-[11px] text-muted-foreground mt-1 mb-4">Connect portfolio accounts to receive trades.</p>
-            <Link href="/accounts" className="plaiz-btn plaiz-plaiz-btn-secondary">Add Account</Link>
+            <ProtectedAction>
+              <Link href="/accounts" className="plaiz-btn plaiz-plaiz-btn-secondary">Add Account</Link>
+            </ProtectedAction>
           </div>
         )}
       </section>

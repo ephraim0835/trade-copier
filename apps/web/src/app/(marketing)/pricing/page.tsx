@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Check, X } from 'lucide-react';
+import { getServerSession } from 'next-auth/next';
 
 const pricingPlans = [
   {
@@ -60,7 +61,10 @@ const pricingPlans = [
   }
 ];
 
-export default function PricingPage() {
+export default async function PricingPage() {
+  const session = await getServerSession();
+  const isLoggedIn = !!session?.user?.email;
+
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col relative overflow-hidden pb-32">
       {/* Background decoration */}
@@ -135,10 +139,10 @@ export default function PricingPage() {
             </ul>
             
             <Link 
-              href={plan.ctaUrl} 
+              href={plan.status === 'coming_later' ? plan.ctaUrl : (isLoggedIn ? '/dashboard' : '/signup')} 
               className={`plaiz-btn w-full py-3 justify-center ${plan.popular ? 'plaiz-btn-primary relative z-10' : 'plaiz-btn-secondary'}`}
             >
-              {plan.cta}
+              {plan.status === 'coming_later' ? plan.cta : (isLoggedIn ? 'Select Plan' : plan.cta)}
             </Link>
           </div>
         ))}
