@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@trade-copier/database": "workspace:^",
+    "argon2": "^0.45.1",
     "clsx": "^2.1.1",
     "framer-motion": "^13.1.0",
     "lucide-react": "^1.33.0",

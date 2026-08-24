@@ -85,6 +85,11 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  emailVerified       Boolean  @default(false)
+  verificationToken   String?
+  resetToken          String?
+  resetTokenExpiresAt DateTime?
+
   accounts Mt5Account[]
   subscription Subscription?
 }

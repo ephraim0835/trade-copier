@@ -10,6 +10,7 @@ export function SignupForm() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -47,6 +48,12 @@ export function SignupForm() {
     setError("");
 
     try {
+      if (password !== confirmPassword) {
+        setError("Passwords do not match");
+        setLoading(false);
+        return;
+      }
+
       const res = await registerUser(email, password, name);
 
       if (res.error) {
@@ -60,7 +67,7 @@ export function SignupForm() {
       await sendVerification(email);
       router.push("/verify-email");
     } catch (err) {
-      setError("An unexpected error occurred");
+      setError(`An unexpected error occurred: ${err instanceof Error ? err.message : String(err)}`);
       setLoading(false);
     }
   };
@@ -156,6 +163,23 @@ export function SignupForm() {
               </div>
             )}
           </div>
+          
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-muted-foreground">
+              <Lock className="h-4 w-4" />
+            </div>
+            <input
+              id="confirmPassword"
+              name="confirmPassword"
+              type={showPassword ? "text" : "password"}
+              autoComplete="new-password"
+              required
+              className="appearance-none rounded-xl relative block w-full px-4 py-3 pl-11 pr-11 border border-border/50 placeholder-muted-foreground text-foreground bg-black/5 dark:bg-white/5 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm transition-all"
+              placeholder="Confirm Password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+            />
+          </div>
         </div>
 
         {error && (
@@ -167,7 +191,7 @@ export function SignupForm() {
         <div className="pt-2">
           <button
             type="submit"
-            disabled={loading || password.length === 0 || strength < 2}
+            disabled={loading || password.length === 0 || strength < 2 || password !== confirmPassword}
             className="plaiz-btn plaiz-btn-primary w-full py-3.5 justify-center text-[14px]"
           >
             {loading ? "Creating Account..." : "Sign Up"}
