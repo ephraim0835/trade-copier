@@ -1,8 +1,8 @@
 import { Resend } from 'resend';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const FROM = 'Plaiz Markets <onboarding@resend.dev>';
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://plaiz-markets.vercel.app';
+const FROM = 'Plaiz Markets <noreply@plaiz-markets.online>';
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://plaiz-markets.online';
 
 export async function sendVerificationEmail(email: string, name: string, token: string) {
   const link = `${BASE_URL}/verify-email/confirm?token=${token}`;
