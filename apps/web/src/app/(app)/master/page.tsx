@@ -2,17 +2,33 @@ import { ShieldCheck, Wifi, ArrowRightLeft, Clock } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { MoneyDisplay } from '@/components/money-display';
 import { MasterActions } from '@/components/master/master-actions';
+import { getServerSession } from 'next-auth/next';
+import { redirect } from 'next/navigation';
 
 export default async function MasterPage() {
-  const masterAccount = await prisma.mt5Account.findFirst({
-    where: { role: 'MASTER' }
+  const session = await getServerSession();
+  if (!session?.user?.email) {
+    redirect('/login');
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { email: session.user.email }
   });
 
-  // Query signals independently since they aren't directly related to mt5Account in the schema
-  const recentSignals = await prisma.tradeSignal.findMany({
+  if (!user) {
+    redirect('/login');
+  }
+
+  const masterAccount = await prisma.mt5Account.findFirst({
+    where: { role: 'MASTER', userId: user.id }
+  });
+
+  // Query signals for this specific master account
+  const recentSignals = masterAccount ? await prisma.tradeSignal.findMany({
+    where: { masterAcctId: masterAccount.id },
     take: 10,
     orderBy: { createdAt: 'desc' }
-  });
+  }) : [];
 
   const masterOnline = masterAccount?.isActive ?? false;
 

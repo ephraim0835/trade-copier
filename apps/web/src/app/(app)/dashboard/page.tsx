@@ -1,4 +1,4 @@
-import { ShieldAlert, ArrowUpRight, ArrowDownRight, Settings2, BarChart3, Wifi, Clock, ArrowRight, Users } from 'lucide-react';
+import { ShieldAlert, ArrowUpRight, ArrowDownRight, Settings2, BarChart3, Wifi, Clock, ArrowRight, Users, Play } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { PerformanceChart } from '@/components/dashboard/performance-chart';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -6,6 +6,8 @@ import { CurrencySelector } from '@/components/currency-selector';
 import { MoneyDisplay } from '@/components/money-display';
 import { ProtectedAction } from '@/components/protected-action';
 import Link from 'next/link';
+import { getServerSession } from 'next-auth/next';
+import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,8 +15,21 @@ export default async function DashboardOverview() {
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
 
+  const session = await getServerSession();
+  if (!session?.user?.email) {
+    redirect('/login');
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { email: session.user.email }
+  });
+
+  if (!user) {
+    redirect('/login');
+  }
+
   // ==========================================
-  // BACKEND DATA FETCHING (PRESERVED EXACTLY)
+  // BACKEND DATA FETCHING (TENANT ISOLATED)
   // ==========================================
   let accounts: any[] = [];
   let todayDeals: any[] = [];
@@ -23,6 +38,7 @@ export default async function DashboardOverview() {
 
   try {
     accounts = await prisma.mt5Account.findMany({
+      where: { userId: user.id },
       include: {
         copySettings: true,
         eaTokens: true,
@@ -31,14 +47,22 @@ export default async function DashboardOverview() {
     });
 
     todayDeals = await prisma.deal.findMany({
-      where: { time: { gte: startOfDay } }
+      where: { 
+        time: { gte: startOfDay },
+        mt5Account: { userId: user.id }
+      }
     });
 
     copiedTradesToday = await prisma.tradeCopy.count({
-      where: { createdAt: { gte: startOfDay }, state: 'EXECUTED' }
+      where: { 
+        createdAt: { gte: startOfDay }, 
+        state: 'EXECUTED',
+        subAccount: { userId: user.id }
+      }
     });
 
     recentActivity = await prisma.tradeCopy.findMany({
+      where: { subAccount: { userId: user.id } },
       take: 5,
       orderBy: { createdAt: 'desc' },
       include: {
@@ -88,10 +112,15 @@ export default async function DashboardOverview() {
         <div>
           <div className="flex items-center gap-3 mb-2">
             <h1 className="text-2xl font-bold tracking-tight text-foreground">
-              Good morning, Admin
+              Good morning, {user.name || user.email.split('@')[0]}
             </h1>
             {/* Functional Status Pill */}
-            {allConnected ? (
+            {accounts.length === 0 ? (
+              <div className="plaiz-plaiz-pill plaiz-pill-neutral shadow-sm text-foreground">
+                <Play className="w-3 h-3 text-muted-foreground mr-1" />
+                Getting Started
+              </div>
+            ) : allConnected ? (
               <div className="plaiz-plaiz-pill plaiz-pill-success shadow-sm">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                 Copying
@@ -104,7 +133,9 @@ export default async function DashboardOverview() {
             )}
           </div>
           <p className="text-muted-foreground text-[13px] tracking-wide">
-            {activeSubs} of {subAccounts.length} portfolio accounts routing normally.
+            {accounts.length === 0 
+              ? "Connect a master account to begin your copy setup." 
+              : `${activeSubs} of ${subAccounts.length} portfolio accounts routing normally.`}
           </p>
         </div>
         
@@ -115,7 +146,11 @@ export default async function DashboardOverview() {
             <ThemeToggle />
           </div>
           <div className="w-9 h-9 rounded-full bg-secondary overflow-hidden shadow-sm border border-border/50">
-            <img src={`https://api.dicebear.com/7.x/notionists/svg?seed=Admin&backgroundColor=transparent`} alt="Admin" className="w-full h-full object-cover" />
+            <img 
+              src={`https://api.dicebear.com/7.x/notionists/svg?seed=${user.name || user.email}&backgroundColor=transparent`} 
+              alt={user.name || 'User'} 
+              className="w-full h-full object-cover" 
+            />
           </div>
         </div>
       </header>

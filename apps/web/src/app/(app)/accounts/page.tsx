@@ -3,10 +3,25 @@ import Link from 'next/link';
 import { Settings2, Activity, AlertCircle } from 'lucide-react';
 import { MoneyDisplay } from '@/components/money-display';
 import { ProtectedAction } from '@/components/protected-action';
+import { getServerSession } from 'next-auth/next';
+import { redirect } from 'next/navigation';
 
 export default async function AccountsPage() {
+  const session = await getServerSession();
+  if (!session?.user?.email) {
+    redirect('/login');
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { email: session.user.email }
+  });
+
+  if (!user) {
+    redirect('/login');
+  }
+
   const accounts = await prisma.mt5Account.findMany({
-    where: { role: 'SUB' },
+    where: { role: 'SUB', userId: user.id },
     include: {
       copySettings: true,
       eaTokens: true,

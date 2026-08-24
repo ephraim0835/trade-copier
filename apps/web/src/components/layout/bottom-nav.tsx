@@ -19,27 +19,26 @@ export function BottomNav() {
   ];
 
   return (
-    <div className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[95%] max-w-[400px] z-50 flex flex-col gap-3">
-
+    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50">
+      <div className="absolute inset-0 bg-background/80 backdrop-blur-xl border-t border-border/50"></div>
       
-      <div className="bg-background/95 backdrop-blur-xl border border-border/50 rounded-[24px] h-[64px] px-2 shadow-lg">
-        <nav className="flex h-full items-center justify-between">
+      {/* Safe area padding for modern phones */}
+      <div className="relative pb-safe">
+        <nav className="flex items-center justify-around h-[64px] px-2">
           {navItems.map((item) => {
             const isActive = pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/');
             return (
               <Link
                 key={item.name}
                 href={item.href}
-                className="flex-1 flex flex-col items-center justify-center h-full relative transition-transform active:scale-95 group"
+                className="flex-1 flex flex-col items-center justify-center h-full relative group transition-transform active:scale-95"
               >
-                {isActive && (
-                  <div className="absolute top-1 left-1/2 -translate-x-1/2 w-8 h-[3px] bg-foreground rounded-full"></div>
-                )}
                 <div className={cn(
-                  "p-2 rounded-xl transition-all duration-200 mt-2",
+                  "flex flex-col items-center justify-center gap-1 transition-all duration-200",
                   isActive ? "text-foreground" : "text-muted-foreground group-hover:text-foreground/80"
                 )}>
-                  <item.icon className={cn("w-[22px] h-[22px]", isActive && "text-foreground")} />
+                  <item.icon className={cn("w-6 h-6", isActive && "text-foreground stroke-[2.5px]")} />
+                  <span className="text-[10px] font-medium tracking-wide">{item.name}</span>
                 </div>
               </Link>
             );

@@ -17,11 +17,14 @@ import {
 import { cn } from '@/lib/utils';
 import { usePwa } from '../pwa-provider';
 import { ThemeToggle } from '../theme-toggle';
+import { useSession } from 'next-auth/react';
 
 export function Sidebar() {
+  const { data: session } = useSession();
   const { isInstallable, installApp } = usePwa();
-    const navItems = [
-      { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  
+  const navItems = [
+    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Master Source', href: '/master', icon: ShieldCheck },
     { name: 'Sub Accounts', href: '/accounts', icon: Users },
     { name: 'Live Trades', href: '/positions', icon: ArrowRightLeft },
@@ -87,10 +90,20 @@ export function Sidebar() {
       <div className="p-4 mt-auto">
         <Link href="/settings" className="flex items-center gap-3 px-3 py-3 rounded-2xl bg-black/5 dark:bg-black/20 border border-border/30 hover:bg-black/10 dark:hover:bg-black/40 transition-colors cursor-pointer backdrop-blur-md group">
           <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center overflow-hidden group-hover:ring-2 ring-primary/20 transition-all">
-             <UserCircle className="w-9 h-9 text-muted-foreground group-hover:text-foreground transition-colors" />
+            {session?.user?.name || session?.user?.email ? (
+              <img 
+                src={`https://api.dicebear.com/7.x/notionists/svg?seed=${session.user.name || session.user.email}&backgroundColor=transparent`} 
+                alt="User" 
+                className="w-full h-full object-cover" 
+              />
+            ) : (
+              <UserCircle className="w-9 h-9 text-muted-foreground group-hover:text-foreground transition-colors" />
+            )}
           </div>
           <div className="flex flex-col flex-1 min-w-0">
-            <span className="text-[13px] font-semibold truncate text-foreground leading-tight">Admin</span>
+            <span className="text-[13px] font-semibold truncate text-foreground leading-tight">
+              {session?.user?.name || session?.user?.email?.split('@')[0] || 'User'}
+            </span>
             <span className="text-[11px] text-muted-foreground truncate group-hover:text-primary transition-colors">Manage Account</span>
           </div>
         </Link>

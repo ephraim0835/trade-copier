@@ -1,9 +1,25 @@
 import { Activity, ArrowUpRight, ArrowDownRight, Clock } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
+import { getServerSession } from 'next-auth/next';
+import { redirect } from 'next/navigation';
 
 export default async function ActivityPage() {
+  const session = await getServerSession();
+  if (!session?.user?.email) {
+    redirect('/login');
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { email: session.user.email }
+  });
+
+  if (!user) {
+    redirect('/login');
+  }
+
   const recentActivity = await prisma.tradeCopy.findMany({
+    where: { subAccount: { userId: user.id } },
     take: 50,
     orderBy: { createdAt: 'desc' },
     include: {
