@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Lock, Mail, Eye, EyeOff, User } from "lucide-react";
 import Link from "next/link";
+import { signIn } from "next-auth/react";
 import { sendVerification, registerUser } from "@/app/actions/email-auth-actions";
 
 export function SignupForm() {
@@ -62,9 +63,17 @@ export function SignupForm() {
         return;
       }
 
-      // Send verification email and redirect to verify-email page
+      // Send verification email
       sessionStorage.setItem('signup_email', email);
       await sendVerification(email);
+
+      // Establish session
+      await signIn("credentials", {
+        redirect: false,
+        email,
+        password,
+      });
+
       router.push("/verify-email");
     } catch (err) {
       setError(`An unexpected error occurred: ${err instanceof Error ? err.message : String(err)}`);

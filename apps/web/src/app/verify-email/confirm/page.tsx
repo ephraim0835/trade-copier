@@ -5,11 +5,13 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { confirmVerification } from '@/app/actions/email-auth-actions';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
 import { Suspense } from 'react';
 
 function ConfirmContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { data: session } = useSession();
   const token = searchParams.get('token');
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
@@ -27,11 +29,17 @@ function ConfirmContent() {
         setMessage(result.error);
       } else {
         setStatus('success');
-        // Redirect to login after 3 seconds
-        setTimeout(() => router.push('/login?verified=1'), 3000);
+        // Redirect to dashboard if logged in, otherwise login page
+        setTimeout(() => {
+          if (session) {
+            router.push('/dashboard');
+          } else {
+            router.push('/login?verified=1');
+          }
+        }, 3000);
       }
     });
-  }, [token, router]);
+  }, [token, router, session]);
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4 relative">
@@ -58,12 +66,18 @@ function ConfirmContent() {
             <div>
               <h1 className="text-2xl font-bold text-foreground mb-2">Email verified!</h1>
               <p className="text-muted-foreground text-[15px]">
-                Your account is now active. Redirecting you to login...
+                Your account is now active. Redirecting you...
               </p>
             </div>
-            <Link href="/login" className="inline-block plaiz-btn plaiz-btn-primary px-8 py-3 rounded-2xl">
-              Go to Login
-            </Link>
+            {session ? (
+              <Link href="/dashboard" className="inline-block plaiz-btn plaiz-btn-primary px-8 py-3 rounded-2xl">
+                Go to Dashboard
+              </Link>
+            ) : (
+              <Link href="/login" className="inline-block plaiz-btn plaiz-btn-primary px-8 py-3 rounded-2xl">
+                Go to Login
+              </Link>
+            )}
           </>
         )}
 
