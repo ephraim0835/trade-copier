@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { PerformanceChart } from '@/components/dashboard/performance-chart';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { CurrencySelector } from '@/components/currency-selector';
+import { LogoutButton } from '@/components/logout-button';
 import { MoneyDisplay } from '@/components/money-display';
 import { ProtectedAction } from '@/components/protected-action';
 import Link from 'next/link';
@@ -150,6 +151,7 @@ export default async function DashboardOverview() {
           <div className="hidden lg:block">
             <ThemeToggle />
           </div>
+          <LogoutButton />
           <div className="w-9 h-9 rounded-full bg-foreground flex items-center justify-center overflow-hidden shadow-sm border border-border/50 text-background font-bold text-[13px] tracking-tighter">
             {(user.name || user.email || 'U').charAt(0).toUpperCase()}
           </div>
