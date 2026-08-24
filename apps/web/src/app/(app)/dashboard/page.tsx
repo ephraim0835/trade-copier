@@ -116,7 +116,7 @@ export default async function DashboardOverview() {
             </h1>
             {/* Functional Status Pill */}
             {accounts.length === 0 ? (
-              <div className="flex items-center gap-1.5 bg-black/80 dark:bg-white/10 text-white backdrop-blur-md border border-black/10 dark:border-white/10 px-3 py-1 rounded-full text-[11px] font-semibold tracking-wide shadow-sm">
+              <div className="flex items-center gap-1.5 bg-foreground text-background px-3 py-1 rounded-full text-[11px] font-semibold tracking-wide shadow-sm">
                 <Play className="w-3 h-3 text-primary fill-primary" />
                 GETTING STARTED
               </div>
@@ -141,7 +141,7 @@ export default async function DashboardOverview() {
         
         {/* Top Right Utilities */}
         <div className="flex items-center gap-4">
-          <Link href="/" className="hidden lg:flex items-center justify-center w-9 h-9 rounded-full bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors border border-border/50 text-muted-foreground hover:text-foreground">
+          <Link href="/?ref=dashboard" className="hidden lg:flex items-center justify-center w-9 h-9 rounded-full bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors border border-border/50 text-muted-foreground hover:text-foreground">
             <Home className="w-4 h-4" />
           </Link>
           <CurrencySelector />

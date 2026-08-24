@@ -4,9 +4,14 @@ import { ThemeToggle } from '@/components/theme-toggle';
 import { getServerSession } from 'next-auth/next';
 import { redirect } from 'next/navigation';
 
-export default async function MarketingHomepage() {
+export default async function MarketingHomepage({
+  searchParams,
+}: {
+  searchParams: { [key: string]: string | string[] | undefined }
+}) {
   const session = await getServerSession();
-  if (session?.user) {
+  
+  if (session?.user && searchParams?.ref !== 'dashboard') {
     redirect('/dashboard');
   }
 
