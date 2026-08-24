@@ -36,7 +36,8 @@ export function UsersClient({ users }: { users: any[] }) {
         </div>
 
         <div className="plaiz-card rounded-[20px] overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead className="text-xs text-muted-foreground uppercase bg-black/5 dark:bg-white/5 border-b border-border/40">
                 <tr>
@@ -61,11 +62,11 @@ export function UsersClient({ users }: { users: any[] }) {
                     <tr key={user.id} className="hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
+                          <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center shrink-0">
                             <span className="font-bold text-xs">{user.email.charAt(0).toUpperCase()}</span>
                           </div>
                           <div className="flex flex-col">
-                            <span className="font-semibold text-foreground">{user.email}</span>
+                            <span className="font-semibold text-foreground truncate max-w-[200px]">{user.email}</span>
                             <span className="text-[10px] text-muted-foreground">ID: {user.id.slice(0,8)}</span>
                           </div>
                         </div>
@@ -111,6 +112,78 @@ export function UsersClient({ users }: { users: any[] }) {
                 )}
               </tbody>
             </table>
+          </div>
+          
+          {/* Mobile Card View */}
+          <div className="md:hidden flex flex-col divide-y divide-border/20">
+            {filteredUsers.length === 0 ? (
+              <div className="px-6 py-12 text-center text-muted-foreground">
+                <Users className="w-8 h-8 mx-auto mb-3 opacity-50" />
+                <p>No users found matching your search.</p>
+              </div>
+            ) : (
+              filteredUsers.map((user: any) => (
+                <div key={user.id} className="flex flex-col gap-4 p-4 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center shrink-0">
+                        <span className="font-bold text-sm">{user.email.charAt(0).toUpperCase()}</span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-foreground text-sm truncate max-w-[200px]">{user.email}</span>
+                        <span className="text-[10px] text-muted-foreground">ID: {user.id.slice(0,8)}</span>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => setSelectedUser(user)}
+                      className="text-primary text-xs font-medium px-3 py-1.5 rounded-md bg-primary/10 hover:bg-primary/20 transition-colors"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-xs bg-black/5 dark:bg-white/5 p-3 rounded-xl border border-border/30">
+                    <div className="flex flex-col gap-1">
+                      <span className="text-muted-foreground">Role</span>
+                      {user.role === 'ADMIN' || user.role === 'OWNER' ? (
+                        <div className="flex items-center gap-1 font-semibold text-primary">
+                          <Shield className="w-3.5 h-3.5" /> {user.role === 'OWNER' ? 'Owner' : 'Admin'}
+                        </div>
+                      ) : (
+                        <span className="font-medium text-foreground">User</span>
+                      )}
+                    </div>
+                    
+                    <div className="flex flex-col gap-1">
+                      <span className="text-muted-foreground">Subscription</span>
+                      <div>
+                        {!user.subscription ? (
+                          <span className="plaiz-pill plaiz-pill-neutral text-[10px]">No Sub</span>
+                        ) : (
+                          <span className={`plaiz-pill text-[10px] ${
+                            user.subscription.status === SubscriptionStatus.ACTIVE ? 'plaiz-pill-success' :
+                            user.subscription.status === SubscriptionStatus.INTERNAL_FREE ? 'bg-purple-500/10 text-purple-500 border-purple-500/20' :
+                            'plaiz-pill-destructive'
+                          }`}>
+                            {user.subscription.status}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="flex flex-col gap-1">
+                      <span className="text-muted-foreground">Accounts</span>
+                      <span className="font-medium num-tabular">{user._count?.accounts || 0}</span>
+                    </div>
+                    
+                    <div className="flex flex-col gap-1">
+                      <span className="text-muted-foreground">Joined</span>
+                      <span className="font-medium">{new Date(user.createdAt).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
