@@ -111,13 +111,13 @@ export default async function DashboardOverview() {
       <header className="relative z-50 flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
           <div className="flex items-center gap-3 mb-2">
-            <h1 className="text-2xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-br from-foreground to-foreground/60">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
               Good morning, {user.name || user.email.split('@')[0]}
             </h1>
             {/* Functional Status Pill */}
             {accounts.length === 0 ? (
-              <div className="flex items-center gap-1.5 bg-foreground text-background px-3 py-1 rounded-full text-[11px] font-semibold tracking-wide shadow-sm">
-                <Play className="w-3 h-3 text-primary fill-primary" />
+              <div className="flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/20 px-3 py-1 rounded-full text-[11px] font-bold tracking-wide shadow-sm">
+                <Play className="w-3 h-3 fill-primary" />
                 GETTING STARTED
               </div>
             ) : allConnected ? (
@@ -141,9 +141,9 @@ export default async function DashboardOverview() {
         
         {/* Top Right Utilities */}
         <div className="flex items-center gap-4">
-          <a href="/?ref=dashboard" className="hidden lg:flex items-center gap-2 px-3 h-9 rounded-full bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors border border-border/50 text-muted-foreground hover:text-foreground">
+          <a href="/?ref=dashboard" className="flex items-center justify-center lg:justify-start gap-0 lg:gap-2 w-9 lg:w-auto lg:px-3 h-9 rounded-full bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors border border-border/50 text-muted-foreground hover:text-foreground">
             <Globe className="w-4 h-4" />
-            <span className="text-[11px] font-semibold tracking-wide uppercase">Website</span>
+            <span className="hidden lg:block text-[11px] font-semibold tracking-wide uppercase">Website</span>
           </a>
           <CurrencySelector />
           <div className="hidden lg:block">
@@ -165,12 +165,12 @@ export default async function DashboardOverview() {
           
           {/* GLASS VAULT: PREMIUM BALANCE & PNL CARD */}
           <section className="relative group">
-            <div className="absolute inset-0 bg-gradient-to-br from-black/5 via-transparent to-transparent dark:from-primary/10 dark:via-transparent dark:to-transparent rounded-[24px] pointer-events-none transition-opacity duration-500"></div>
-            <div className="relative bg-card/60 dark:bg-slate-950/60 backdrop-blur-3xl border border-border/50 dark:border-primary/20 rounded-[24px] p-8 lg:p-10 shadow-2xl dark:shadow-primary/5 overflow-hidden transition-all duration-500">
+            <div className="absolute inset-0 bg-gradient-to-br dark:from-primary/10 dark:via-transparent dark:to-transparent rounded-[24px] pointer-events-none transition-opacity duration-500"></div>
+            <div className="relative bg-card dark:bg-slate-950/60 dark:backdrop-blur-3xl border border-border/50 dark:border-primary/20 rounded-[24px] p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-primary/5 overflow-hidden transition-all duration-500">
               
               {/* Subtle accent glow */}
-              <div className="absolute -top-32 -right-32 w-80 h-80 bg-primary/10 dark:bg-primary/20 rounded-full blur-[80px] pointer-events-none group-hover:bg-primary/20 transition-colors duration-700"></div>
-              <div className="absolute -bottom-32 -left-32 w-80 h-80 bg-primary/5 dark:bg-primary/10 rounded-full blur-[80px] pointer-events-none"></div>
+              <div className="hidden dark:block absolute -top-32 -right-32 w-80 h-80 bg-primary/20 rounded-full blur-[80px] pointer-events-none group-hover:bg-primary/25 transition-colors duration-700"></div>
+              <div className="hidden dark:block absolute -bottom-32 -left-32 w-80 h-80 bg-primary/10 rounded-full blur-[80px] pointer-events-none"></div>
 
               <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
                 {/* Total Balance (Sum of master + all subs) */}
