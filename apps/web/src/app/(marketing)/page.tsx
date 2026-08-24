@@ -1,26 +1,17 @@
 import Link from 'next/link';
 import { Shield, Zap, Lock, Globe, Server, BarChart3, ChevronRight } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { getServerSession } from 'next-auth/next';
-import { redirect } from 'next/navigation';
+import { RedirectBypass } from '@/components/redirect-bypass';
 
 export default async function MarketingHomepage({
   searchParams,
 }: {
   searchParams: { [key: string]: string | string[] | undefined }
 }) {
-  const session = await getServerSession();
-  
-  if (session?.user && searchParams?.ref !== 'dashboard') {
-    redirect('/dashboard');
-  }
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col relative overflow-hidden">
-      
-
-
-      {/* Hero Section */}
+      <RedirectBypass />      {/* Hero Section */}
       <section className="relative pt-24 pb-32 lg:pt-36 lg:pb-48 flex items-center justify-center flex-col text-center px-4 z-10">
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/10 via-background to-background"></div>
         

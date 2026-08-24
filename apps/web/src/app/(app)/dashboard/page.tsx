@@ -111,7 +111,7 @@ export default async function DashboardOverview() {
       <header className="relative z-50 flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
           <div className="flex items-center gap-3 mb-2">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground dark:text-transparent dark:bg-clip-text dark:bg-gradient-to-br dark:from-white dark:to-white/60">
               Good morning, {user.name || user.email.split('@')[0]}
             </h1>
             {/* Functional Status Pill */}
@@ -141,9 +141,10 @@ export default async function DashboardOverview() {
         
         {/* Top Right Utilities */}
         <div className="flex items-center gap-4">
-          <a href="/?ref=dashboard" className="flex items-center justify-center lg:justify-start gap-0 lg:gap-2 w-9 lg:w-auto lg:px-3 h-9 rounded-full bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors border border-border/50 text-muted-foreground hover:text-foreground">
-            <Globe className="w-4 h-4" />
+          <a href="/?ref=dashboard" className="flex items-center gap-1.5 lg:gap-2 px-3 h-9 rounded-full bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors border border-border/50 text-muted-foreground hover:text-foreground">
+            <Globe className="w-3.5 h-3.5 lg:w-4 lg:h-4" />
             <span className="hidden lg:block text-[11px] font-semibold tracking-wide uppercase">Website</span>
+            <span className="lg:hidden text-[10px] font-bold tracking-wide uppercase">Web</span>
           </a>
           <CurrencySelector />
           <div className="hidden lg:block">
