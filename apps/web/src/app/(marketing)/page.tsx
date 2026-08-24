@@ -4,14 +4,17 @@ import { ThemeToggle } from '@/components/theme-toggle';
 import { getServerSession } from 'next-auth/next';
 import { redirect } from 'next/navigation';
 
+export const dynamic = 'force-dynamic';
+
 export default async function MarketingHomepage({
   searchParams,
 }: {
-  searchParams: { [key: string]: string | string[] | undefined }
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }> | { [key: string]: string | string[] | undefined }
 }) {
   const session = await getServerSession();
+  const params = await searchParams;
   
-  if (session?.user && searchParams?.ref !== 'dashboard') {
+  if (session?.user && params?.ref !== 'dashboard') {
     redirect('/dashboard');
   }
 
