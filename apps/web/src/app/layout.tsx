@@ -35,7 +35,6 @@ export const metadata: Metadata = {
     description: 'Professional trade copying and risk management.',
     images: ['/plaiz-logo.png'],
   },
-  manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
