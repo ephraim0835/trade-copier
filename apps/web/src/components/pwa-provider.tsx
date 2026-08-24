@@ -28,12 +28,10 @@ export function PwaProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then((registrations) => {
-        for (let registration of registrations) {
-          registration.unregister();
-          console.log('SW unregistered to prevent aggressive caching.');
-        }
-      });
+      navigator.serviceWorker.register('/sw.js').then(
+        (registration) => console.log('Service Worker registration successful with scope: ', registration.scope),
+        (err) => console.log('Service Worker registration failed: ', err)
+      );
     }
 
     // 2. Check if already installed (standalone mode)
