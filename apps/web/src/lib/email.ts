@@ -76,8 +76,8 @@ function emailTemplate({ title, preheader, body, ctaLabel, ctaUrl, footer }: {
             <td align="center" style="padding-bottom:32px;">
               <table cellpadding="0" cellspacing="0">
                 <tr>
-                  <td style="background:#18181b;border:1px solid #27272a;border-radius:16px;padding:12px 20px;">
-                    <span style="font-size:18px;font-weight:700;color:#fff;letter-spacing:-0.5px;">⚡ PLAIZ MARKETS</span>
+                  <td style="background:#18181b;border:1px solid #27272a;border-radius:16px;padding:16px;display:flex;align-items:center;justify-content:center;">
+                    <img src="${BASE_URL}/plaiz-logo.png" alt="Plaiz Markets" width="32" height="32" style="display:block;width:32px;height:32px;object-fit:contain;" />
                   </td>
                 </tr>
               </table>
