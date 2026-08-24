@@ -9,7 +9,7 @@
 #include <Trade\Trade.mqh>
 #include "MqlJson.mqh"
 
-input string API_URL = "http://127.0.0.1:9001/execution";
+input string API_URL = "https://plaiz-markets-api.onrender.com/execution";
 input string SUB_ACCOUNT_ID = "DEMO-SUB-1";
 input string EA_TOKEN = "sub-token-id.secret123";
 input int TIMER_INTERVAL_MS = 50;           // Polling interval (benchmark: 25, 50, 100)

@@ -8,7 +8,7 @@
 
 #include <Trade\Trade.mqh>
 
-input string API_URL = "http://127.0.0.1:9001/master/signal";
+input string API_URL = "https://plaiz-markets-api.onrender.com/master/signal";
 input string EA_TOKEN = "master-token-id.secret123";
 input int DISPATCH_INTERVAL_MS = 25; // 25ms high-speed dispatch loop
 
