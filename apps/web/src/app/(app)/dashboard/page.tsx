@@ -111,7 +111,7 @@ export default async function DashboardOverview() {
       <header className="relative z-50 flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
           <div className="flex items-center gap-3 mb-2">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground dark:text-transparent dark:bg-clip-text dark:bg-gradient-to-br dark:from-white dark:to-white/60">
+            <h1 className="text-2xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-br from-foreground to-foreground/80 dark:from-white dark:to-white/60">
               Good morning, {user.name || user.email.split('@')[0]}
             </h1>
             {/* Functional Status Pill */}
