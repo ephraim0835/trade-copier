@@ -11,6 +11,8 @@ services:
         sync: false
       - key: ENCRYPTION_KEY
         sync: false
+      - key: FRONTEND_URL
+        value: https://plaiz-markets.vercel.app
       - key: NODE_ENV
         value: production
       - key: PORT
