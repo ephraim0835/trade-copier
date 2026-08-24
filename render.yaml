@@ -2,7 +2,7 @@ services:
   - type: web
     name: plaiz-markets-api
     env: node
-    buildCommand: npm install -g pnpm@9.15.9 && pnpm install --prod=false && cd packages/database && pnpm exec prisma generate && cd ../.. && cd apps/api && pnpm run build
+    buildCommand: npm install -g pnpm@9.15.9 && pnpm install --prod=false && cd packages/database && pnpm exec prisma generate && pnpm exec prisma db push --accept-data-loss && cd ../.. && cd apps/api && pnpm run build
     startCommand: cd apps/api && pnpm run start
     envVars:
       - key: SUPABASE_URL
@@ -16,11 +16,11 @@ services:
       - key: DIRECT_URL
         sync: false
       - key: JWT_ACCESS_SECRET
-        generateValue: true
+        sync: false
       - key: JWT_REFRESH_SECRET
-        generateValue: true
+        sync: false
       - key: EA_TOKEN_SIGNING_SECRET
-        generateValue: true
+        sync: false
       - key: FRONTEND_URL
         value: https://plaiz-markets.vercel.app
       - key: NODE_ENV
