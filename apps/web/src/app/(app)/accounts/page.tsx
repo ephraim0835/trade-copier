@@ -1,11 +1,12 @@
 import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
-import { Settings2, Activity, AlertCircle } from 'lucide-react';
+import { Settings2, AlertCircle } from 'lucide-react';
 import { MoneyDisplay } from '@/components/money-display';
 import { ProtectedAction } from '@/components/protected-action';
 import { getServerSession } from 'next-auth/next';
 import { redirect } from 'next/navigation';
 import { AccountActions } from '@/components/accounts/account-actions';
+import { SubAccountCard } from '@/components/accounts/sub-account-card';
 
 export default async function AccountsPage() {
   const session = await getServerSession();
@@ -43,63 +44,9 @@ export default async function AccountsPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {accounts.map((account: any) => {
-          const isOnline = account.eaTokens?.[0]?.lastUsedAt 
-            ? new Date().getTime() - new Date(account.eaTokens[0].lastUsedAt).getTime() < 5 * 60 * 1000 
-            : false;
-          
-          return (
-            <div key={account.id} className="plaiz-card p-6 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-3 h-3 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-destructive'}`} />
-                    <span className="font-semibold text-lg">{account.login}</span>
-                  </div>
-                  <span className="plaiz-pill plaiz-pill-neutral text-[10px]">
-                    {account.broker}
-                  </span>
-                </div>
-                
-                <div className="space-y-3 mb-6">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Status</span>
-                    <span className={account.isActive ? 'text-primary' : 'text-muted-foreground'}>
-                      {account.isActive ? 'Active' : 'Disabled'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Balance</span>
-                    <span className="font-bold num-tabular text-foreground">
-                      {account.balance != null ? <MoneyDisplay amount={account.balance} sourceCurrency={account.currency || 'USD'} /> : 'N/A'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Risk Multiplier</span>
-                    <span className="font-bold num-tabular text-foreground">{account.copySettings?.riskMultiplier?.toFixed(2) || '1.00'}x</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 mt-4 pt-4 border-t border-border/40">
-                <ProtectedAction className="flex-1 flex">
-                  <Link 
-                    href={`/accounts/${account.id}/settings`}
-                    className="plaiz-btn plaiz-btn-primary flex-1 justify-center"
-                  >
-                    <Settings2 className="w-4 h-4" />
-                    Risk Controls
-                  </Link>
-                </ProtectedAction>
-                <ProtectedAction>
-                  <button className="plaiz-btn plaiz-btn-secondary px-3" title="View Logs">
-                    <Activity className="w-4 h-4" />
-                  </button>
-                </ProtectedAction>
-              </div>
-            </div>
-          );
-        })}
+        {accounts.map((account: any) => (
+          <SubAccountCard key={account.id} account={account} />
+        ))}
 
         {accounts.length === 0 && (
           <div className="col-span-full py-12 flex flex-col items-center justify-center text-center plaiz-card bg-secondary/20 border-dashed">

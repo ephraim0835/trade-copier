@@ -39,3 +39,4 @@ packages/database/.env
 .env*
 
 apps/web/.env
+apps/api/.env

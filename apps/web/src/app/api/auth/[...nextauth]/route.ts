@@ -2,6 +2,18 @@ import NextAuth from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import type { NextAuthOptions } from "next-auth"
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
+async function refreshAccessToken(refreshToken: string) {
+  const res = await fetch(`${API_URL}/auth/refresh`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
+  if (!res.ok) return null;
+  return res.json(); // { access_token, refresh_token, access_token_expires_at }
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
@@ -10,37 +22,33 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" }
       },
-      async authorize(credentials, req) {
+      async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        try {
-          // Call the NestJS API
-          const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-          if (process.env.NODE_ENV === 'production' && !apiUrl) {
-            throw new Error('NEXT_PUBLIC_API_URL must be defined in production');
-          }
-          const finalApiUrl = apiUrl || 'http://localhost:9001/api/v1';
+        if (!API_URL) {
+          throw new Error('NEXT_PUBLIC_API_URL is not configured. Cannot authenticate.');
+        }
 
-          const res = await fetch(`${finalApiUrl}/auth/login`, {
+        try {
+          const res = await fetch(`${API_URL}/auth/login`, {
             method: 'POST',
             body: JSON.stringify({
-              username: credentials.email, // passport-local defaults to 'username'
+              username: credentials.email,
               password: credentials.password
             }),
             headers: { "Content-Type": "application/json" }
           });
-          
-          if (!res.ok) {
-            return null;
-          }
-          
+
+          if (!res.ok) return null;
+
           const data = await res.json();
-          // The API returns access_token
-          if (data && data.access_token) {
+          if (data?.access_token) {
             return {
               id: credentials.email,
               email: credentials.email,
-              accessToken: data.access_token
+              accessToken: data.access_token,
+              refreshToken: data.refresh_token,
+              accessTokenExpiresAt: data.access_token_expires_at,
             };
           }
           return null;
@@ -58,13 +66,42 @@ export const authOptions: NextAuthOptions = {
   useSecureCookies: process.env.NODE_ENV === 'production',
   callbacks: {
     async jwt({ token, user }) {
+      // On first login, persist all token data
       if (user) {
         token.accessToken = (user as any).accessToken;
+        token.refreshToken = (user as any).refreshToken;
+        token.accessTokenExpiresAt = (user as any).accessTokenExpiresAt;
+        return token;
+      }
+
+      // Check if access token expires in less than 2 minutes
+      const expiresAt = token.accessTokenExpiresAt as number;
+      const twoMinutesMs = 2 * 60 * 1000;
+      if (expiresAt && Date.now() < expiresAt - twoMinutesMs) {
+        return token; // Still valid, return as-is
+      }
+
+      // Token is expired or about to expire — attempt silent refresh
+      if (!token.refreshToken) return token;
+
+      try {
+        const refreshed = await refreshAccessToken(token.refreshToken as string);
+        if (refreshed) {
+          token.accessToken = refreshed.access_token;
+          token.refreshToken = refreshed.refresh_token;
+          token.accessTokenExpiresAt = refreshed.access_token_expires_at;
+        } else {
+          // Refresh failed — mark token as expired so session callback can handle it
+          token.error = 'RefreshTokenExpired';
+        }
+      } catch {
+        token.error = 'RefreshTokenExpired';
       }
       return token;
     },
     async session({ session, token }) {
       (session as any).accessToken = token.accessToken;
+      (session as any).error = token.error;
       return session;
     }
   },
@@ -77,3 +114,4 @@ export const authOptions: NextAuthOptions = {
 const handler = NextAuth(authOptions);
 
 export { handler as GET, handler as POST };
+

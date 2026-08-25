@@ -44,7 +44,7 @@ export default async function MasterPage() {
             The source account driving all portfolio executions.
           </p>
         </div>
-        <MasterActions />
+        <MasterActions masterAccountId={masterAccount?.id} />
       </header>
 
       <div className="relative z-10 flex flex-col gap-10">

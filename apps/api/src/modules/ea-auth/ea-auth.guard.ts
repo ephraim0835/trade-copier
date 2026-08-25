@@ -1,12 +1,19 @@
 import { Injectable, CanActivate, ExecutionContext, UnauthorizedException, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
 import { EaAuthService } from './ea-auth.service';
 
 @Injectable()
 export class EaAuthGuard implements CanActivate {
   private readonly logger = new Logger(EaAuthGuard.name);
+  private readonly demoOnly: boolean;
 
-  constructor(private readonly eaAuthService: EaAuthService) {}
+  constructor(
+    private readonly eaAuthService: EaAuthService,
+    private readonly configService: ConfigService,
+  ) {
+    this.demoOnly = this.configService.get<string>('DEMO_ONLY') === 'true';
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
@@ -22,9 +29,9 @@ export class EaAuthGuard implements CanActivate {
     try {
       const mt5Account = await this.eaAuthService.validateEaToken(rawToken);
 
-      // Check DEMO_ONLY constraint
-      if (!mt5Account.isDemo) {
-        this.logger.error(`SECURITY VIOLATION: Attempted EA connection from non-demo account ${mt5Account.id}`);
+      // When DEMO_ONLY=true, block all live (non-demo) account connections
+      if (this.demoOnly && !mt5Account.isDemo) {
+        this.logger.error(`SECURITY: DEMO_ONLY mode blocked live account ${mt5Account.id}`);
         throw new UnauthorizedException('DEMO_ONLY mode is active. Live connections are prohibited.');
       }
 

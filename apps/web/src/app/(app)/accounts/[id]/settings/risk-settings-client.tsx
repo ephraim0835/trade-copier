@@ -44,8 +44,8 @@ export function RiskSettingsClient({ accountId, initialSettings }: RiskSettingsP
     setSuccess(false);
 
     try {
-      // Call the NestJS Backend API
-      const res = await fetch(`http://127.0.0.1:9001/accounts/${accountId}/settings`, {
+      // Call the Next.js API proxy
+      const res = await fetch(`/api/accounts/${accountId}/settings`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)

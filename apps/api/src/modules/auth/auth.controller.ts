@@ -1,4 +1,4 @@
-import { Controller, Post, UseGuards, Request, Body, ConflictException } from '@nestjs/common';
+import { Controller, Post, UseGuards, Request, Body, ConflictException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
@@ -26,4 +26,14 @@ export class AuthController {
     }
     return this.authService.register(body.email, body.password, body.name);
   }
+
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @Post('refresh')
+  async refresh(@Body() body: any) {
+    if (!body?.refresh_token) {
+      throw new UnauthorizedException('refresh_token is required');
+    }
+    return this.authService.refreshToken(body.refresh_token);
+  }
 }
+

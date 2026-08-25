@@ -28,7 +28,8 @@ export async function createMt5Account(data: {
       return { success: false, error: 'User not found' };
     }
 
-    const hasActiveSubscription = user.role === 'ADMIN' || 
+    const hasActiveSubscription = user.role === 'ADMIN' ||
+      user.role === 'OWNER' ||
       (user.subscription && ['ACTIVE', 'TRIAL', 'INTERNAL_FREE'].includes(user.subscription.status));
 
     if (!hasActiveSubscription) {
@@ -59,7 +60,7 @@ export async function createMt5Account(data: {
         }
       });
 
-      // Temporarily auto-subscribe to the first Master account to prevent breakage until UI is built
+      // Auto-subscribe to the first Master account to prevent breakage until UI is built
       const firstMaster = await prisma.mt5Account.findFirst({
         where: { role: 'MASTER' }
       });
@@ -78,10 +79,95 @@ export async function createMt5Account(data: {
     revalidatePath('/');
     revalidatePath('/master');
     revalidatePath('/risk');
+    revalidatePath('/accounts');
 
     return { success: true, account };
   } catch (error: any) {
     console.error('Error creating MT5 Account:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Permanently delete an MT5 account (master or sub).
+ * Only the owner of the account can delete it.
+ */
+export async function deleteAccount(accountId: string) {
+  try {
+    const session = await getServerSession();
+    if (!session?.user?.email) {
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email }
+    });
+
+    if (!user) {
+      return { success: false, error: 'User not found' };
+    }
+
+    // Verify ownership
+    const account = await prisma.mt5Account.findFirst({
+      where: { id: accountId, userId: user.id }
+    });
+
+    if (!account) {
+      return { success: false, error: 'Account not found or access denied' };
+    }
+
+    await prisma.mt5Account.delete({ where: { id: accountId } });
+
+    revalidatePath('/');
+    revalidatePath('/master');
+    revalidatePath('/accounts');
+    revalidatePath('/dashboard');
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error deleting account:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Toggle the isActive flag on a sub account (enable/disable copying).
+ */
+export async function toggleAccountActive(accountId: string, isActive: boolean) {
+  try {
+    const session = await getServerSession();
+    if (!session?.user?.email) {
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email }
+    });
+
+    if (!user) {
+      return { success: false, error: 'User not found' };
+    }
+
+    // Verify ownership
+    const account = await prisma.mt5Account.findFirst({
+      where: { id: accountId, userId: user.id }
+    });
+
+    if (!account) {
+      return { success: false, error: 'Account not found or access denied' };
+    }
+
+    await prisma.mt5Account.update({
+      where: { id: accountId },
+      data: { isActive }
+    });
+
+    revalidatePath('/accounts');
+    revalidatePath('/dashboard');
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error toggling account active:', error);
     return { success: false, error: error.message };
   }
 }

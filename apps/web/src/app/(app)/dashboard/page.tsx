@@ -113,14 +113,14 @@ export default async function DashboardOverview() {
         <div>
           <div className="flex items-center gap-3 mb-2">
             <h1 className="text-2xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-br from-foreground to-foreground/80 dark:from-white dark:to-white/60">
-              Good morning, {user.name || user.email.split('@')[0]}
+              Hello, {user.name || user.email.split('@')[0]}
             </h1>
             {/* Functional Status Pill */}
             {accounts.length === 0 ? (
-              <div className="flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/20 px-3 py-1 rounded-full text-[11px] font-bold tracking-wide shadow-sm">
+              <Link href="/master" className="flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/20 px-3 py-1 rounded-full text-[11px] font-bold tracking-wide shadow-sm hover:bg-primary/20 transition-colors">
                 <Play className="w-3 h-3 fill-primary" />
                 GETTING STARTED
-              </div>
+              </Link>
             ) : allConnected ? (
               <div className="plaiz-pill plaiz-pill-success shadow-sm">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -266,7 +266,7 @@ export default async function DashboardOverview() {
                 <p className="text-[13px] font-medium text-foreground">No Master Source</p>
                 <p className="text-[11px] text-muted-foreground mt-1 mb-4">A master account is required to copy trades.</p>
                 <ProtectedAction>
-                  <Link href="/master" className="plaiz-btn plaiz-plaiz-btn-secondary">Connect Master</Link>
+                  <Link href="/master" className="plaiz-btn plaiz-btn-secondary">Connect Master</Link>
                 </ProtectedAction>
               </div>
             )}
@@ -331,11 +331,11 @@ export default async function DashboardOverview() {
           <section className="plaiz-card bg-secondary/30 p-6 rounded-[20px]">
              <div className="flex items-center justify-between mb-6">
               <h3 className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">Risk Engine</h3>
-              <ProtectedAction>
-                <button className="plaiz-plaiz-pill plaiz-pill-interactive pill-neutral text-[10px] hover:bg-black/5 dark:hover:bg-white/5">
-                  <Settings2 className="w-3.5 h-3.5 mr-1" /> Configure
+              <Link href="/risk">
+                <button className="plaiz-pill plaiz-pill-neutral text-[10px] hover:bg-black/5 dark:hover:bg-white/5 flex items-center gap-1">
+                  <Settings2 className="w-3.5 h-3.5" /> Configure
                 </button>
-              </ProtectedAction>
+              </Link>
              </div>
 
              <div className="flex flex-col gap-4">
@@ -434,7 +434,7 @@ export default async function DashboardOverview() {
             <p className="text-[13px] font-medium text-foreground">No Sub Accounts</p>
             <p className="text-[11px] text-muted-foreground mt-1 mb-4">Connect portfolio accounts to receive trades.</p>
             <ProtectedAction>
-              <Link href="/accounts" className="plaiz-btn plaiz-plaiz-btn-secondary">Add Account</Link>
+              <Link href="/accounts" className="plaiz-btn plaiz-btn-secondary">Add Account</Link>
             </ProtectedAction>
           </div>
         )}

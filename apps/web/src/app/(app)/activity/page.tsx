@@ -1,10 +1,14 @@
-import { Activity, ArrowUpRight, ArrowDownRight, Clock } from 'lucide-react';
+import { Activity, ArrowUpRight, ArrowDownRight, Clock, ArrowLeft } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
 import { getServerSession } from 'next-auth/next';
 import { redirect } from 'next/navigation';
 
-export default async function ActivityPage() {
+export default async function ActivityPage({
+  searchParams,
+}: {
+  searchParams: { account?: string };
+}) {
   const session = await getServerSession();
   if (!session?.user?.email) {
     redirect('/login');
@@ -18,9 +22,23 @@ export default async function ActivityPage() {
     redirect('/login');
   }
 
+  const accountFilter = searchParams?.account;
+
+  // Resolve the account name for the filtered heading
+  let filteredAccount: { login: string } | null = null;
+  if (accountFilter) {
+    filteredAccount = await prisma.mt5Account.findFirst({
+      where: { id: accountFilter, userId: user.id },
+      select: { login: true },
+    });
+  }
+
   const recentActivity = await prisma.tradeCopy.findMany({
-    where: { subAccount: { userId: user.id } },
-    take: 50,
+    where: {
+      subAccount: { userId: user.id },
+      ...(accountFilter ? { subAccountId: accountFilter } : {}),
+    },
+    take: 100,
     orderBy: { createdAt: 'desc' },
     include: {
       signal: true,
@@ -32,14 +50,33 @@ export default async function ActivityPage() {
     <div className="flex-1 p-4 md:p-6 lg:p-12 flex flex-col gap-10 pb-32 overflow-y-auto custom-scrollbar relative">
       <header className="relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <Activity className="w-6 h-6 text-primary" />
-            Activity Log
-          </h1>
-          <p className="text-muted-foreground text-[13px] tracking-wide mt-2">
-            Detailed log of all copy execution events across the portfolio.
+          <div className="flex items-center gap-3 mb-2">
+            {accountFilter && (
+              <Link href="/activity" className="p-2 hover:bg-secondary rounded-lg transition-colors">
+                <ArrowLeft className="w-4 h-4 text-muted-foreground" />
+              </Link>
+            )}
+            <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
+              <Activity className="w-6 h-6 text-primary" />
+              Activity Log
+              {filteredAccount && (
+                <span className="text-sm font-normal text-muted-foreground bg-secondary px-2 py-0.5 rounded-md ml-1">
+                  {filteredAccount.login}
+                </span>
+              )}
+            </h1>
+          </div>
+          <p className="text-muted-foreground text-[13px] tracking-wide mt-1">
+            {filteredAccount
+              ? `Showing copy events for account ${filteredAccount.login}.`
+              : 'Detailed log of all copy execution events across the portfolio.'}
           </p>
         </div>
+        {accountFilter && (
+          <Link href="/activity" className="text-[12px] text-primary hover:underline font-medium">
+            View all accounts →
+          </Link>
+        )}
       </header>
 
       <div className="relative z-10">
@@ -80,7 +117,7 @@ export default async function ActivityPage() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           <span className="text-[13px] font-medium text-foreground">{activity.subAccount?.login}</span>
-                          <span className="plaiz-plaiz-pill plaiz-pill-neutral text-[9px] uppercase">{activity.subAccount?.broker || 'MT5'}</span>
+                          <span className="plaiz-pill plaiz-pill-neutral text-[9px] uppercase">{activity.subAccount?.broker || 'MT5'}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4 text-[13px] text-muted-foreground text-right">
@@ -96,8 +133,15 @@ export default async function ActivityPage() {
               <Clock className="w-10 h-10 mb-4 opacity-30" />
               <h2 className="text-[16px] font-bold text-foreground mb-2">No Recent Activity</h2>
               <p className="text-[13px] max-w-sm mx-auto">
-                No trades have been copied recently. Make sure your Master Account is connected and sending signals.
+                {filteredAccount
+                  ? `No trades have been copied for account ${filteredAccount.login} yet.`
+                  : 'No trades have been copied recently. Make sure your Master Account is connected and sending signals.'}
               </p>
+              {accountFilter && (
+                <Link href="/activity" className="mt-4 text-[12px] text-primary hover:underline font-medium">
+                  View all accounts
+                </Link>
+              )}
             </div>
           )}
         </section>

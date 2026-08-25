@@ -9,20 +9,21 @@ interface ProtectedActionProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 export function ProtectedAction({ children, fallback, ...props }: ProtectedActionProps) {
-  const { isActive } = useSubscription();
+  const { isActive, isAdmin } = useSubscription();
 
-  if (!isActive) {
-    if (fallback) return <>{fallback}</>;
-    
-    // Default fallback is wrapping the children in a disabled, unclickable state
-    return (
-      <div className="relative opacity-50 cursor-not-allowed select-none group" {...props} onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
-        <div className="pointer-events-none">
-          {children}
-        </div>
-      </div>
-    );
+  // Admins, owners, and users granted access always bypass the paywall
+  if (isAdmin || isActive) {
+    return <>{children}</>;
   }
 
-  return <>{children}</>;
+  if (fallback) return <>{fallback}</>;
+  
+  // Default fallback: wrap children in a disabled, unclickable state
+  return (
+    <div className="relative opacity-50 cursor-not-allowed select-none group" {...props} onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+      <div className="pointer-events-none">
+        {children}
+      </div>
+    </div>
+  );
 }

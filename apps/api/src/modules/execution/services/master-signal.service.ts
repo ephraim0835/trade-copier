@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { MasterSignalDto, MasterModifyDto, MasterCloseDto, MasterTriggerDto } from '../dto/master-signal.dto';
 import { PrismaService } from '../../../database/prisma.service';
 import { RiskEngineService } from '../../risk-engine/services/risk-engine.service';
@@ -58,12 +59,17 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
   // In-memory active signals and copy mappings (O(1) lookups for modify/close)
   private readonly activeSignalsByTicket = new Map<string, InFlightTradeSignal>();
 
+  private readonly demoOnly: boolean;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly riskEngine: RiskEngineService,
     private readonly hotDispatch: HotDispatchService,
-    private readonly asyncPersistence: AsyncPersistenceService
-  ) {}
+    private readonly asyncPersistence: AsyncPersistenceService,
+    private readonly configService: ConfigService,
+  ) {
+    this.demoOnly = this.configService.get<string>('DEMO_ONLY') === 'true';
+  }
 
   async onModuleInit() {
     await this.refreshSubAccountsCache();
@@ -87,13 +93,15 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
   private async refreshSubAccountsCache() {
     try {
       // Fetch all active subscriptions including subAccount and copySettings
+      // When DEMO_ONLY=true, restrict to demo sub-accounts only
+      const subAccountFilter: any = { isActive: true };
+      if (this.demoOnly) {
+        subAccountFilter.isDemo = true;
+      }
       const subscriptions = await this.prisma.accountSubscription.findMany({
         where: {
           isActive: true,
-          subAccount: {
-            isActive: true,
-            isDemo: true, // Strict DEMO_ONLY lock
-          }
+          subAccount: subAccountFilter,
         },
         include: {
           subAccount: {
@@ -268,7 +276,8 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
     // 3. Authoritative Risk Engine evaluation in-memory for subscribed active Demo sub-accounts
     const subscribedSubs = this.subAccountsCache.get(masterAccountId) || [];
     for (const sub of subscribedSubs) {
-      if (!sub.copySettings || !sub.isDemo || !sub.isActive) continue;
+      if (!sub.copySettings || !sub.isActive) continue;
+      if (this.demoOnly && !sub.isDemo) continue;
 
       const riskProfile = this.buildRiskProfile(sub);
       const signalInput = {

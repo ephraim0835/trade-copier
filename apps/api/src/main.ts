@@ -10,15 +10,24 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT') || 3001;
   const isProduction = process.env.NODE_ENV === 'production';
+  const logLevel = configService.get<string>('LOG_LEVEL') || 'debug';
+
+  if (logLevel === 'warn') {
+    app.useLogger(['error', 'warn']);
+  } else if (logLevel === 'error') {
+    app.useLogger(['error']);
+  } else {
+    app.useLogger(['log', 'error', 'warn', 'debug', 'verbose']);
+  }
   
-  const frontendUrl = configService.get<string>('FRONTEND_URL');
-  if (isProduction && !frontendUrl) {
-    throw new Error('FRONTEND_URL must be defined in production');
+  const frontendUrlsStr = configService.get<string>('FRONTEND_URLS') || configService.get<string>('FRONTEND_URL');
+  if (isProduction && !frontendUrlsStr) {
+    throw new Error('FRONTEND_URLS must be defined in production');
   }
 
-  const allowedOrigins = isProduction 
-    ? [frontendUrl!] 
-    : [frontendUrl || 'http://localhost:3000', 'http://localhost:3000'];
+  const allowedOrigins = frontendUrlsStr
+    ? frontendUrlsStr.split(',').map(u => u.trim())
+    : ['http://localhost:3000'];
 
   app.enableCors({
     origin: allowedOrigins,

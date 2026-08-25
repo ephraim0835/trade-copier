@@ -45,13 +45,13 @@ export function ConnectAccountModal({ isOpen, onClose, defaultRole = 'SUB' }: Co
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto py-4 sm:py-8 animate-in fade-in duration-200">
       <div 
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/85 backdrop-blur-md"
         onClick={onClose}
       />
       
-      <div className="relative w-full max-w-md plaiz-card bg-secondary/30 rounded-[32px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 border border-border/30">
+      <div className="relative w-full max-w-md plaiz-card bg-card rounded-[32px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 border border-border/30">
         
         {/* Header */}
         <div className="px-8 py-6 border-b border-border/20 flex items-center justify-between">
@@ -68,7 +68,7 @@ export function ConnectAccountModal({ isOpen, onClose, defaultRole = 'SUB' }: Co
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-8 flex flex-col gap-6">
+        <form onSubmit={handleSubmit} className="p-8 flex flex-col gap-6" autoComplete="off">
           
           {/* Role Selection */}
           <div className="flex bg-black/5 dark:bg-white/5 p-1 rounded-2xl">
@@ -108,6 +108,7 @@ export function ConnectAccountModal({ isOpen, onClose, defaultRole = 'SUB' }: Co
                   type="text" 
                   name="login"
                   required
+                  autoComplete="off"
                   placeholder="MT5 Account Number" 
                   className="w-full bg-black/5 dark:bg-white/5 border border-border/30 rounded-2xl py-3 pl-11 pr-4 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 ring-primary/20 transition-all font-mono"
                 />
@@ -125,6 +126,7 @@ export function ConnectAccountModal({ isOpen, onClose, defaultRole = 'SUB' }: Co
                   type="password" 
                   name="password"
                   required
+                  autoComplete="new-password"
                   placeholder="••••••••" 
                   className="w-full bg-black/5 dark:bg-white/5 border border-border/30 rounded-2xl py-3 pl-11 pr-4 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 ring-primary/20 transition-all font-mono"
                 />

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ReconciliationRepository } from '../../../database/repositories/reconciliation.repository';
 import { SyncStateDto } from '../dto/sync-state.dto';
 import { CommandStatus, CopyState } from '@prisma/client';
@@ -7,13 +8,19 @@ import { CommandStatus, CopyState } from '@prisma/client';
 @Injectable()
 export class ReconciliationService {
   private readonly logger = new Logger(ReconciliationService.name);
+  private readonly demoOnly: boolean;
 
-  constructor(private reconciliationRepo: ReconciliationRepository) {}
+  constructor(
+    private reconciliationRepo: ReconciliationRepository,
+    private readonly configService: ConfigService,
+  ) {
+    this.demoOnly = this.configService.get<string>('DEMO_ONLY') === 'true';
+  }
 
   async reconcileState(subAccountId: string, state: SyncStateDto): Promise<void> {
     const account = await this.reconciliationRepo.getAccount(subAccountId);
 
-    if (!account?.isDemo) {
+    if (this.demoOnly && !account?.isDemo) {
       throw new Error(`DEMO_ONLY mode is active. Live execution sync is prohibited.`);
     }
 

@@ -4,19 +4,22 @@ import React, { createContext, useContext, ReactNode } from 'react';
 
 interface SubscriptionContextType {
   isActive: boolean;
+  isAdmin: boolean;
 }
 
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
 
 export function SubscriptionProvider({ 
   children, 
-  isActive 
+  isActive,
+  isAdmin = false,
 }: { 
   children: ReactNode; 
   isActive: boolean;
+  isAdmin?: boolean;
 }) {
   return (
-    <SubscriptionContext.Provider value={{ isActive }}>
+    <SubscriptionContext.Provider value={{ isActive, isAdmin }}>
       {children}
     </SubscriptionContext.Provider>
   );

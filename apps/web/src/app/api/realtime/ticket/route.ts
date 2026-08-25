@@ -9,7 +9,10 @@ export async function POST() {
   }
 
   try {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9001/api/v1";
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+    if (!apiUrl) {
+      return NextResponse.json({ error: "API URL not configured" }, { status: 500 });
+    }
     const response = await fetch(`${apiUrl}/realtime/ticket`, {
       method: "POST",
       headers: {

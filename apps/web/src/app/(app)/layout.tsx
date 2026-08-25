@@ -30,13 +30,16 @@ export default async function AppLayout({
     redirect('/login');
   }
 
-  const hasActiveSubscription = user.role === 'ADMIN' || 
+  const hasActiveSubscription = user.role === 'ADMIN' ||
+    user.role === 'OWNER' ||
     (user.subscription && ['ACTIVE', 'TRIAL', 'INTERNAL_FREE'].includes(user.subscription.status)) || false;
+
+  const isAdmin = user.role === 'ADMIN' || user.role === 'OWNER';
 
   return (
     <CurrencyProvider>
       <AuthProvider session={session}>
-        <SubscriptionProvider isActive={hasActiveSubscription}>
+        <SubscriptionProvider isActive={hasActiveSubscription} isAdmin={isAdmin}>
           <RealtimeProvider>
             <div className="flex flex-col min-h-screen relative">
               <div className="flex flex-1 relative">

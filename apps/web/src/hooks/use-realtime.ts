@@ -29,7 +29,7 @@ export function useRealtime() {
         // 2. Connect EventSource using the single-use ticket
         if (!isComponentMounted) return;
 
-        eventSource = new EventSource(`http://127.0.0.1:9001/realtime/stream?ticket=${ticket}`);
+        eventSource = new EventSource(`${process.env.NEXT_PUBLIC_API_URL}/realtime/stream?ticket=${ticket}`);
 
         eventSource.onopen = () => {
           setIsConnected(true);
