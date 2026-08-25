@@ -5,8 +5,8 @@ const algorithm = 'aes-256-gcm';
 export function getEncryptionKey(): Buffer {
   const hexKey = process.env.ENCRYPTION_KEY;
   if (!hexKey) {
-    console.warn('ENCRYPTION_KEY environment variable is missing! Falling back to empty key (NOT SECURE)');
-    return Buffer.alloc(32);
+    console.warn('ENCRYPTION_KEY environment variable is missing! Falling back to default key (NOT SECURE FOR PRODUCTION)');
+    return Buffer.from('cefebc7648a25734178ba0d8f9e1a4c5c68f50abe38f86d38f03ce6509a01809', 'hex');
   }
   
   const key = Buffer.from(hexKey, 'hex');
