@@ -5,6 +5,7 @@ import { X, Server, ShieldCheck, Key, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createMt5Account } from '@/app/actions/account-actions';
 import { useRouter } from 'next/navigation';
+import { BrokerCombobox } from './broker-combobox';
 
 interface ConnectAccountModalProps {
   isOpen: boolean;
@@ -94,22 +95,7 @@ export function ConnectAccountModal({ isOpen, onClose, defaultRole = 'SUB' }: Co
           </div>
 
           <div className="flex flex-col gap-4">
-            {/* Broker */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold px-1">Broker</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-                  <Server className="w-4 h-4 text-muted-foreground" />
-                </div>
-                <input 
-                  type="text" 
-                  name="broker"
-                  required
-                  placeholder="e.g. MetaQuotes-Demo" 
-                  className="w-full bg-black/5 dark:bg-white/5 border border-border/30 rounded-2xl py-3 pl-11 pr-4 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 ring-primary/20 transition-all"
-                />
-              </div>
-            </div>
+            <BrokerCombobox />
 
             {/* Login */}
             <div className="flex flex-col gap-1.5">
@@ -144,8 +130,6 @@ export function ConnectAccountModal({ isOpen, onClose, defaultRole = 'SUB' }: Co
                 />
               </div>
             </div>
-            {/* Hidden field for server (often combined with broker for MT5) */}
-            <input type="hidden" name="server" value="Auto" />
           </div>
 
           {error && <div className="text-destructive text-sm text-center">{error}</div>}

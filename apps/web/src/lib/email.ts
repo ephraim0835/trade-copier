@@ -50,6 +50,40 @@ export async function sendPasswordResetEmail(email: string, name: string, token:
   });
 }
 
+export async function sendPasswordResetCode(email: string, name: string, code: string) {
+  await resend.emails.send({
+    from: FROM,
+    to: email,
+    subject: 'Your Plaiz Markets Password Reset Code',
+    html: `<!DOCTYPE html>
+<html lang="en">
+<body style="margin:0;padding:0;background:#09090b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#09090b;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
+          <tr>
+            <td style="background:#18181b;border:1px solid #27272a;border-radius:24px;padding:48px 40px;text-align:center;">
+              <h1 style="margin:0 0 24px;font-size:24px;font-weight:700;color:#fff;">Password Reset Code</h1>
+              <p style="margin:0 0 32px;font-size:16px;color:#a1a1aa;">
+                Hi ${name || 'there'},<br/><br/>
+                You requested to change your password. Use the verification code below to proceed:
+              </p>
+              <div style="background:#27272a;padding:16px;border-radius:12px;display:inline-block;margin-bottom:32px;">
+                <span style="font-size:32px;font-weight:800;color:#fff;letter-spacing:8px;">${code}</span>
+              </div>
+              <p style="margin:0;font-size:12px;color:#52525b;">This code expires in 10 minutes. If you didn't request this, please secure your account.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+  });
+}
+
 function emailTemplate({ title, preheader, body, ctaLabel, ctaUrl, footer }: {
   title: string;
   preheader: string;

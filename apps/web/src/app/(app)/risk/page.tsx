@@ -1,4 +1,5 @@
 import { ShieldAlert, Users, SlidersHorizontal, Info } from 'lucide-react';
+import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { RiskControls } from './risk-controls';
 import { RiskActions } from '@/components/risk/risk-actions';
@@ -43,10 +44,12 @@ export default async function RiskPage() {
         {subAccounts.length > 0 ? (
           <RiskControls initialAccounts={subAccounts} />
         ) : (
-          <div className="plaiz-card bg-secondary/30 p-12 rounded-[24px] flex flex-col items-center justify-center text-center">
-            <Users className="w-10 h-10 mb-4 text-muted-foreground opacity-50" />
-            <h2 className="text-[16px] font-bold text-foreground mb-2">No Sub Accounts Found</h2>
-            <p className="text-[13px] text-muted-foreground max-w-md">Connect portfolio accounts to configure their risk allocation settings.</p>
+          <div className="py-12 flex flex-col items-center justify-center text-center plaiz-card bg-secondary/20 border-dashed">
+            <Users className="w-8 h-8 text-muted-foreground mb-4 opacity-50" />
+            <h3 className="text-lg font-bold">No Sub Accounts Found</h3>
+            <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+              Connect portfolio accounts from the <Link href="/accounts" className="text-primary hover:underline">Accounts tab</Link> to configure their risk allocation settings.
+            </p>
           </div>
         )}
       </div>
