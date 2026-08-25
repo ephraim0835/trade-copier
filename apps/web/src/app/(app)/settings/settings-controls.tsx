@@ -52,8 +52,8 @@ export function SettingsControls() {
       {/* THEME PREFERENCE */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-start gap-4">
-          <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center shrink-0 mt-1">
-            <Moon className="w-5 h-5 text-accent" />
+          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-1">
+            <Moon className="w-5 h-5 text-primary" />
           </div>
           <div>
             <h3 className="text-[15px] font-semibold text-foreground">Interface Theme</h3>
