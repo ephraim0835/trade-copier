@@ -3,7 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { getServerSession } from 'next-auth/next';
-
+import { authOptions } from '@/lib/auth';
 import { encrypt } from '@/lib/encryption';
 
 export async function createMt5Account(data: {
@@ -14,7 +14,7 @@ export async function createMt5Account(data: {
   password?: string;
 }) {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
       return { success: false, error: 'Unauthorized' };
     }
@@ -94,7 +94,7 @@ export async function createMt5Account(data: {
  */
 export async function deleteAccount(accountId: string) {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
       return { success: false, error: 'Unauthorized' };
     }
@@ -135,7 +135,7 @@ export async function deleteAccount(accountId: string) {
  */
 export async function toggleAccountActive(accountId: string, isActive: boolean) {
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
       return { success: false, error: 'Unauthorized' };
     }
