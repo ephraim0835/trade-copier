@@ -1,5 +1,13 @@
 import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
+import * as dotenv from 'dotenv';
+dotenv.config();
+
+// Use the DIRECT_URL (port 5432) to bypass the PgBouncer pooler,
+// which is often firewall-blocked for local scripts.
+const directUrl = (process.env.DIRECT_URL || process.env.DATABASE_URL || '')
+  .replace(':6543/', ':5432/');
+
+const prisma = new PrismaClient({ datasourceUrl: directUrl });
 
 async function deleteEverything() {
   try {

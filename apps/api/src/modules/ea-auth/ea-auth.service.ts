@@ -26,11 +26,6 @@ export class EaAuthService {
     const cached = this.tokenCache.get(rawToken);
 
     if (cached && now < cached.expiresAt) {
-      if (!cached.account.isActive) {
-        this.tokenCache.delete(rawToken);
-        throw new UnauthorizedException('Associated MT5 account is disabled');
-      }
-
       // Debounce DB updates
       if (now - cached.lastUpdated > this.UPDATE_DEBOUNCE_MS) {
         cached.lastUpdated = now;
@@ -57,10 +52,6 @@ export class EaAuthService {
     const isSecretValid = await bcrypt.compare(secret, eaTokenRecord.tokenHash);
     if (!isSecretValid) {
       throw new UnauthorizedException('Invalid EA token secret');
-    }
-
-    if (!eaTokenRecord.mt5Account.isActive) {
-      throw new UnauthorizedException('Associated MT5 account is disabled');
     }
 
     // Cache the successful validation

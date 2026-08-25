@@ -53,4 +53,22 @@ export class AccountsController {
     const accountId = req.mt5Account.id;
     return this.accountsService.updateTelemetry(accountId, dto);
   }
+
+  @Post('internal/ea-token')
+  async generateEaToken(@Body() body: { accountId: string }, @Request() req: any) {
+    if (req.headers.authorization !== `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`) {
+      throw new ForbiddenException();
+    }
+    const crypto = require('crypto');
+    const bcrypt = require('bcrypt');
+    const secret = crypto.randomBytes(16).toString('hex');
+    const hash = await bcrypt.hash(secret, 10);
+    const token = await this.prisma.eaToken.create({
+      data: {
+        mt5AccountId: body.accountId,
+        tokenHash: hash,
+      }
+    });
+    return { token: `${token.id}.${secret}` };
+  }
 }
