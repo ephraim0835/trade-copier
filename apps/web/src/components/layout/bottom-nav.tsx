@@ -2,11 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Users, ArrowRightLeft, ShieldAlert, Settings, Download } from 'lucide-react';
+import { Home, Users, ArrowRightLeft, ShieldAlert, Settings, Download, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePwa } from '../pwa-provider';
 
-export function BottomNav() {
+export function BottomNav({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
   const { isInstallable, installApp } = usePwa();
 
@@ -17,6 +17,10 @@ export function BottomNav() {
     { name: 'Risk', href: '/risk', icon: ShieldAlert },
     { name: 'Settings', href: '/settings', icon: Settings }
   ];
+
+  if (isAdmin) {
+    navItems.push({ name: 'Admin', href: '/admin', icon: Shield });
+  }
 
   return (
     <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50">

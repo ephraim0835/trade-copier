@@ -19,7 +19,9 @@ import { usePwa } from '../pwa-provider';
 import { ThemeToggle } from '../theme-toggle';
 import { useSession } from 'next-auth/react';
 
-export function Sidebar() {
+import { Shield } from 'lucide-react';
+
+export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
   const { data: session } = useSession();
   const { isInstallable, installApp } = usePwa();
   
@@ -87,7 +89,14 @@ export function Sidebar() {
         </nav>
       </div>
       
-      <div className="p-4 mt-auto">
+      
+      <div className="p-4 mt-auto space-y-2">
+        {isAdmin && (
+          <Link href="/admin" className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-2xl bg-primary/10 text-primary hover:bg-primary/20 transition-colors cursor-pointer border border-primary/20 backdrop-blur-md font-semibold text-[13px]">
+            <Shield className="w-4 h-4" />
+            Admin Dashboard
+          </Link>
+        )}
         <Link href="/settings" className="flex items-center gap-3 px-3 py-3 rounded-2xl bg-black/5 dark:bg-black/20 border border-border/30 hover:bg-black/10 dark:hover:bg-black/40 transition-colors cursor-pointer backdrop-blur-md group">
           <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center overflow-hidden group-hover:ring-2 ring-primary/20 transition-all">
             {session?.user?.name || session?.user?.email ? (

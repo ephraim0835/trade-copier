@@ -40,14 +40,14 @@ export default async function AppLayout({
           <RealtimeProvider>
             <div className="flex flex-col min-h-screen relative">
               <div className="flex flex-1 relative">
-                <Sidebar />
+                <Sidebar isAdmin={user.role === 'ADMIN'} />
                 <main className="flex-1 flex flex-col min-w-0 overflow-hidden pb-16 lg:pb-0 relative z-10">
                   <PaywallBanner />
                   <div className="w-full max-w-[1440px] mx-auto flex-1 flex flex-col">
                     {children}
                   </div>
                 </main>
-                <BottomNav />
+                <BottomNav isAdmin={user.role === 'ADMIN'} />
               </div>
             </div>
           </RealtimeProvider>
