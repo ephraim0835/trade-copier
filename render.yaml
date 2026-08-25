@@ -2,7 +2,7 @@ services:
   - type: web
     name: plaiz-markets-api
     env: node
-    buildCommand: pnpm install -g pnpm@9.15.9 && pnpm install --prod=false && cd packages/database && pnpm exec prisma generate && pnpm exec prisma migrate deploy && cd ../.. && cd apps/api && pnpm run build
+    buildCommand: npm install -g pnpm@9.15.9 && pnpm install --prod=false && cd packages/database && pnpm exec prisma generate && pnpm exec prisma migrate deploy && cd ../.. && cd apps/api && pnpm run build
     startCommand: cd apps/api && pnpm run start
     healthCheckPath: /api/health
     envVars:

@@ -33,8 +33,9 @@ async function runBenchmark() {
     $transaction: jest.fn(async (cb) => cb({})),
   };
 
+  const mockConfigService = { get: jest.fn((key: string) => key === 'DEMO_ONLY' ? 'true' : undefined) } as any;
   const execService = new ExecutionService(hotDispatch, asyncPersistence);
-  const masterSignalService = new MasterSignalService(mockPrisma as any, mockRiskEngine as any, hotDispatch, asyncPersistence);
+  const masterSignalService = new MasterSignalService(mockPrisma as any, mockRiskEngine as any, hotDispatch, asyncPersistence, mockConfigService);
   await masterSignalService.onModuleInit();
 
   const latencies: Record<number, number[]> = { 100: [], 50: [], 25: [] };
