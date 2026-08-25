@@ -7,9 +7,16 @@ import { ArrowLeft } from "lucide-react";
 export default async function LoginPage() {
   const session = await getServerSession();
   
-  // If already authenticated, redirect to dashboard
-  if (session) {
-    redirect("/dashboard");
+  // If already authenticated AND exists in DB, redirect to dashboard
+  if (session?.user?.email) {
+    const { prisma } = await import('@/lib/prisma');
+    const dbUser = await prisma.user.findUnique({
+      where: { email: session.user.email }
+    });
+    
+    if (dbUser) {
+      redirect("/dashboard");
+    }
   }
 
   return (
