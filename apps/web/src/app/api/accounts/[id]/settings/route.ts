@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth/next";
-import { NextResponse } from "next/server";
-import { authOptions } from "../../../../auth/[...nextauth]/route";
+import { NextResponse, NextRequest } from "next/server";
+import { authOptions } from "../../../auth/[...nextauth]/route";
 
 /**
  * Authenticated proxy for account settings PATCH.
@@ -9,9 +9,10 @@ import { authOptions } from "../../../../auth/[...nextauth]/route";
  * forwards the request to the NestJS API.
  */
 export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
 
   if (!session || !(session as any).accessToken) {
@@ -26,7 +27,7 @@ export async function PATCH(
   try {
     const body = await request.json();
 
-    const response = await fetch(`${apiUrl}/accounts/${params.id}/settings`, {
+    const response = await fetch(`${apiUrl}/accounts/${id}/settings`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
