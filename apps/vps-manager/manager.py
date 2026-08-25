@@ -189,7 +189,7 @@ def poll_db_worker():
                     token_res = requests.post(
                         f"{base_api}/accounts/internal/ea-token",
                         json={"accountId": account['id']},
-                        headers={"Authorization": f"Bearer {supabase_key}"},
+                        headers={"Authorization": "Bearer internal_manager_secret_998877"},
                         timeout=5
                     )
                     if token_res.status_code == 201 or token_res.status_code == 200:
@@ -239,14 +239,16 @@ def telemetry_worker():
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
             
+            import uuid
             supabase.table('VpsEnvironment').upsert({
+                'id': str(uuid.uuid4()),
                 'name': 'vps-main-1',
                 'status': 'HEALTHY',
-                'cpuPercent': cpu,
-                'ramPercent': ram,
-                'diskPercent': disk,
+                'cpuUsage': cpu,
+                'memoryUsage': ram,
+                'diskUsage': disk,
                 'activeTerminals': terminals,
-                'lastHeartbeatAt': 'now()'
+                'lastHeartbeat': 'now()'
             }, on_conflict='name').execute()
             
         except Exception as e:
