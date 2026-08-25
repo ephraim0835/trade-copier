@@ -2,15 +2,15 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Users, ArrowRightLeft, ShieldAlert, Settings, Download, Shield } from 'lucide-react';
+import { Home, Users, ArrowRightLeft, ShieldAlert, Settings, Download, Shield, Activity, Server } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePwa } from '../pwa-provider';
 
 export function BottomNav({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
-  const { isInstallable, installApp } = usePwa();
+  const isAdminRoute = pathname.startsWith('/admin');
 
-  const navItems = [
+  let navItems = [
     { name: 'Home', href: '/dashboard', icon: Home },
     { name: 'Accounts', href: '/accounts', icon: Users },
     { name: 'Trades', href: '/positions', icon: ArrowRightLeft },
@@ -18,7 +18,15 @@ export function BottomNav({ isAdmin = false }: { isAdmin?: boolean }) {
     { name: 'Settings', href: '/settings', icon: Settings }
   ];
 
-  if (isAdmin) {
+  if (isAdminRoute) {
+    navItems = [
+      { name: 'Overview', href: '/admin', icon: Activity },
+      { name: 'Users', href: '/admin/users', icon: Users },
+      { name: 'Infra', href: '/admin/infrastructure', icon: Server },
+      { name: 'Copier', href: '/admin/copier', icon: ShieldAlert },
+      { name: 'Exit', href: '/dashboard', icon: Home }
+    ];
+  } else if (isAdmin) {
     navItems.push({ name: 'Admin', href: '/admin', icon: Shield });
   }
 
@@ -30,7 +38,9 @@ export function BottomNav({ isAdmin = false }: { isAdmin?: boolean }) {
       <div className="relative pb-safe">
         <nav className="flex items-center justify-around h-[64px] px-2">
           {navItems.map((item) => {
-            const isActive = pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/');
+            const isActive = item.href === '/admin' || item.href === '/dashboard' 
+              ? pathname === item.href 
+              : pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/');
             return (
               <Link
                 key={item.name}

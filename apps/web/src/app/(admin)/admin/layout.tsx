@@ -1,6 +1,7 @@
 import { ShieldAlert, Users, Server, Activity, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { BottomNav } from '@/components/layout/bottom-nav';
 
 import { getServerSession } from "next-auth/next";
 import { redirect } from 'next/navigation';
@@ -76,10 +77,11 @@ export default async function AdminLayout({
              <ThemeToggle />
           </div>
         </header>
-        <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
+        <div className="flex-1 p-6 overflow-y-auto custom-scrollbar pb-24">
           {children}
         </div>
       </main>
+      <BottomNav isAdmin={true} />
     </div>
   );
 }
