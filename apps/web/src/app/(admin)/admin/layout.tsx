@@ -19,7 +19,7 @@ export default async function AdminLayout({
     where: { email: session.user.email }
   });
 
-  if (!user || user.role !== 'ADMIN') {
+  if (!user || (user.role !== 'ADMIN' && user.role !== 'OWNER')) {
     redirect('/dashboard');
   }
 
