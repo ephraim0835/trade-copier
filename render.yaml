@@ -25,7 +25,7 @@ services:
       - key: OWNER_INIT_SECRET
         sync: false
       - key: FRONTEND_URLS
-        value: https://plaiz-markets.vercel.app
+        value: https://www.plaiz-markets.online,https://plaiz-markets.online,https://plaiz-markets.vercel.app
       - key: DEMO_ONLY
         value: "false"
       - key: LOG_LEVEL
