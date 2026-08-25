@@ -34,7 +34,7 @@ export default async function MasterPage() {
 
   return (
     <div className="flex-1 p-4 md:p-6 lg:p-12 flex flex-col gap-10 pb-32 overflow-y-auto custom-scrollbar relative">
-      <header className="relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <header className="relative z-[60] flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
             <ShieldCheck className="w-6 h-6 text-primary" />
