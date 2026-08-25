@@ -186,10 +186,11 @@ export function BrokerCombobox() {
           )}
         </div>
         <p className="text-[11px] text-muted-foreground/80 mt-0.5 px-2 font-medium">
-          If your broker or server isn't in the suggestions, just type its exact name and we'll search for it.
+          If your broker or server isn't in the suggestions, just type its exact name and we'll search for it. Please make sure you type everything correctly.
         </p>
       </div>
     </>
   );
 }
+
 

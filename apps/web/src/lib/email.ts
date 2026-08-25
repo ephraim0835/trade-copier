@@ -1,6 +1,6 @@
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = new Resend(process.env.RESEND_API_KEY || 're_dummy');
 const FROM = 'Plaiz Markets <noreply@plaiz-markets.online>';
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://plaiz-markets.online';
 
