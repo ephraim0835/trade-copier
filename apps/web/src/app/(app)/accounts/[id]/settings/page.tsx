@@ -15,16 +15,19 @@ export default async function AccountSettingsPage({ params }: { params: { id: st
   }
 
   // Set default settings if null
-  const settings = account.copySettings || {
-    riskMultiplier: 1.0,
-    roundingTolerancePct: 2.0,
-    dailyRiskEnabled: false,
-    maxDailyRisk: 0,
-    maxTradesEnabled: false,
-    maxActiveTrades: 0,
-    requireTp: true,
-    missingSlTimeoutSec: 60,
-    maxRecoveryRRDegradation: 0.5,
+  const clientSettings = {
+    displayName: account.displayName,
+    ...(account.copySettings || {
+      riskMultiplier: 1.0,
+      roundingTolerancePct: 2.0,
+      dailyRiskEnabled: false,
+      maxDailyRisk: 0,
+      maxTradesEnabled: false,
+      maxActiveTrades: 0,
+      requireTp: true,
+      missingSlTimeoutSec: 60,
+      maxRecoveryRRDegradation: 0.5,
+    })
   };
 
   return (
@@ -54,7 +57,7 @@ export default async function AccountSettingsPage({ params }: { params: { id: st
         </div>
       </div>
 
-      <RiskSettingsClient accountId={account.id} initialSettings={settings} />
+      <RiskSettingsClient accountId={account.id} initialSettings={clientSettings} />
     </div>
   );
 }

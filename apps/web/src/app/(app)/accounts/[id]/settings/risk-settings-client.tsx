@@ -16,6 +16,7 @@ export function RiskSettingsClient({ accountId, initialSettings }: RiskSettingsP
   const [success, setSuccess] = useState(false);
   
   const [formData, setFormData] = useState({
+    displayName: initialSettings.displayName,
     riskMultiplier: initialSettings.riskMultiplier,
     roundingTolerancePct: initialSettings.roundingTolerancePct,
     dailyRiskEnabled: initialSettings.dailyRiskEnabled,
@@ -29,9 +30,13 @@ export function RiskSettingsClient({ accountId, initialSettings }: RiskSettingsP
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
+    let parsedValue: any = value;
+    if (type === 'checkbox') parsedValue = checked;
+    else if (type === 'number') parsedValue = Number(value);
+    
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : Number(value)
+      [name]: parsedValue
     }));
     setSuccess(false);
     setError(null);
@@ -68,7 +73,23 @@ export function RiskSettingsClient({ accountId, initialSettings }: RiskSettingsP
   return (
     <form onSubmit={handleSubmit} className="space-y-8 pb-10">
       
-      {/* 1. Core Risk Engine */}
+      {/* 1. Account Details */}
+      <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+        <h2 className="text-lg font-semibold mb-4 border-b border-border pb-3">Account Details</h2>
+        <div className="grid grid-cols-1 gap-6">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Display Name (Optional)</label>
+            <input 
+              type="text" name="displayName" placeholder="e.g. My Sub Account"
+              value={formData.displayName || ''} onChange={handleChange}
+              className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+            <p className="text-xs text-muted-foreground">A custom name to show on the dashboard instead of the account login.</p>
+          </div>
+        </div>
+      </div>
+
+      {/* 2. Core Risk Engine */}
       <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
         <h2 className="text-lg font-semibold mb-4 border-b border-border pb-3">Core Risk Engine</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

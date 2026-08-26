@@ -11,6 +11,7 @@ interface SubAccountCardProps {
   account: {
     id: string;
     login: string;
+    displayName?: string | null;
     broker: string | null;
     balance: number | null;
     currency: string | null;
@@ -56,7 +57,7 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <div className={`w-3 h-3 rounded-full transition-colors ${isOnline ? 'bg-emerald-500' : 'bg-destructive'}`} />
-            <span className="font-semibold text-lg">{account.login}</span>
+            <span className="font-semibold text-lg">{account.displayName || account.login}</span>
           </div>
           <span className="plaiz-pill plaiz-pill-neutral text-[10px]">
             {account.broker}

@@ -99,13 +99,14 @@ model Mt5Account {
   userId String
   user   User   @relation(fields: [userId], references: [id])
 
-  login    String
-  password String?
-  broker   String
-  server   String
-  role     AccountRole
-  isActive Boolean     @default(true)
-  isDemo   Boolean     @default(true)
+  login       String
+  displayName String?
+  password    String?
+  broker      String
+  server      String
+  role        AccountRole
+  isActive    Boolean     @default(true)
+  isDemo      Boolean     @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

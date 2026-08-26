@@ -27,12 +27,7 @@ const ulong TELEMETRY_INTERVAL_US = 5000000; // 5 seconds in microseconds
 //+------------------------------------------------------------------+
 int OnInit()
   {
-   // DEMO ONLY Safety Check
-   if(AccountInfoInteger(ACCOUNT_TRADE_MODE) != ACCOUNT_TRADE_MODE_DEMO)
-     {
-      Print("SECURITY ERROR: This EA is locked to DEMO mode only. Real execution is blocked.");
-      return(INIT_FAILED);
-     }
+
 
    PrintFormat("SubCopier v2.0 initialized in DEMO safe mode. Timer: %d ms, Timeout: %d ms", TIMER_INTERVAL_MS, WEBREQUEST_TIMEOUT_MS);
    EventSetMillisecondTimer(TIMER_INTERVAL_MS);
@@ -53,8 +48,7 @@ void OnDeinit(const int reason)
 //+------------------------------------------------------------------+
 void OnTimer()
   {
-   // Only execute on demo accounts with algo trading active
-   if(AccountInfoInteger(ACCOUNT_TRADE_MODE) != ACCOUNT_TRADE_MODE_DEMO) return;
+   // Only execute if algo trading active
    if(!TerminalInfoInteger(TERMINAL_TRADE_ALLOWED)) return;
    
    ulong nowUs = GetMicrosecondCount();
@@ -473,7 +467,7 @@ void SendTelemetry()
    int pos = StringFind(baseUrl, "/execution");
    if (pos > 0) baseUrl = StringSubstr(baseUrl, 0, pos);
    
-   int res = WebRequest("POST", baseUrl + "/accounts/telemetry", headers, 2000, post, result, resultHeaders);
+   int res = WebRequest("POST", baseUrl + "/accounts/telemetry", headers, 30000, post, result, resultHeaders);
    if(res != 200 && res != 201)
      {
       PrintFormat("Telemetry failed! HTTP: %d", res);

@@ -20,12 +20,23 @@ export class AccountsService {
       throw new NotFoundException('Account not found');
     }
 
+    // Split displayName out — it lives on Mt5Account, not CopySettings
+    const { displayName, ...copySettingsData } = dto;
+
+    if (displayName !== undefined) {
+      await this.prisma.mt5Account.update({
+        where: { id: accountId },
+        // @ts-ignore: Prisma client needs to be reloaded in VS Code to see displayName
+        data: { displayName: displayName ?? null },
+      });
+    }
+
     const settings = await this.prisma.copySettings.upsert({
       where: { mt5AccountId: accountId },
-      update: dto,
+      update: copySettingsData,
       create: {
         mt5AccountId: accountId,
-        ...dto,
+        ...copySettingsData,
       },
     });
     

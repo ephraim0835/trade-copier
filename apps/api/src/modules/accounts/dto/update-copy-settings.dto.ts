@@ -1,6 +1,10 @@
-import { IsOptional, IsInt, Min, IsNumber, IsBoolean, Max } from 'class-validator';
+import { IsOptional, IsInt, Min, IsNumber, IsBoolean, Max, IsString } from 'class-validator';
 
 export class UpdateCopySettingsDto {
+  @IsOptional()
+  @IsString()
+  displayName?: string | null;
+
   @IsOptional()
   @IsNumber()
   @Min(0.01)

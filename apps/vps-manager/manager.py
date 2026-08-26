@@ -102,15 +102,14 @@ def launch_mt5_and_attach_ea(account):
     metaeditor = terminal_path / 'metaeditor64.exe'
     
     if source_ea.exists():
-        # compile_cmd = [str(metaeditor), f"/compile:{source_ea}", f"/out:{compiled_ea}", f"/inc:{data_path / 'MQL5'}"]
-        # logger.info(f"Compiling EA {source_ea.name} with cmd: {' '.join(compile_cmd)}")
-        # result = subprocess.run(compile_cmd, capture_output=True, text=True)
-        # if not compiled_ea.exists():
-        #     logger.error(f"Failed to compile {ea_file}. Stdout: {result.stdout}, Stderr: {result.stderr}")
-        #     return False
-        # else:
-        #     logger.info(f"Compiled successfully to {compiled_ea}")
-        pass
+        compile_cmd = [str(metaeditor), f"/compile:{source_ea}", f"/out:{compiled_ea}", f"/inc:{data_path / 'MQL5'}"]
+        logger.info(f"Compiling EA {source_ea.name} with cmd: {' '.join(compile_cmd)}")
+        result = subprocess.run(compile_cmd, capture_output=True, text=True)
+        if not compiled_ea.exists():
+            logger.error(f"Failed to compile {ea_file}. Stdout: {result.stdout}, Stderr: {result.stderr}")
+            return False
+        else:
+            logger.info(f"Compiled successfully to {compiled_ea}")
     else:
         logger.error(f"Source EA {source_ea} not found")
         return False
@@ -143,7 +142,7 @@ def launch_mt5_and_attach_ea(account):
         f.write(f"Password={password}\n")
         f.write(f"Server={server}\n\n")
         f.write(f"[StartUp]\n")
-        f.write(f"Symbol=EURUSD\n")
+        f.write(f"Symbol=EURUSDm\n")
         f.write(f"Period=H1\n")
         f.write(f"Expert={ea_base}\n")
         # ExpertParameters expects the file to be relative to MQL5\Presets
@@ -151,7 +150,7 @@ def launch_mt5_and_attach_ea(account):
         f.write(f"[Experts]\n")
         f.write(f"AllowDllImport=1\n")
         f.write(f"Enabled=1\n")
-        f.write(f"AllowWebRequest=1\n")
+        f.write(f"WebRequest=1\n")
         f.write(f"WebRequestUrl=https://plaiz-markets-api.onrender.com\n")
         
     # 4.5. Enable WebRequest in common.ini (MT5 stores this in common.ini)
@@ -167,11 +166,11 @@ def launch_mt5_and_attach_ea(account):
     
     # Check if WebRequestUrl already exists, if not append it
     if "WebRequestUrl=" not in common_ini_content:
-        # If [Common] exists, append after it, else append at the end
-        if "[Common]" in common_ini_content:
-            common_ini_content = common_ini_content.replace("[Common]", "[Common]\nAllowWebRequest=1\nWebRequestUrl=https://plaiz-markets-api.onrender.com")
+        # If [Experts] exists, append after it, else append at the end
+        if "[Experts]" in common_ini_content:
+            common_ini_content = common_ini_content.replace("[Experts]", "[Experts]\nAllowWebRequest=1\nWebRequestUrl=https://plaiz-markets-api.onrender.com")
         else:
-            common_ini_content += "\n[Common]\nAllowWebRequest=1\nWebRequestUrl=https://plaiz-markets-api.onrender.com\n"
+            common_ini_content += "\n[Experts]\nAllowWebRequest=1\nWebRequestUrl=https://plaiz-markets-api.onrender.com\n"
     else:
         import re
         common_ini_content = re.sub(r'AllowWebRequest=.*', 'AllowWebRequest=1', common_ini_content)
@@ -180,13 +179,43 @@ def launch_mt5_and_attach_ea(account):
     with open(common_ini_path, 'w', encoding='utf-16') as f:
         f.write(common_ini_content)
         
+    # 4.6. Directly patch terminal.ini to guarantee WebRequest is enabled BEFORE MT5 starts.
+    # This is the authoritative settings file MT5 reads on boot. The startup ini only
+    # applies overrides AFTER the terminal has already initialised — too late for the EA.
+    import re as _re
+    terminal_ini_path = ini_file_dir / "terminal.ini"
+    terminal_ini_content = ""
+    if terminal_ini_path.exists():
+        try:
+            terminal_ini_content = terminal_ini_path.read_text(encoding='utf-16')
+        except UnicodeError:
+            terminal_ini_content = terminal_ini_path.read_text(encoding='utf-8', errors='ignore')
+    
+    if "[Experts]" in terminal_ini_content:
+        # Patch existing [Experts] section
+        terminal_ini_content = _re.sub(r'WebRequest=\d*', 'WebRequest=1', terminal_ini_content)
+        if "WebRequestUrl=" in terminal_ini_content:
+            terminal_ini_content = _re.sub(r'WebRequestUrl=.*', 'WebRequestUrl=https://plaiz-markets-api.onrender.com', terminal_ini_content)
+        else:
+            terminal_ini_content = terminal_ini_content.replace("[Experts]", "[Experts]\nWebRequestUrl=https://plaiz-markets-api.onrender.com")
+        if "WebRequest=" not in terminal_ini_content.split("[Experts]", 1)[-1].split("[", 1)[0]:
+            terminal_ini_content = terminal_ini_content.replace("[Experts]", "[Experts]\nWebRequest=1")
+    else:
+        # No [Experts] section — append one
+        terminal_ini_content += "\n[Experts]\nEnabled=1\nWebRequest=1\nWebRequestUrl=https://plaiz-markets-api.onrender.com\n"
+    
+    try:
+        terminal_ini_path.write_text(terminal_ini_content, encoding='utf-16')
+        logger.info("terminal.ini patched with WebRequest=1 successfully.")
+    except Exception as e:
+        logger.warning(f"Could not patch terminal.ini: {e}")
+
     # 5. Launch Terminal with the config
     logger.info(f"Launching MT5 terminal for account {login} with config and EA attached...")
     terminal_exe = terminal_path / 'terminal64.exe'
     
-    # We use subprocess.Popen to launch it asynchronously
-    # Do not use /portable so it uses AppData where the EA is compiled
-    launch_cmd = [str(terminal_exe), f"/config:{ini_file_path}"]
+    # /allowwebfrom whitelists the URL for WebRequest on the command line, bypassing the GUI setting
+    launch_cmd = [str(terminal_exe), f"/config:{ini_file_path}", "/allowwebfrom:https://plaiz-markets-api.onrender.com"]
     subprocess.Popen(launch_cmd)
     
     return True
@@ -224,19 +253,24 @@ def poll_db_worker():
                 
                 # Fetch a real EA token from the API
                 base_api = os.getenv('NEXT_PUBLIC_API_URL', 'https://plaiz-markets-api.onrender.com')
-                try:
-                    token_res = requests.post(
-                        f"{base_api}/accounts/internal/ea-token",
-                        json={"accountId": account['id']},
-                        headers={"Authorization": "Bearer internal_manager_secret_998877"},
-                        timeout=5
-                    )
-                    if token_res.status_code == 201 or token_res.status_code == 200:
-                        account['ea_token'] = token_res.json().get('token', 'dummy_token')
-                    else:
-                        logger.error(f"Failed to generate EA token: {token_res.text}")
-                except Exception as e:
-                    logger.error(f"Error fetching EA token: {e}")
+                for attempt in range(3):
+                    try:
+                        token_res = requests.post(
+                            f"{base_api}/accounts/internal/ea-token",
+                            json={"accountId": account['id']},
+                            headers={"Authorization": "Bearer internal_manager_secret_998877"},
+                            timeout=30
+                        )
+                        if token_res.status_code == 201 or token_res.status_code == 200:
+                            account['ea_token'] = token_res.json().get('token', 'dummy_token')
+                            break
+                        else:
+                            logger.error(f"Failed to generate EA token: {token_res.text}")
+                            break
+                    except Exception as e:
+                        logger.error(f"Error fetching EA token (attempt {attempt + 1}/3): {e}")
+                        if attempt < 2:
+                            time.sleep(2 ** attempt)
                 
                 login = account['login']
                 if login not in active_terminals:
@@ -277,11 +311,11 @@ def telemetry_worker():
                 'id': str(uuid.uuid4()),
                 'name': 'vps-main-1',
                 'status': 'HEALTHY',
-                'cpuUsage': cpu,
-                'memoryUsage': ram,
-                'diskUsage': disk,
+                'cpuPercent': cpu,
+                'ramPercent': ram,
+                'diskPercent': disk,
                 'activeTerminals': terminals,
-                'lastHeartbeat': 'now()'
+                'lastHeartbeatAt': 'now()'
             }, on_conflict='name').execute()
             
         except Exception as e:
@@ -311,9 +345,23 @@ def keep_alive_worker():
         # Sleep for 10 minutes (600 seconds)
         time.sleep(600)
 
+def kill_existing_terminals():
+    """Aggressively terminate any running MT5 terminal64.exe processes to ensure a cold boot."""
+    killed = 0
+    for proc in psutil.process_iter(['pid', 'name']):
+        if proc.info['name'] == 'terminal64.exe':
+            try:
+                proc.kill()
+                killed += 1
+            except Exception as e:
+                logger.warning(f"Failed to kill terminal64.exe (PID {proc.info['pid']}): {e}")
+    if killed > 0:
+        logger.info(f"Killed {killed} existing terminal64.exe processes to ensure a clean state.")
+
 
 if __name__ == '__main__':
     logger.info('Starting VPS MT5 manager')
+    kill_existing_terminals()
     poll_thread = threading.Thread(target=poll_db_worker, daemon=True)
     poll_thread.start()
     

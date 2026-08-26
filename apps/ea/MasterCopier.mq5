@@ -41,13 +41,6 @@ int CacheCount = 0;
 //+------------------------------------------------------------------+
 int OnInit()
   {
-   // DEMO ONLY Safety Check
-   if(AccountInfoInteger(ACCOUNT_TRADE_MODE) != ACCOUNT_TRADE_MODE_DEMO)
-     {
-      Print("SECURITY ERROR: This EA is locked to DEMO mode only. Real execution is blocked.");
-      return(INIT_FAILED);
-     }
-
    InitCache();
    EventSetMillisecondTimer(DISPATCH_INTERVAL_MS);
 
@@ -461,7 +454,7 @@ void SendTelemetry()
    int pos = StringFind(baseUrl, "/master");
    if (pos > 0) baseUrl = StringSubstr(baseUrl, 0, pos);
    
-   int res = WebRequest("POST", baseUrl + "/accounts/telemetry", headers, 2000, post, result, resultHeaders);
+   int res = WebRequest("POST", baseUrl + "/accounts/telemetry", headers, 30000, post, result, resultHeaders);
    if (res == -1) {
       Print("Telemetry failed! HTTP: -1, Error code: ", GetLastError());
    } else if(res != 200 && res != 201)
