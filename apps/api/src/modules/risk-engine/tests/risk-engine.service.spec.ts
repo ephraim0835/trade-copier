@@ -16,7 +16,7 @@ const defaultProfile: RiskProfile = {
   currency: 'USD',
   marginFree: 10_000,
   accountType: 'HEDGING',
-  riskMultiplier: 1.0,
+  riskPercentage: 1.0,
   roundingTolerancePct: 2.0,
   dailyRiskEnabled: true,
   maxDailyRisk: 500,
@@ -113,7 +113,7 @@ describe('RiskEngineService — Phase 2 Verification Suite', () => {
     });
 
     it('A4: 2× multiplier doubles intended risk and volume', () => {
-      const profile: RiskProfile = { ...defaultProfile, riskMultiplier: 2.0 };
+      const profile: RiskProfile = { ...defaultProfile, riskPercentage: 2.0 };
       const d = svc.evaluateTrade(defaultSignal, profile, eurusdSpecs);
       expect(d.intendedRisk).toBeCloseTo(200, 2);
       expect(d.executedVol).toBe(0);

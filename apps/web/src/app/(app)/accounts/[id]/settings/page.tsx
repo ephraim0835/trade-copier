@@ -19,7 +19,7 @@ export default async function AccountSettingsPage({ params }: { params: Promise<
   const clientSettings = {
     displayName: account.displayName,
     ...(account.copySettings || {
-      riskMultiplier: 1.0,
+      riskPercentage: 1.0,
       roundingTolerancePct: 2.0,
       dailyRiskEnabled: false,
       maxDailyRisk: 0,

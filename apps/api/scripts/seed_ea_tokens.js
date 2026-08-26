@@ -33,7 +33,7 @@ async function main() {
   let settings = await prisma.copySettings.findUnique({ where: { mt5AccountId: sub.id } });
   if (!settings) {
     await prisma.copySettings.create({
-      data: { mt5AccountId: sub.id, riskMultiplier: 1.0 }
+      data: { mt5AccountId: sub.id, riskPercentage: 1.0 }
     });
   }
 

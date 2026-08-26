@@ -20,13 +20,13 @@ describe('MasterSignalService - Hot Path Suite', () => {
           masterAccountId: 'master-1',
           subAccountId: 'sub-1',
           isActive: true,
-          riskMultiplier: null,
+          riskPercentage: null,
           subAccount: {
             id: 'sub-1',
             isDemo: true,
             isActive: true,
             copySettings: {
-              riskMultiplier: 1.0,
+              riskPercentage: 1.0,
               roundingTolerancePct: 5,
               dailyRiskEnabled: false,
               maxDailyRisk: 500,

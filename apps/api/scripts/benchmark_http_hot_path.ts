@@ -96,7 +96,7 @@ async function runHttpHotPathBenchmark() {
       isDemo: true,
       isActive: true,
       copySettings: {
-        riskMultiplier: 1.0,
+        riskPercentage: 1.0,
         roundingTolerancePct: 5,
         dailyRiskEnabled: false,
         maxDailyRisk: 500,

@@ -22,8 +22,8 @@ async function runBenchmark() {
           masterAccountId: 'master-1',
           subAccountId: 'sub-1',
           isActive: true,
-          riskMultiplier: null,
-          subAccount: { id: 'sub-1', isDemo: true, isActive: true, copySettings: { riskMultiplier: 1 }, equity: 10000, balance: 10000, freeMargin: 10000, currency: 'USD' },
+          riskPercentage: null,
+          subAccount: { id: 'sub-1', isDemo: true, isActive: true, copySettings: { riskPercentage: 1 }, equity: 10000, balance: 10000, freeMargin: 10000, currency: 'USD' },
         }
       ]),
     },

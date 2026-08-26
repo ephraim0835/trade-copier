@@ -26,7 +26,7 @@ async function main() {
     ON CONFLICT (id) DO NOTHING;
   `);
   await prisma.$executeRawUnsafe(`
-    INSERT INTO "CopySettings" (id, "mt5AccountId", "riskMultiplier", "roundingTolerancePct", "createdAt", "updatedAt")
+    INSERT INTO "CopySettings" (id, "mt5AccountId", "riskPercentage", "roundingTolerancePct", "createdAt", "updatedAt")
     VALUES ('cs-demo-sub-1', 'DEMO-SUB-1', 1.0, 2.0, NOW(), NOW())
     ON CONFLICT ("mt5AccountId") DO NOTHING;
   `);

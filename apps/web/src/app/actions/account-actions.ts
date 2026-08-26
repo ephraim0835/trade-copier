@@ -57,7 +57,7 @@ export async function createMt5Account(data: {
       await prisma.copySettings.create({
         data: {
           mt5AccountId: account.id,
-          riskMultiplier: 1.0,
+          riskPercentage: 1.0,
         }
       });
 
