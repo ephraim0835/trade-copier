@@ -117,7 +117,23 @@ export async function deleteAccount(accountId: string) {
       return { success: false, error: 'Account not found or access denied' };
     }
 
-    await prisma.mt5Account.delete({ where: { id: accountId } });
+    // Delete related records first to avoid foreign key constraint errors
+    await prisma.$transaction([
+      prisma.eaToken.deleteMany({ where: { mt5AccountId: accountId } }),
+      prisma.order.deleteMany({ where: { mt5AccountId: accountId } }),
+      prisma.deal.deleteMany({ where: { mt5AccountId: accountId } }),
+      prisma.position.deleteMany({ where: { mt5AccountId: accountId } }),
+      prisma.copySettings.deleteMany({ where: { mt5AccountId: accountId } }),
+      prisma.tradeCopy.deleteMany({ where: { subAccountId: accountId } }),
+      prisma.auditLog.deleteMany({ where: { subAccountId: accountId } }),
+      prisma.executionCommand.deleteMany({ where: { subAccountId: accountId } }),
+      prisma.accountSubscription.deleteMany({ 
+        where: { 
+          OR: [{ masterAccountId: accountId }, { subAccountId: accountId }] 
+        } 
+      }),
+      prisma.mt5Account.delete({ where: { id: accountId } })
+    ]);
 
     revalidatePath('/');
     revalidatePath('/master');
