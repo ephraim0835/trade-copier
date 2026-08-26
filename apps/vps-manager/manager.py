@@ -5,6 +5,7 @@ import json
 import logging
 import subprocess
 import uuid
+import shutil
 from datetime import datetime
 from pathlib import Path
 
@@ -113,14 +114,30 @@ def launch_mt5_and_attach_ea(account):
     logger.info(f"Terminal Path: {terminal_path}")
     
     # 2. Auto-compile EA using MetaEditor
+    # Copy EA and dependencies into the terminal's MQL5/Experts folder to avoid MetaEditor /out: path space bugs
     source_ea = Path(__file__).parent.parent / 'ea' / ea_file
-    compiled_ea = data_path / 'MQL5' / 'Experts' / f"{ea_base}.ex5"
+    source_json = Path(__file__).parent.parent / 'ea' / 'MqlJson.mqh'
+    
+    experts_dir = data_path / 'MQL5' / 'Experts'
+    experts_dir.mkdir(parents=True, exist_ok=True)
+    
+    target_ea = experts_dir / ea_file
+    target_json = experts_dir / 'MqlJson.mqh'
+    compiled_ea = experts_dir / f"{ea_base}.ex5"
+    
     metaeditor = terminal_path / 'metaeditor64.exe'
     
     if source_ea.exists():
-        compile_cmd = [str(metaeditor), f"/compile:{source_ea}", f"/out:{compiled_ea}", f"/inc:{data_path / 'MQL5'}"]
-        logger.info(f"Compiling EA {source_ea.name} with cmd: {' '.join(compile_cmd)}")
+        # Copy source and dependencies
+        shutil.copy2(source_ea, target_ea)
+        if source_json.exists():
+            shutil.copy2(source_json, target_json)
+            
+        # Compile directly in the target directory without using /out:
+        compile_cmd = [str(metaeditor), f"/compile:{target_ea}", f"/inc:{data_path / 'MQL5'}"]
+        logger.info(f"Compiling EA {ea_file} with cmd: {' '.join(compile_cmd)}")
         result = subprocess.run(compile_cmd, capture_output=True, text=True)
+        
         if not compiled_ea.exists():
             logger.error(f"Failed to compile {ea_file}. Stdout: {result.stdout}, Stderr: {result.stderr}")
             return False
