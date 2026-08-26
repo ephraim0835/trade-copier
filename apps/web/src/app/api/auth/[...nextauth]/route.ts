@@ -2,7 +2,7 @@ import NextAuth from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import type { NextAuthOptions } from "next-auth"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+const API_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'https://plaiz-markets-api.onrender.com';
 
 async function refreshAccessToken(refreshToken: string) {
   const res = await fetch(`${API_URL}/auth/refresh`, {
@@ -24,10 +24,6 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
-
-        if (!API_URL) {
-          throw new Error('NEXT_PUBLIC_API_URL is not configured. Cannot authenticate.');
-        }
 
         try {
           const res = await fetch(`${API_URL}/auth/login`, {

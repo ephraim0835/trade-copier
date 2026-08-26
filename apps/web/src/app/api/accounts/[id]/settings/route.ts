@@ -19,10 +19,8 @@ export async function PATCH(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-  if (!apiUrl) {
-    return NextResponse.json({ error: "API URL not configured" }, { status: 500 });
-  }
+  // Use server-side env var (API_URL) with fallback to the public one, then hardcoded Render URL
+  const apiUrl = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'https://plaiz-markets-api.onrender.com';
 
   try {
     const body = await request.json();

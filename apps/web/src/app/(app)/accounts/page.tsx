@@ -26,7 +26,10 @@ export default async function AccountsPage() {
     where: { role: 'SUB', userId: user.id },
     include: {
       copySettings: true,
-      eaTokens: true,
+      eaTokens: {
+        orderBy: { lastUsedAt: 'desc' },
+        take: 1,
+      },
     },
     orderBy: { createdAt: 'desc' }
   });
