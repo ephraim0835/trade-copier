@@ -70,10 +70,6 @@ def launch_mt5_and_attach_ea(account):
         logger.warning(f"Skipping MT5 initialization for account {login} because it is not numeric.")
         return False
 
-    # Instead of mt5.initialize which can hang, we find the data path manually.
-    # The terminal path is usually C:\Program Files\MetaTrader 5
-    terminal_path = Path(os.environ.get('ProgramW6432', 'C:\\Program Files')) / 'MetaTrader 5'
-    
     # The data path is in AppData\Roaming\MetaQuotes\Terminal\<hash>
     appdata = Path(os.environ.get('APPDATA', 'C:\\Users\\Plaiz\\AppData\\Roaming'))
     terminal_dir = appdata / 'MetaQuotes' / 'Terminal'
@@ -109,6 +105,21 @@ def launch_mt5_and_attach_ea(account):
     
     # Store the assigned data path on the account so future assignments can avoid it
     account['data_path'] = str(data_path)
+
+    # Read the correct terminal installation path from origin.txt
+    origin_file = data_path / 'origin.txt'
+    if origin_file.exists():
+        try:
+            terminal_path = Path(origin_file.read_text(encoding='utf-16').strip())
+        except UnicodeError:
+            terminal_path = Path(origin_file.read_text(encoding='utf-8', errors='ignore').strip())
+    else:
+        logger.warning(f"origin.txt not found in {data_path}, falling back to default Program Files")
+        terminal_path = Path(os.environ.get('ProgramW6432', 'C:\\Program Files')) / 'MetaTrader 5'
+
+    if not terminal_path.exists():
+        logger.error(f"Terminal installation path {terminal_path} from origin.txt does not exist.")
+        return False
 
     logger.info(f"Terminal Data Path: {data_path}")
     logger.info(f"Terminal Path: {terminal_path}")
@@ -185,64 +196,6 @@ def launch_mt5_and_attach_ea(account):
         f.write(f"Enabled=1\n")
         f.write(f"WebRequest=1\n")
         f.write(f"WebRequestUrl=https://plaiz-markets-api.onrender.com\n")
-        
-    # 4.5. Enable WebRequest in common.ini (MT5 stores this in common.ini)
-    common_ini_path = ini_file_dir / "common.ini"
-    common_ini_content = ""
-    if common_ini_path.exists():
-        try:
-            with open(common_ini_path, 'r', encoding='utf-16') as f:
-                common_ini_content = f.read()
-        except UnicodeError:
-            with open(common_ini_path, 'r', encoding='utf-8', errors='ignore') as f2:
-                common_ini_content = f2.read()
-    
-    # Check if WebRequestUrl already exists, if not append it
-    if "WebRequestUrl=" not in common_ini_content:
-        # If [Experts] exists, append after it, else append at the end
-        if "[Experts]" in common_ini_content:
-            common_ini_content = common_ini_content.replace("[Experts]", "[Experts]\nAllowWebRequest=1\nWebRequestUrl=https://plaiz-markets-api.onrender.com")
-        else:
-            common_ini_content += "\n[Experts]\nAllowWebRequest=1\nWebRequestUrl=https://plaiz-markets-api.onrender.com\n"
-    else:
-        import re
-        common_ini_content = re.sub(r'AllowWebRequest=.*', 'AllowWebRequest=1', common_ini_content)
-        common_ini_content = re.sub(r'WebRequestUrl=.*', 'WebRequestUrl=https://plaiz-markets-api.onrender.com', common_ini_content)
-    
-    with open(common_ini_path, 'w', encoding='utf-16') as f:
-        f.write(common_ini_content)
-        
-    # 4.6. Directly patch terminal.ini to guarantee WebRequest is enabled BEFORE MT5 starts.
-    # This is the authoritative settings file MT5 reads on boot. The startup ini only
-    # applies overrides AFTER the terminal has already initialised — too late for the EA.
-    import re as _re
-    terminal_ini_path = ini_file_dir / "terminal.ini"
-    terminal_ini_content = ""
-    if terminal_ini_path.exists():
-        try:
-            terminal_ini_content = terminal_ini_path.read_text(encoding='utf-16')
-        except UnicodeError:
-            terminal_ini_content = terminal_ini_path.read_text(encoding='utf-8', errors='ignore')
-    
-    if "[Experts]" in terminal_ini_content:
-        # Patch existing [Experts] section
-        terminal_ini_content = _re.sub(r'WebRequest=\d*', 'WebRequest=1', terminal_ini_content)
-        if "WebRequestUrl=" in terminal_ini_content:
-            terminal_ini_content = _re.sub(r'WebRequestUrl=.*', 'WebRequestUrl=https://plaiz-markets-api.onrender.com', terminal_ini_content)
-        else:
-            terminal_ini_content = terminal_ini_content.replace("[Experts]", "[Experts]\nWebRequestUrl=https://plaiz-markets-api.onrender.com")
-        if "WebRequest=" not in terminal_ini_content.split("[Experts]", 1)[-1].split("[", 1)[0]:
-            terminal_ini_content = terminal_ini_content.replace("[Experts]", "[Experts]\nWebRequest=1")
-    else:
-        # No [Experts] section — append one
-        terminal_ini_content += "\n[Experts]\nEnabled=1\nWebRequest=1\nWebRequestUrl=https://plaiz-markets-api.onrender.com\n"
-    
-    try:
-        terminal_ini_path.write_text(terminal_ini_content, encoding='utf-16')
-        logger.info("terminal.ini patched with WebRequest=1 successfully.")
-    except Exception as e:
-        logger.warning(f"Could not patch terminal.ini: {e}")
-
     # 5. Launch Terminal with the config
     logger.info(f"Launching MT5 terminal for account {login} with config and EA attached...")
     terminal_exe = terminal_path / 'terminal64.exe'
