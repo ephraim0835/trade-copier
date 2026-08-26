@@ -117,11 +117,10 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
               onClick={handleToggle}
               disabled={isPending}
               title={isActive ? 'Disable copying' : 'Enable copying'}
-              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-[12px] font-medium border transition-all duration-200 ${
-                isActive
-                  ? 'border-border/40 text-muted-foreground hover:border-destructive/40 hover:text-destructive hover:bg-destructive/5'
-                  : 'border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10'
-              } disabled:opacity-50`}
+              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-[12px] font-medium border transition-all duration-200 ${isActive
+                ? 'border-border/40 text-muted-foreground hover:border-destructive/40 hover:text-destructive hover:bg-destructive/5'
+                : 'border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10'
+                } disabled:opacity-50`}
             >
               {isActive ? <PowerOff className="w-3.5 h-3.5" /> : <Power className="w-3.5 h-3.5" />}
               {isActive ? 'Disable' : 'Enable'}
@@ -133,11 +132,10 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
               onClick={handleDelete}
               disabled={isPending}
               title={confirmDelete ? 'Click again to confirm deletion' : 'Remove account'}
-              className={`px-3 py-2 rounded-xl text-[12px] font-medium border transition-all duration-200 ${
-                confirmDelete
-                  ? 'border-destructive text-destructive bg-destructive/10 animate-pulse'
-                  : 'border-border/40 text-muted-foreground hover:border-destructive/40 hover:text-destructive hover:bg-destructive/5'
-              } disabled:opacity-50`}
+              className={`px-3 py-2 rounded-xl text-[12px] font-medium border transition-all duration-200 ${confirmDelete
+                ? 'border-destructive text-destructive bg-destructive/10 animate-pulse'
+                : 'border-border/40 text-muted-foreground hover:border-destructive/40 hover:text-destructive hover:bg-destructive/5'
+                } disabled:opacity-50`}
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
