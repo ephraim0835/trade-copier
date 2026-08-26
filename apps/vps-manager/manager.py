@@ -357,11 +357,45 @@ def kill_existing_terminals():
                 logger.warning(f"Failed to kill terminal64.exe (PID {proc.info['pid']}): {e}")
     if killed > 0:
         logger.info(f"Killed {killed} existing terminal64.exe processes to ensure a clean state.")
+        # Wait for MT5 to finish writing its shutdown config to disk before we patch it
+        time.sleep(4)
+
+def force_webrequest_permission():
+    """Write the WebRequest whitelist into common.ini BEFORE MT5 starts.
+    MT5 overwrites common.ini on shutdown; we must patch it after every kill.
+    """
+    appdata = Path(os.environ.get('APPDATA', 'C:\\Users\\Plaiz\\AppData\\Roaming'))
+    terminal_dir = appdata / 'MetaQuotes' / 'Terminal'
+    if not terminal_dir.exists():
+        return
+    for child in terminal_dir.iterdir():
+        if child.is_dir() and len(child.name) == 32 and (child / 'config').exists():
+            common_ini_path = child / 'config' / 'common.ini'
+            content = "[Experts]\nAllowWebRequest=1\nWebRequestUrl=https://plaiz-markets-api.onrender.com\n\n[Common]\n"
+            # Preserve Environment key if present
+            if common_ini_path.exists():
+                try:
+                    existing = common_ini_path.read_text(encoding='utf-16')
+                except Exception:
+                    try:
+                        existing = common_ini_path.read_text(encoding='utf-8', errors='ignore')
+                    except Exception:
+                        existing = ''
+                for line in existing.splitlines():
+                    if line.startswith('Environment='):
+                        content += line + '\n'
+                        break
+            try:
+                common_ini_path.write_text(content, encoding='utf-16')
+                logger.info(f"Force-patched WebRequest permission in {common_ini_path}")
+            except Exception as e:
+                logger.warning(f"Could not patch {common_ini_path}: {e}")
 
 
 if __name__ == '__main__':
     logger.info('Starting VPS MT5 manager')
     kill_existing_terminals()
+    force_webrequest_permission()
     poll_thread = threading.Thread(target=poll_db_worker, daemon=True)
     poll_thread.start()
     
