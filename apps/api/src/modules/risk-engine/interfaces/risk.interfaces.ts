@@ -9,7 +9,7 @@ export interface RiskProfile {
   accountType: AccountType; // HEDGING or NETTING
 
   // From CopySettings
-  riskMultiplier: number;
+  riskPercentage: number;
   roundingTolerancePct: number;  // max ADDITIONAL risk from rounding, as % of intendedRisk
   dailyRiskEnabled: boolean;
   maxDailyRisk: number;

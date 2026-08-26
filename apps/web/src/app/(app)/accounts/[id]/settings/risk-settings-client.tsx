@@ -17,7 +17,7 @@ export function RiskSettingsClient({ accountId, initialSettings }: RiskSettingsP
   
   const [formData, setFormData] = useState({
     displayName: initialSettings.displayName || '',
-    riskMultiplier: initialSettings.riskMultiplier?.toString() || '1.0',
+    riskPercentage: initialSettings.riskPercentage?.toString() || '1.0',
     roundingTolerancePct: initialSettings.roundingTolerancePct?.toString() || '2.0',
     dailyRiskEnabled: initialSettings.dailyRiskEnabled || false,
     maxDailyRisk: initialSettings.maxDailyRisk?.toString() || '0',
@@ -50,7 +50,7 @@ export function RiskSettingsClient({ accountId, initialSettings }: RiskSettingsP
     try {
       const payload = {
         displayName: formData.displayName || null,
-        riskMultiplier: Number(formData.riskMultiplier),
+        riskPercentage: Number(formData.riskPercentage),
         roundingTolerancePct: Number(formData.roundingTolerancePct),
         dailyRiskEnabled: formData.dailyRiskEnabled,
         maxDailyRisk: Number(formData.maxDailyRisk),
@@ -109,13 +109,13 @@ export function RiskSettingsClient({ accountId, initialSettings }: RiskSettingsP
         <h2 className="text-lg font-semibold mb-4 border-b border-border pb-3">Core Risk Engine</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
-            <label className="text-sm font-medium">Risk Multiplier (x)</label>
+            <label className="text-sm font-medium">Risk Percentage (%)</label>
             <input 
-              type="number" step="0.01" min="0.01" max="10.0" name="riskMultiplier"
-              value={formData.riskMultiplier} onChange={handleChange}
+              type="number" step="0.01" min="0.01" max="100.0" name="riskPercentage"
+              value={formData.riskPercentage} onChange={handleChange}
               className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
             />
-            <p className="text-xs text-muted-foreground">Master trade volume is multiplied by this value.</p>
+            <p className="text-xs text-muted-foreground">Percentage of sub account balance to risk per trade.</p>
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">Rounding Tolerance (%)</label>

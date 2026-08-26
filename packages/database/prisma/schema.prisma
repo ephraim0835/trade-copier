@@ -157,7 +157,7 @@ model AccountSubscription {
   isActive        Boolean    @default(true)
   
   // Specific risk overrides for this subscription
-  riskMultiplier  Float?     // If null, falls back to subAccount.copySettings.riskMultiplier
+  riskPercentage  Float?     // If null, falls back to subAccount.copySettings.riskPercentage
   
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
@@ -171,7 +171,7 @@ model CopySettings {
   mt5Account   Mt5Account @relation(fields: [mt5AccountId], references: [id])
 
   // Risk Configuration
-  riskMultiplier       Float @default(1.0)
+  riskPercentage       Float @default(1.0)
   roundingTolerancePct Float @default(2.0) // e.g. 2.0 = 2% max rounding excess
 
   // Daily Risk

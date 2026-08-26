@@ -8,8 +8,8 @@ export class UpdateCopySettingsDto {
   @IsOptional()
   @IsNumber()
   @Min(0.01)
-  @Max(10.0)
-  riskMultiplier?: number;
+  @Max(100.0)
+  riskPercentage?: number;
 
   @IsOptional()
   @IsNumber()

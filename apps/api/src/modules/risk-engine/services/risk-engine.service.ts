@@ -65,7 +65,7 @@ export class RiskEngineService {
     }
 
     // ── STEP 3: Monetary Risk Calculation ───────────────────
-    const intendedRiskPct = (signal.masterRiskPct ?? 1.0) * profile.riskMultiplier;
+    const intendedRiskPct = profile.riskPercentage;
     decision.intendedRisk = profile.equity * (intendedRiskPct / 100);
     decision.maxPermittedRisk = decision.intendedRisk;
 

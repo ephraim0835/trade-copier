@@ -119,8 +119,8 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
         
         // Merge the subscription risk override with the account copySettings if needed
         const mergedSettings = a.copySettings ? { ...a.copySettings } : null;
-        if (mergedSettings && sub.riskMultiplier !== null) {
-          mergedSettings.riskMultiplier = sub.riskMultiplier;
+        if (mergedSettings && sub.riskPercentage !== null) {
+          mergedSettings.riskPercentage = sub.riskPercentage;
         }
 
         const cached: CachedSubAccount = {
@@ -198,7 +198,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
       currency: sub.currency,
       marginFree: sub.freeMargin > 0 ? sub.freeMargin : 10000,
       accountType: 'HEDGING' as const,
-      riskMultiplier: copySettings.riskMultiplier ?? 1.0,
+      riskPercentage: copySettings.riskPercentage ?? 1.0,
       roundingTolerancePct: copySettings.roundingTolerancePct ?? 2.0,
       dailyRiskEnabled: copySettings.dailyRiskEnabled ?? false,
       maxDailyRisk: copySettings.maxDailyRisk ?? 0,

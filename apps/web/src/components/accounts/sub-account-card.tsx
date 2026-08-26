@@ -16,7 +16,7 @@ interface SubAccountCardProps {
     balance: number | null;
     currency: string | null;
     isActive: boolean;
-    copySettings?: { riskMultiplier?: number | null } | null;
+    copySettings?: { riskPercentage?: number | null } | null;
     eaTokens?: { lastUsedAt?: Date | null }[];
   };
 }
@@ -80,9 +80,9 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
             </span>
           </div>
           <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Risk Multiplier</span>
+            <span className="text-muted-foreground">Risk Percentage</span>
             <span className="font-bold num-tabular text-foreground">
-              {account.copySettings?.riskMultiplier?.toFixed(2) || '1.00'}x
+              {account.copySettings?.riskPercentage?.toFixed(2) || '1.00'}%
             </span>
           </div>
         </div>
