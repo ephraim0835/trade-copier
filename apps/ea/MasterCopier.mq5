@@ -7,6 +7,7 @@
 #property description "DEMO ONLY Master Copier EA (Non-Blocking Queue)"
 
 #include <Trade\Trade.mqh>
+#include "WinInet.mqh"
 
 input string API_URL = "https://plaiz-markets-api.onrender.com/master/signal";
 input string EA_TOKEN = "master-token-id.secret123";
@@ -401,9 +402,9 @@ void OnTimer()
       StringToCharArray(payload, post, 0, WHOLE_ARRAY, CP_UTF8);
       ArrayResize(post, StringLen(payload)); // Remove null terminator
       
-      string headers = "Content-Type: application/json\r\nAuthorization: Bearer " + EA_TOKEN + "\r\nConnection: close\r\n";
+      string headers = "Content-Type: application/json\r\nAuthorization: Bearer " + EA_TOKEN + "\r\n";
       
-      int res = WebRequest("POST", API_URL + endpoint, headers, 10000, post, result, resultHeaders);
+      int res = CWinInet::Post(API_URL + endpoint, headers, post, result);
       if(res != 200 && res != 201)
         {
          Print("Failed to dispatch event. HTTP: ", res, ". Endpoint: ", endpoint);
@@ -446,7 +447,7 @@ void SendTelemetry()
    string resultHeaders;
    StringToCharArray(json, post, 0, WHOLE_ARRAY, CP_UTF8);
    ArrayResize(post, StringLen(json)); // Remove null terminator
-   string headers = "Content-Type: application/json\r\nAuthorization: Bearer " + EA_TOKEN + "\r\nConnection: close\r\n";
+   string headers = "Content-Type: application/json\r\nAuthorization: Bearer " + EA_TOKEN + "\r\n";
    
    string baseUrl = API_URL;
    // API_URL is something like "http://127.0.0.1:9001/master/signal"
@@ -454,7 +455,7 @@ void SendTelemetry()
    int pos = StringFind(baseUrl, "/master");
    if (pos > 0) baseUrl = StringSubstr(baseUrl, 0, pos);
    
-   int res = WebRequest("POST", baseUrl + "/accounts/telemetry", headers, 30000, post, result, resultHeaders);
+   int res = CWinInet::Post(baseUrl + "/accounts/telemetry", headers, post, result);
    if (res == -1) {
       Print("Telemetry failed! HTTP: -1, Error code: ", GetLastError());
    } else if(res != 200 && res != 201)

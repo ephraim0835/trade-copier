@@ -16,23 +16,22 @@ export function RiskSettingsClient({ accountId, initialSettings }: RiskSettingsP
   const [success, setSuccess] = useState(false);
   
   const [formData, setFormData] = useState({
-    displayName: initialSettings.displayName,
-    riskMultiplier: initialSettings.riskMultiplier,
-    roundingTolerancePct: initialSettings.roundingTolerancePct,
-    dailyRiskEnabled: initialSettings.dailyRiskEnabled,
-    maxDailyRisk: initialSettings.maxDailyRisk,
-    maxTradesEnabled: initialSettings.maxTradesEnabled,
-    maxActiveTrades: initialSettings.maxActiveTrades,
-    requireTp: initialSettings.requireTp,
-    missingSlTimeoutSec: initialSettings.missingSlTimeoutSec,
-    maxRecoveryRRDegradation: initialSettings.maxRecoveryRRDegradation,
+    displayName: initialSettings.displayName || '',
+    riskMultiplier: initialSettings.riskMultiplier?.toString() || '1.0',
+    roundingTolerancePct: initialSettings.roundingTolerancePct?.toString() || '2.0',
+    dailyRiskEnabled: initialSettings.dailyRiskEnabled || false,
+    maxDailyRisk: initialSettings.maxDailyRisk?.toString() || '0',
+    maxTradesEnabled: initialSettings.maxTradesEnabled || false,
+    maxActiveTrades: initialSettings.maxActiveTrades?.toString() || '0',
+    requireTp: initialSettings.requireTp || false,
+    missingSlTimeoutSec: initialSettings.missingSlTimeoutSec?.toString() || '60',
+    maxRecoveryRRDegradation: initialSettings.maxRecoveryRRDegradation?.toString() || '0.5',
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
     let parsedValue: any = value;
     if (type === 'checkbox') parsedValue = checked;
-    else if (type === 'number') parsedValue = Number(value);
     
     setFormData(prev => ({
       ...prev,
@@ -49,19 +48,35 @@ export function RiskSettingsClient({ accountId, initialSettings }: RiskSettingsP
     setSuccess(false);
 
     try {
+      const payload = {
+        displayName: formData.displayName || null,
+        riskMultiplier: Number(formData.riskMultiplier),
+        roundingTolerancePct: Number(formData.roundingTolerancePct),
+        dailyRiskEnabled: formData.dailyRiskEnabled,
+        maxDailyRisk: Number(formData.maxDailyRisk),
+        maxTradesEnabled: formData.maxTradesEnabled,
+        maxActiveTrades: Number(formData.maxActiveTrades),
+        requireTp: formData.requireTp,
+        missingSlTimeoutSec: Number(formData.missingSlTimeoutSec),
+        maxRecoveryRRDegradation: Number(formData.maxRecoveryRRDegradation),
+      };
+
       // Call the Next.js API proxy
       const res = await fetch(`/api/accounts/${accountId}/settings`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.message || 'Failed to save settings');
+        const errorMessage = Array.isArray(data.message) ? data.message.join(', ') : (data.message || 'Failed to save settings');
+        throw new Error(errorMessage);
       }
 
       setSuccess(true);
+      // Auto-hide success message after 3 seconds
+      setTimeout(() => setSuccess(false), 3000);
       router.refresh();
     } catch (err: any) {
       setError(err.message);

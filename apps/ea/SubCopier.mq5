@@ -8,6 +8,7 @@
 
 #include <Trade\Trade.mqh>
 #include "MqlJson.mqh"
+#include "WinInet.mqh"
 
 input string API_URL = "https://plaiz-markets-api.onrender.com/execution";
 input string SUB_ACCOUNT_ID = "DEMO-SUB-1";
@@ -74,7 +75,7 @@ void PollCommands()
    string headers = "Authorization: Bearer " + EA_TOKEN + "\r\nConnection: close\r\n";
    
    ResetLastError();
-   int res = WebRequest("GET", API_URL + "/poll", headers, WEBREQUEST_TIMEOUT_MS, post, result, resultHeaders);
+   int res = CWinInet::Get(API_URL + "/poll", headers, result);
    
    if(res == 200 || res == 201)
      {
@@ -129,7 +130,7 @@ void ProcessCommand(string json, ulong subReceivedAt)
    ArrayResize(post, StringLen(ackJson)); // Remove null terminator
    string headers = "Content-Type: application/json\r\nAuthorization: Bearer " + EA_TOKEN + "\r\nConnection: close\r\n";
    
-   int res = WebRequest("POST", API_URL + "/ack", headers, WEBREQUEST_TIMEOUT_MS, post, result, resultHeaders);
+   int res = CWinInet::Post(API_URL + "/ack", headers, post, result);
    if(res != 200 && res != 201) 
      {
       PrintFormat("POST /ack failed! HTTP: %d, Err: %d", res, GetLastError());
@@ -422,16 +423,13 @@ void ReportResult(string commandId, bool success, uint retcode, string errorStr,
    json += "\"timestamp\":\"" + TimeToString(TimeCurrent(), TIME_DATE|TIME_SECONDS) + "\"";
    json += "}";
    
-   char post[], result[];
-   string resultHeaders;
-   StringToCharArray(json, post, 0, WHOLE_ARRAY, CP_UTF8);
-   ArrayResize(post, StringLen(json)); // Remove null terminator
-   string headers = "Content-Type: application/json\r\nAuthorization: Bearer " + EA_TOKEN + "\r\nConnection: close\r\n";
+   string result;
+   string headers = "Content-Type: application/json\r\nAuthorization: Bearer " + EA_TOKEN + "\r\n";
    
-   int res = WebRequest("POST", API_URL + "/result", headers, WEBREQUEST_TIMEOUT_MS, post, result, resultHeaders);
+   int res = CWinInet::Post(API_URL + "/result", headers, json, result);
    if(res != 200 && res != 201)
      {
-      PrintFormat("POST /result failed! HTTP: %d, Err: %d, Msg: %s", res, GetLastError(), CharArrayToString(result));
+      PrintFormat("POST /result failed! HTTP: %d, Err: %d, Msg: %s", res, GetLastError(), result);
      }
   }
 

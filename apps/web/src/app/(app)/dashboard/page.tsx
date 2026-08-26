@@ -5,6 +5,7 @@ import { ThemeToggle } from '@/components/theme-toggle';
 import { CurrencySelector } from '@/components/currency-selector';
 import { LogoutButton } from '@/components/logout-button';
 import { MoneyDisplay } from '@/components/money-display';
+import { MultiMoneyDisplay } from '@/components/multi-money-display';
 import { ProtectedAction } from '@/components/protected-action';
 import Link from 'next/link';
 import { getServerSession } from 'next-auth/next';
@@ -51,6 +52,9 @@ export default async function DashboardOverview() {
       where: { 
         time: { gte: startOfDay },
         mt5Account: { userId: user.id }
+      },
+      include: {
+        mt5Account: true
       }
     });
 
@@ -92,11 +96,21 @@ export default async function DashboardOverview() {
   const onlineSubs = subAccounts.filter((sub: any) => sub.isActive && isOnline(sub)).length;
   const allConnected = masterOnline && onlineSubs === subAccounts.length;
 
-  const closedProfit = todayDeals.reduce((sum, deal) => sum + deal.profit + deal.commission + deal.swap, 0);
-  const floatingPl = accounts.reduce((sum, a) => sum + (a.floatingPl || 0), 0);
-  const todaysTotalPl = closedProfit + floatingPl;
-  
-  const isProfit = todaysTotalPl >= 0;
+  const totalBalanceArray = accounts.map((a: any) => ({
+    amount: a.balance || 0,
+    currency: a.currency || 'USD'
+  }));
+
+  const todaysTotalPlArray = [
+    ...todayDeals.map((deal: any) => ({
+      amount: deal.profit + deal.commission + deal.swap,
+      currency: deal.mt5Account?.currency || 'USD'
+    })),
+    ...accounts.map((a: any) => ({
+      amount: a.floatingPl || 0,
+      currency: a.currency || 'USD'
+    }))
+  ];
 
   // Since we do not have a dedicated historical time-series endpoint for performance,
   // we pass an empty array to trigger the real honest empty state in the chart.
@@ -183,9 +197,10 @@ export default async function DashboardOverview() {
                     </div>
                     <span className="text-[11px] text-muted-foreground uppercase tracking-[0.2em] font-semibold">Total Vault Balance</span>
                   </div>
-                  <span className="text-[36px] sm:text-[44px] md:text-[48px] font-bold tracking-tighter leading-none num-tabular text-foreground break-words">
-                    <MoneyDisplay amount={accounts.reduce((sum, a) => sum + (a.balance || 0), 0)} sourceCurrency={masterAccount?.currency || 'USD'} />
-                  </span>
+                  <MultiMoneyDisplay 
+                    balances={totalBalanceArray} 
+                    className="text-[36px] sm:text-[44px] md:text-[48px] font-bold tracking-tighter leading-none num-tabular text-foreground break-words block"
+                  />
                   <div className="mt-3 sm:mt-4 flex items-center gap-2">
                     <span className="px-2.5 py-1 bg-black/5 dark:bg-white/5 border border-border/50 rounded-md text-[10px] text-muted-foreground font-semibold">
                       {accounts.length} CONNECTED ACCOUNTS
@@ -197,9 +212,12 @@ export default async function DashboardOverview() {
                 <div className="flex flex-col sm:items-end z-10 shrink-0 min-w-0">
                   <span className="text-[11px] text-muted-foreground uppercase tracking-[0.2em] mb-1.5 sm:mb-2 font-semibold sm:text-right">Live Floating PnL</span>
                   <div className="flex items-baseline gap-2">
-                    <span className={`text-[28px] sm:text-[34px] md:text-[38px] font-bold tracking-tighter leading-none num-tabular ${isProfit ? 'text-emerald-500' : 'text-destructive'}`}>
-                      {isProfit ? '+' : ''}<MoneyDisplay amount={todaysTotalPl} sourceCurrency={masterAccount?.currency || 'USD'} />
-                    </span>
+                    <MultiMoneyDisplay 
+                      balances={todaysTotalPlArray} 
+                      colored={true} 
+                      showSign={true} 
+                      className="text-[28px] sm:text-[34px] md:text-[38px] font-bold tracking-tighter leading-none num-tabular"
+                    />
                   </div>
                   
                   {/* Stats */}
