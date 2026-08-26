@@ -79,19 +79,35 @@ def launch_mt5_and_attach_ea(account):
     
     data_path = None
     if terminal_dir.exists():
-        # Find the directory that contains 'config' and 'MQL5', prioritizing the most recently modified one
+        # Find all valid terminal data directories
         valid_dirs = []
         for child in terminal_dir.iterdir():
-            if child.is_dir() and len(child.name) == 32: # MD5 hash length
+            if child.is_dir() and len(child.name) == 32:  # MD5 hash length
                 if (child / 'config').exists():
                     valid_dirs.append(child)
-        if valid_dirs:
-            valid_dirs.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+        # Sort by modification time (newest first)
+        valid_dirs.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+        
+        # Assign each account its own directory so they run as separate MT5 instances
+        # active_terminals maps login -> account dict (already imported from outer scope)
+        already_assigned = {
+            acc.get('data_path') for acc in active_terminals.values()
+            if acc.get('data_path')
+        }
+        for d in valid_dirs:
+            if str(d) not in already_assigned:
+                data_path = d
+                break
+        # Fallback: reuse first dir if only one exists
+        if not data_path and valid_dirs:
             data_path = valid_dirs[0]
     
     if not data_path:
         logger.error(f"Could not find MT5 Data Path in {terminal_dir}")
         return False
+    
+    # Store the assigned data path on the account so future assignments can avoid it
+    account['data_path'] = str(data_path)
 
     logger.info(f"Terminal Data Path: {data_path}")
     logger.info(f"Terminal Path: {terminal_path}")
