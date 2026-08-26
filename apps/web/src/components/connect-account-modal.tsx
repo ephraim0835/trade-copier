@@ -16,6 +16,7 @@ interface ConnectAccountModalProps {
 export function ConnectAccountModal({ isOpen, onClose, defaultRole = 'SUB' }: ConnectAccountModalProps) {
   const router = useRouter();
   const [role, setRole] = useState<'MASTER' | 'SUB'>(defaultRole);
+  const [isDemo, setIsDemo] = useState(true); // Default to Demo for safety
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,7 +33,7 @@ export function ConnectAccountModal({ isOpen, onClose, defaultRole = 'SUB' }: Co
     const server = formData.get('server') as string;
     const password = formData.get('password') as string;
 
-    const res = await createMt5Account({ login, broker, server, password, role });
+    const res = await createMt5Account({ login, broker, server, password, role, isDemo });
     
     setLoading(false);
     
@@ -92,6 +93,38 @@ export function ConnectAccountModal({ isOpen, onClose, defaultRole = 'SUB' }: Co
             >
               Sub Account
             </button>
+          </div>
+
+          {/* Account Type (Demo / Live) */}
+          <div className="flex flex-col gap-2">
+            <label className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold px-1">Account Type</label>
+            <div className="flex bg-black/5 dark:bg-white/5 p-1 rounded-2xl">
+              <button
+                type="button"
+                onClick={() => setIsDemo(true)}
+                className={cn(
+                  "flex-1 py-2 text-sm font-semibold rounded-xl transition-all",
+                  isDemo ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Demo
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsDemo(false)}
+                className={cn(
+                  "flex-1 py-2 text-sm font-semibold rounded-xl transition-all",
+                  !isDemo ? "bg-card text-destructive shadow-sm" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Live
+              </button>
+            </div>
+            {!isDemo && (
+              <p className="text-[11px] text-destructive/80 px-1">
+                ⚠ Live accounts will execute real trades. Ensure your API settings are correct.
+              </p>
+            )}
           </div>
 
           <div className="flex flex-col gap-4">

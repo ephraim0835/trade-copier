@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { Plus, Unplug } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { ConnectAccountModal } from '@/components/connect-account-modal';
 import { ProtectedAction } from '@/components/protected-action';
 import { deleteAccount } from '@/app/actions/account-actions';
@@ -11,6 +12,7 @@ interface MasterActionsProps {
 }
 
 export function MasterActions({ masterAccountId }: MasterActionsProps) {
+  const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -24,6 +26,7 @@ export function MasterActions({ masterAccountId }: MasterActionsProps) {
     startTransition(async () => {
       if (masterAccountId) {
         await deleteAccount(masterAccountId);
+        router.refresh();
       }
     });
   }

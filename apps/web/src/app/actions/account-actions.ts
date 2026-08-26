@@ -12,6 +12,7 @@ export async function createMt5Account(data: {
   server: string;
   role: 'MASTER' | 'SUB';
   password?: string;
+  isDemo?: boolean;
 }) {
   try {
     const session = await getServerSession(authOptions);
@@ -47,7 +48,7 @@ export async function createMt5Account(data: {
         server: data.server,
         role: data.role,
         isActive: false, // Starts offline until EA connects
-        isDemo: true,
+        isDemo: data.isDemo ?? true, // Default to demo for safety if not specified
       }
     });
 
