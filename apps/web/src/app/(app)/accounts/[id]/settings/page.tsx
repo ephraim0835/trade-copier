@@ -4,9 +4,10 @@ import { RiskSettingsClient } from './risk-settings-client';
 import { ArrowLeft, ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
 
-export default async function AccountSettingsPage({ params }: { params: { id: string } }) {
+export default async function AccountSettingsPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const account = await prisma.mt5Account.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: { copySettings: true },
   });
 
