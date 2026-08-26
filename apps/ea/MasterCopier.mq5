@@ -462,7 +462,9 @@ void SendTelemetry()
    if (pos > 0) baseUrl = StringSubstr(baseUrl, 0, pos);
    
    int res = WebRequest("POST", baseUrl + "/accounts/telemetry", headers, 2000, post, result, resultHeaders);
-   if(res != 200 && res != 201)
+   if (res == -1) {
+      Print("Telemetry failed! HTTP: -1, Error code: ", GetLastError());
+   } else if(res != 200 && res != 201)
      {
       PrintFormat("Telemetry failed! HTTP: %d", res);
      }

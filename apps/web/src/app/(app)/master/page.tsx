@@ -30,7 +30,10 @@ export default async function MasterPage() {
     orderBy: { createdAt: 'desc' }
   }) : [];
 
-  const masterOnline = masterAccount?.isActive ?? false;
+  // Consider online only if isActive AND telemetry arrived within the last 30 seconds
+  // (EA sends heartbeats every 5s, so 30s gives tolerance for network hiccups)
+  const lastSeen = masterAccount?.updatedAt ? new Date(masterAccount.updatedAt).getTime() : 0;
+  const masterOnline = (masterAccount?.isActive ?? false) && (Date.now() - lastSeen < 30_000);
 
   return (
     <div className="flex-1 p-4 md:p-6 lg:p-12 flex flex-col gap-10 pb-32 overflow-y-auto custom-scrollbar relative">

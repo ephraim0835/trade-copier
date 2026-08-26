@@ -82,15 +82,14 @@ export default async function DashboardOverview() {
   const subAccounts = accounts.filter((a: any) => a.role === 'SUB');
   const activeSubs = subAccounts.filter((a: any) => a.isActive).length;
   
-  const isOnline = (token: any) => {
-    if (!token?.lastUsedAt) return false;
-    return new Date().getTime() - new Date(token.lastUsedAt).getTime() < 5 * 60 * 1000;
+  const isOnline = (account: any) => {
+    if (!account?.updatedAt) return false;
+    return new Date().getTime() - new Date(account.updatedAt).getTime() < 30_000;
   };
 
-  const masterToken = masterAccount?.eaTokens?.[0];
-  const masterOnline = masterAccount?.isActive && isOnline(masterToken);
+  const masterOnline = (masterAccount?.isActive ?? false) && isOnline(masterAccount);
   
-  const onlineSubs = subAccounts.filter((sub: any) => sub.isActive && isOnline(sub.eaTokens?.[0])).length;
+  const onlineSubs = subAccounts.filter((sub: any) => sub.isActive && isOnline(sub)).length;
   const allConnected = masterOnline && onlineSubs === subAccounts.length;
 
   const closedProfit = todayDeals.reduce((sum, deal) => sum + deal.profit + deal.commission + deal.swap, 0);
@@ -175,42 +174,42 @@ export default async function DashboardOverview() {
               <div className="hidden dark:block absolute -top-32 -right-32 w-80 h-80 bg-primary/20 rounded-full blur-[80px] pointer-events-none group-hover:bg-primary/25 transition-colors duration-700"></div>
               <div className="hidden dark:block absolute -bottom-32 -left-32 w-80 h-80 bg-primary/10 rounded-full blur-[80px] pointer-events-none"></div>
 
-              <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
+              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 sm:gap-8 flex-wrap lg:flex-nowrap">
                 {/* Total Balance (Sum of master + all subs) */}
-                <div className="flex flex-col z-10">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center">
+                <div className="flex flex-col z-10 min-w-0 flex-1">
+                  <div className="flex items-center gap-2 mb-2 sm:mb-3">
+                    <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
                       <div className="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
                     </div>
                     <span className="text-[11px] text-muted-foreground uppercase tracking-[0.2em] font-semibold">Total Vault Balance</span>
                   </div>
-                  <span className="text-[48px] sm:text-[64px] font-bold tracking-tighter leading-none num-tabular text-foreground">
+                  <span className="text-[36px] sm:text-[44px] md:text-[48px] font-bold tracking-tighter leading-none num-tabular text-foreground break-words">
                     <MoneyDisplay amount={accounts.reduce((sum, a) => sum + (a.balance || 0), 0)} sourceCurrency={masterAccount?.currency || 'USD'} />
                   </span>
-                  <div className="mt-4 flex items-center gap-2">
-                    <span className="px-2 py-1 bg-black/5 dark:bg-white/5 border border-border/50 rounded-md text-[10px] text-muted-foreground font-semibold">
+                  <div className="mt-3 sm:mt-4 flex items-center gap-2">
+                    <span className="px-2.5 py-1 bg-black/5 dark:bg-white/5 border border-border/50 rounded-md text-[10px] text-muted-foreground font-semibold">
                       {accounts.length} CONNECTED ACCOUNTS
                     </span>
                   </div>
                 </div>
 
                 {/* Live PnL */}
-                <div className="flex flex-col md:items-end z-10">
-                  <span className="text-[11px] text-muted-foreground uppercase tracking-[0.2em] mb-2 font-semibold md:text-right">Live Floating PnL</span>
+                <div className="flex flex-col sm:items-end z-10 shrink-0 min-w-0">
+                  <span className="text-[11px] text-muted-foreground uppercase tracking-[0.2em] mb-1.5 sm:mb-2 font-semibold sm:text-right">Live Floating PnL</span>
                   <div className="flex items-baseline gap-2">
-                    <span className={`text-[32px] sm:text-[40px] font-bold tracking-tighter leading-none num-tabular ${isProfit ? 'text-emerald-500' : 'text-destructive'}`}>
+                    <span className={`text-[28px] sm:text-[34px] md:text-[38px] font-bold tracking-tighter leading-none num-tabular ${isProfit ? 'text-emerald-500' : 'text-destructive'}`}>
                       {isProfit ? '+' : ''}<MoneyDisplay amount={todaysTotalPl} sourceCurrency={masterAccount?.currency || 'USD'} />
                     </span>
                   </div>
                   
                   {/* Stats */}
-                  <div className="mt-4 flex items-center gap-4 border-t border-border/30 pt-4 w-full md:justify-end">
-                    <div className="flex flex-col md:items-end">
+                  <div className="mt-3 sm:mt-4 flex items-center gap-3 sm:gap-4 border-t border-border/30 pt-3 sm:pt-4 w-full sm:justify-end flex-wrap">
+                    <div className="flex flex-col sm:items-end">
                       <span className="text-[9px] text-muted-foreground uppercase tracking-[0.2em] mb-0.5">Execution</span>
                       <span className="text-[13px] font-semibold text-foreground num-tabular">{copiedTradesToday} trades</span>
                     </div>
                     <div className="w-[1px] h-6 bg-border/40"></div>
-                    <div className="flex flex-col md:items-end">
+                    <div className="flex flex-col sm:items-end">
                       <span className="text-[9px] text-muted-foreground uppercase tracking-[0.2em] mb-0.5">Routing</span>
                       <span className="text-[13px] font-semibold text-foreground num-tabular">{activeSubs} active</span>
                     </div>

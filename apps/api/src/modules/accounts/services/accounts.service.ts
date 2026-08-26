@@ -38,6 +38,7 @@ export class AccountsService {
     const account = await this.prisma.mt5Account.update({
       where: { id: accountId },
       data: {
+        isActive: true,
         balance: dto.balance,
         equity: dto.equity,
         margin: dto.margin,

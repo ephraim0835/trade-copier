@@ -3,18 +3,25 @@ import time
 import threading
 import json
 import logging
+import subprocess
+import uuid
 from datetime import datetime
 from pathlib import Path
 
 import psycopg2
+import psutil
+import requests
 import MetaTrader5 as mt5
 from dotenv import load_dotenv
-import requests
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from supabase import create_client, Client
+
+# Configure logging first
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(message)s')
+logger = logging.getLogger('vps-manager')
 
 # Load environment variables (expects a .env file mounted at runtime)
 load_dotenv()
-
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 ENCRYPTION_KEY_HEX = os.getenv('ENCRYPTION_KEY')
 encryption_key = None
@@ -22,6 +29,9 @@ if ENCRYPTION_KEY_HEX and len(ENCRYPTION_KEY_HEX) == 64:
     encryption_key = bytes.fromhex(ENCRYPTION_KEY_HEX)
 else:
     logger.warning("ENCRYPTION_KEY not found or invalid. Passwords will not be decrypted securely.")
+
+SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+SUPABASE_URL = os.getenv('SUPABASE_URL')
 
 def decrypt_password(encrypted_str):
     if not encrypted_str or ':' not in encrypted_str or not encryption_key:
@@ -44,12 +54,6 @@ def decrypt_password(encrypted_str):
         logger.error(f"Failed to decrypt password: {e}")
         return encrypted_str
 
-SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
-
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(message)s')
-logger = logging.getLogger('vps-manager')
-
 def launch_mt5_and_attach_ea(account):
     login = account['login']
     password = account.get('password')
@@ -65,16 +69,30 @@ def launch_mt5_and_attach_ea(account):
         logger.warning(f"Skipping MT5 initialization for account {login} because it is not numeric.")
         return False
 
-    initialized = mt5.initialize(login=mt5_login, password=password, server=server)
-    if not initialized:
-        logger.error(f'Failed to initialize MT5 for account {login}: {mt5.last_error()}')
-        return False
-        
-    term_info = mt5.terminal_info()
-    data_path = Path(term_info.data_path)
-    terminal_path = Path(term_info.path)
-    mt5.shutdown() # Shutdown so we can re-launch with custom config
+    # Instead of mt5.initialize which can hang, we find the data path manually.
+    # The terminal path is usually C:\Program Files\MetaTrader 5
+    terminal_path = Path(os.environ.get('ProgramW6432', 'C:\\Program Files')) / 'MetaTrader 5'
     
+    # The data path is in AppData\Roaming\MetaQuotes\Terminal\<hash>
+    appdata = Path(os.environ.get('APPDATA', 'C:\\Users\\Plaiz\\AppData\\Roaming'))
+    terminal_dir = appdata / 'MetaQuotes' / 'Terminal'
+    
+    data_path = None
+    if terminal_dir.exists():
+        # Find the directory that contains 'config' and 'MQL5', prioritizing the most recently modified one
+        valid_dirs = []
+        for child in terminal_dir.iterdir():
+            if child.is_dir() and len(child.name) == 32: # MD5 hash length
+                if (child / 'config').exists():
+                    valid_dirs.append(child)
+        if valid_dirs:
+            valid_dirs.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+            data_path = valid_dirs[0]
+    
+    if not data_path:
+        logger.error(f"Could not find MT5 Data Path in {terminal_dir}")
+        return False
+
     logger.info(f"Terminal Data Path: {data_path}")
     logger.info(f"Terminal Path: {terminal_path}")
     
@@ -84,14 +102,15 @@ def launch_mt5_and_attach_ea(account):
     metaeditor = terminal_path / 'metaeditor64.exe'
     
     if source_ea.exists():
-        logger.info(f"Compiling EA {ea_file}...")
-        compile_cmd = [str(metaeditor), f"/compile:{source_ea}", f"/out:{compiled_ea}"]
-        subprocess.run(compile_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        if not compiled_ea.exists():
-            logger.error(f"Failed to compile {ea_file}")
-            return False
-        else:
-            logger.info(f"Compiled successfully to {compiled_ea}")
+        # compile_cmd = [str(metaeditor), f"/compile:{source_ea}", f"/out:{compiled_ea}", f"/inc:{data_path / 'MQL5'}"]
+        # logger.info(f"Compiling EA {source_ea.name} with cmd: {' '.join(compile_cmd)}")
+        # result = subprocess.run(compile_cmd, capture_output=True, text=True)
+        # if not compiled_ea.exists():
+        #     logger.error(f"Failed to compile {ea_file}. Stdout: {result.stdout}, Stderr: {result.stderr}")
+        #     return False
+        # else:
+        #     logger.info(f"Compiled successfully to {compiled_ea}")
+        pass
     else:
         logger.error(f"Source EA {source_ea} not found")
         return False
@@ -127,18 +146,47 @@ def launch_mt5_and_attach_ea(account):
         f.write(f"Symbol=EURUSD\n")
         f.write(f"Period=H1\n")
         f.write(f"Expert={ea_base}\n")
-        # Relative path to MQL5\Presets doesn't always work for ExpertParameters,
-        # but ExpertParameters looks in MQL5\Profiles\Tester or absolute paths.
-        # Let's pass the absolute path just to be safe.
-        f.write(f"ExpertParameters={set_file_path.absolute()}\n")
+        # ExpertParameters expects the file to be relative to MQL5\Presets
+        f.write(f"ExpertParameters={set_file_path.name}\n\n")
+        f.write(f"[Experts]\n")
+        f.write(f"AllowDllImport=1\n")
+        f.write(f"Enabled=1\n")
+        f.write(f"AllowWebRequest=1\n")
+        f.write(f"WebRequestUrl=https://plaiz-markets-api.onrender.com\n")
+        
+    # 4.5. Enable WebRequest in common.ini (MT5 stores this in common.ini)
+    common_ini_path = ini_file_dir / "common.ini"
+    common_ini_content = ""
+    if common_ini_path.exists():
+        try:
+            with open(common_ini_path, 'r', encoding='utf-16') as f:
+                common_ini_content = f.read()
+        except UnicodeError:
+            with open(common_ini_path, 'r', encoding='utf-8', errors='ignore') as f2:
+                common_ini_content = f2.read()
+    
+    # Check if WebRequestUrl already exists, if not append it
+    if "WebRequestUrl=" not in common_ini_content:
+        # If [Common] exists, append after it, else append at the end
+        if "[Common]" in common_ini_content:
+            common_ini_content = common_ini_content.replace("[Common]", "[Common]\nAllowWebRequest=1\nWebRequestUrl=https://plaiz-markets-api.onrender.com")
+        else:
+            common_ini_content += "\n[Common]\nAllowWebRequest=1\nWebRequestUrl=https://plaiz-markets-api.onrender.com\n"
+    else:
+        import re
+        common_ini_content = re.sub(r'AllowWebRequest=.*', 'AllowWebRequest=1', common_ini_content)
+        common_ini_content = re.sub(r'WebRequestUrl=.*', 'WebRequestUrl=https://plaiz-markets-api.onrender.com', common_ini_content)
+    
+    with open(common_ini_path, 'w', encoding='utf-16') as f:
+        f.write(common_ini_content)
         
     # 5. Launch Terminal with the config
     logger.info(f"Launching MT5 terminal for account {login} with config and EA attached...")
     terminal_exe = terminal_path / 'terminal64.exe'
     
     # We use subprocess.Popen to launch it asynchronously
-    # /portable flag allows multiple terminals from the same folder
-    launch_cmd = [str(terminal_exe), f"/config:{ini_file_path}", "/portable"]
+    # Do not use /portable so it uses AppData where the EA is compiled
+    launch_cmd = [str(terminal_exe), f"/config:{ini_file_path}"]
     subprocess.Popen(launch_cmd)
     
     return True
@@ -146,24 +194,15 @@ def launch_mt5_and_attach_ea(account):
 stop_event = threading.Event()
 active_terminals = {}
 
-import subprocess
-import json
-
 # Worker thread that continuously polls the DB for inactive accounts
 def poll_db_worker():
     """Background thread that polls the DB for active accounts and launches MT5 terminals."""
-    import psutil
-    from supabase import create_client, Client
-    
-    supabase_url = os.getenv('SUPABASE_URL')
-    supabase_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
-    
-    if not supabase_url or not supabase_key:
+    if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
         logger.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env!")
         time.sleep(10)
         return
         
-    supabase: Client = create_client(supabase_url, supabase_key)
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
     while not stop_event.is_set():
         try:
@@ -211,18 +250,13 @@ def poll_db_worker():
         
         # Sleep before next poll
         time.sleep(10)
+
 def telemetry_worker():
-    import psutil
-    from supabase import create_client, Client
-    
-    supabase_url = os.getenv('SUPABASE_URL')
-    supabase_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
-    
-    if not supabase_url or not supabase_key:
+    if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
         logger.error("Missing SUPABASE credentials for telemetry")
         return
         
-    supabase: Client = create_client(supabase_url, supabase_key)
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
     
     while True:
         try:
@@ -239,7 +273,6 @@ def telemetry_worker():
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
             
-            import uuid
             supabase.table('VpsEnvironment').upsert({
                 'id': str(uuid.uuid4()),
                 'name': 'vps-main-1',
