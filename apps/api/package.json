@@ -4,7 +4,7 @@
   "private": true,
   "description": "Trade Copier NestJS Backend API",
   "scripts": {
-    "build": "npm run db:generate && nest build",
+    "build": "nest build",
     "dev": "nest start --watch",
     "start": "node dist/src/main",
     "test": "jest",
