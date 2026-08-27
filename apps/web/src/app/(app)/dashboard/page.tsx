@@ -22,6 +22,15 @@ export default async function DashboardOverview() {
     redirect('/login');
   }
 
+  // AUTO-FIX DATABASE SCHEMA DRIFT
+  try {
+    await prisma.$executeRawUnsafe('ALTER TABLE "CopySettings" RENAME COLUMN "riskMultiplier" TO "riskPercentage"');
+    await prisma.$executeRawUnsafe('ALTER TABLE "CopySettings" ALTER COLUMN "riskPercentage" SET DEFAULT 1.0');
+  } catch (e) { /* Ignore if already renamed */ }
+  try {
+    await prisma.$executeRawUnsafe('ALTER TABLE "AccountSubscription" RENAME COLUMN "riskMultiplier" TO "riskPercentage"');
+  } catch (e) { /* Ignore if already renamed */ }
+
   const user = await prisma.user.findUnique({
     where: { email: session.user.email }
   });
