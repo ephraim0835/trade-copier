@@ -1,10 +1,11 @@
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '../api/auth/[...nextauth]/route';
+import { authOptions } from '../../api/auth/[...nextauth]/route';
 import { redirect } from 'next/navigation';
 import { AccountActions } from '@/components/accounts/account-actions';
 import { SubAccountCard } from '@/components/accounts/sub-account-card';
 import { AlertCircle } from 'lucide-react';
+import { PrismaClient } from '@trade-copier/database';
 
 export default async function AccountsPage() {
   const session = await getServerSession(authOptions);
@@ -24,7 +25,6 @@ export default async function AccountsPage() {
   // AUTO-FIX DATABASE SCHEMA DRIFT
   try {
     if (process.env.DIRECT_URL) {
-      const { PrismaClient } = require('@prisma/client');
       const directPrisma = new PrismaClient({
         datasources: { db: { url: process.env.DIRECT_URL } }
       });

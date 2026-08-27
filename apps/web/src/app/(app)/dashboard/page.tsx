@@ -9,7 +9,9 @@ import { MultiMoneyDisplay } from '@/components/multi-money-display';
 import { ProtectedAction } from '@/components/protected-action';
 import Link from 'next/link';
 import { getServerSession } from 'next-auth/next';
+import { authOptions } from '../../api/auth/[...nextauth]/route';
 import { redirect } from 'next/navigation';
+import { PrismaClient } from '@trade-copier/database';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +29,6 @@ export default async function DashboardOverview() {
   // pooler (port 6543) which blocks DDL (ALTER TABLE) commands.
   try {
     if (process.env.DIRECT_URL) {
-      const { PrismaClient } = require('@prisma/client');
       const directPrisma = new PrismaClient({
         datasources: { db: { url: process.env.DIRECT_URL } }
       });
@@ -40,7 +41,6 @@ export default async function DashboardOverview() {
   }
   try {
     if (process.env.DIRECT_URL) {
-      const { PrismaClient } = require('@prisma/client');
       const directPrisma = new PrismaClient({
         datasources: { db: { url: process.env.DIRECT_URL } }
       });
