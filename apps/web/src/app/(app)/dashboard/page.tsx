@@ -24,33 +24,6 @@ export default async function DashboardOverview() {
     redirect('/login');
   }
 
-  // AUTO-FIX DATABASE SCHEMA DRIFT
-  // We use a secondary PrismaClient with DIRECT_URL because Prisma's DATABASE_URL uses the Supabase 
-  // pooler (port 6543) which blocks DDL (ALTER TABLE) commands.
-  try {
-    if (process.env.DIRECT_URL) {
-      const directPrisma = new PrismaClient({
-        datasources: { db: { url: process.env.DIRECT_URL } }
-      });
-      await directPrisma.$executeRawUnsafe('ALTER TABLE "CopySettings" RENAME COLUMN "riskMultiplier" TO "riskPercentage"');
-      await directPrisma.$executeRawUnsafe('ALTER TABLE "CopySettings" ALTER COLUMN "riskPercentage" SET DEFAULT 1.0');
-      await directPrisma.$disconnect();
-    }
-  } catch (e) {
-    // Ignore if already renamed
-  }
-  try {
-    if (process.env.DIRECT_URL) {
-      const directPrisma = new PrismaClient({
-        datasources: { db: { url: process.env.DIRECT_URL } }
-      });
-      await directPrisma.$executeRawUnsafe('ALTER TABLE "AccountSubscription" RENAME COLUMN "riskMultiplier" TO "riskPercentage"');
-      await directPrisma.$disconnect();
-    }
-  } catch (e) {
-    // Ignore
-  }
-
   const user = await prisma.user.findUnique({
     where: { email: session.user.email }
   });

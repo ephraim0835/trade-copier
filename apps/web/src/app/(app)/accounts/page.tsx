@@ -22,23 +22,6 @@ export default async function AccountsPage() {
     redirect('/login');
   }
 
-  // AUTO-FIX DATABASE SCHEMA DRIFT
-  try {
-    if (process.env.DIRECT_URL) {
-      const directPrisma = new PrismaClient({
-        datasources: { db: { url: process.env.DIRECT_URL } }
-      });
-      try {
-        await directPrisma.$executeRawUnsafe('ALTER TABLE "CopySettings" RENAME COLUMN "riskMultiplier" TO "riskPercentage"');
-        await directPrisma.$executeRawUnsafe('ALTER TABLE "CopySettings" ALTER COLUMN "riskPercentage" SET DEFAULT 1.0');
-      } catch (e) { /* Ignore */ }
-      try {
-        await directPrisma.$executeRawUnsafe('ALTER TABLE "AccountSubscription" RENAME COLUMN "riskMultiplier" TO "riskPercentage"');
-      } catch (e) { /* Ignore */ }
-      await directPrisma.$disconnect();
-    }
-  } catch (e) { /* Ignore if already renamed */ }
-
   const accounts = await prisma.mt5Account.findMany({
     where: { role: 'SUB', userId: user.id },
     include: {
