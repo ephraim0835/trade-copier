@@ -10,6 +10,7 @@ import { ProtectedAction } from '@/components/protected-action';
 import Link from 'next/link';
 import { getServerSession } from 'next-auth/next';
 import { redirect } from 'next/navigation';
+import { Client } from 'pg';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,19 +18,36 @@ export default async function DashboardOverview() {
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
 
-  const session = await getServerSession();
+  const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
     redirect('/login');
   }
 
   // AUTO-FIX DATABASE SCHEMA DRIFT
+  // We must use 'pg' with DIRECT_URL because Prisma's DATABASE_URL uses the Supabase 
+  // pooler (port 6543) which blocks DDL (ALTER TABLE) commands.
   try {
-    await prisma.$executeRawUnsafe('ALTER TABLE "CopySettings" RENAME COLUMN "riskMultiplier" TO "riskPercentage"');
-    await prisma.$executeRawUnsafe('ALTER TABLE "CopySettings" ALTER COLUMN "riskPercentage" SET DEFAULT 1.0');
-  } catch (e) { /* Ignore if already renamed */ }
+    if (process.env.DIRECT_URL) {
+      const client = new Client({ connectionString: process.env.DIRECT_URL });
+      await client.connect();
+      await client.query('ALTER TABLE "CopySettings" RENAME COLUMN "riskMultiplier" TO "riskPercentage"');
+      await client.query('ALTER TABLE "CopySettings" ALTER COLUMN "riskPercentage" SET DEFAULT 1.0');
+      await client.end();
+      console.log("Migration successful via pg Client!");
+    }
+  } catch (e) {
+    console.error("Migration failed or already applied:", e);
+  }
   try {
-    await prisma.$executeRawUnsafe('ALTER TABLE "AccountSubscription" RENAME COLUMN "riskMultiplier" TO "riskPercentage"');
-  } catch (e) { /* Ignore if already renamed */ }
+    if (process.env.DIRECT_URL) {
+      const client = new Client({ connectionString: process.env.DIRECT_URL });
+      await client.connect();
+      await client.query('ALTER TABLE "AccountSubscription" RENAME COLUMN "riskMultiplier" TO "riskPercentage"');
+      await client.end();
+    }
+  } catch (e) {
+    console.error("Migration failed or already applied:", e);
+  }
 
   const user = await prisma.user.findUnique({
     where: { email: session.user.email }
