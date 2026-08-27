@@ -24,6 +24,14 @@ export async function PATCH(
 
   try {
     const body = await request.json();
+    
+    // BACKWARD COMPATIBILITY HACK:
+    // If the Render API is still running old code, it expects 'riskMultiplier'.
+    // If it's running new code, it expects 'riskPercentage'.
+    // We send both to guarantee it saves regardless of the backend deploy status!
+    if (body.riskPercentage !== undefined) {
+      body.riskMultiplier = body.riskPercentage;
+    }
 
     const response = await fetch(`${apiUrl}/accounts/${id}/settings`, {
       method: "PATCH",
