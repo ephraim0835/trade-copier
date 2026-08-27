@@ -5,7 +5,6 @@ import { redirect } from 'next/navigation';
 import { AccountActions } from '@/components/accounts/account-actions';
 import { SubAccountCard } from '@/components/accounts/sub-account-card';
 import { AlertCircle } from 'lucide-react';
-import { Client } from 'pg';
 
 export default async function AccountsPage() {
   const session = await getServerSession(authOptions);
@@ -25,16 +24,18 @@ export default async function AccountsPage() {
   // AUTO-FIX DATABASE SCHEMA DRIFT
   try {
     if (process.env.DIRECT_URL) {
-      const client = new Client({ connectionString: process.env.DIRECT_URL });
-      await client.connect();
+      const { PrismaClient } = require('@prisma/client');
+      const directPrisma = new PrismaClient({
+        datasources: { db: { url: process.env.DIRECT_URL } }
+      });
       try {
-        await client.query('ALTER TABLE "CopySettings" RENAME COLUMN "riskMultiplier" TO "riskPercentage"');
-        await client.query('ALTER TABLE "CopySettings" ALTER COLUMN "riskPercentage" SET DEFAULT 1.0');
+        await directPrisma.$executeRawUnsafe('ALTER TABLE "CopySettings" RENAME COLUMN "riskMultiplier" TO "riskPercentage"');
+        await directPrisma.$executeRawUnsafe('ALTER TABLE "CopySettings" ALTER COLUMN "riskPercentage" SET DEFAULT 1.0');
       } catch (e) { /* Ignore */ }
       try {
-        await client.query('ALTER TABLE "AccountSubscription" RENAME COLUMN "riskMultiplier" TO "riskPercentage"');
+        await directPrisma.$executeRawUnsafe('ALTER TABLE "AccountSubscription" RENAME COLUMN "riskMultiplier" TO "riskPercentage"');
       } catch (e) { /* Ignore */ }
-      await client.end();
+      await directPrisma.$disconnect();
     }
   } catch (e) { /* Ignore if already renamed */ }
 
