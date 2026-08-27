@@ -22,7 +22,8 @@ export default async function RiskPage() {
 
   const subAccounts = await prisma.mt5Account.findMany({
     where: { role: 'SUB', userId: user.id },
-    orderBy: { createdAt: 'asc' }
+    orderBy: { createdAt: 'asc' },
+    include: { copySettings: true }
   });
 
   return (

@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Save, AlertTriangle, Percent } from 'lucide-react';
 import { MoneyDisplay } from '@/components/money-display';
 
 export function RiskControls({ initialAccounts }: { initialAccounts: any[] }) {
+  const router = useRouter();
   const [accounts, setAccounts] = useState(initialAccounts);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -29,10 +31,31 @@ export function RiskControls({ initialAccounts }: { initialAccounts: any[] }) {
 
   const saveSettings = async () => {
     setIsSaving(true);
-    // Mock save delay
-    await new Promise(r => setTimeout(r, 800));
-    setIsSaving(false);
-    setHasChanges(false);
+    try {
+      // Find accounts that were modified by comparing with initialAccounts
+      const modifiedAccounts = accounts.filter(acc => {
+        const initial = initialAccounts.find(i => i.id === acc.id);
+        const currentPct = acc.copySettings?.riskPercentage;
+        const initialPct = initial?.copySettings?.riskPercentage;
+        return currentPct !== initialPct;
+      });
+
+      // Save each modified account
+      await Promise.all(modifiedAccounts.map(async (acc) => {
+        const newPct = acc.copySettings?.riskPercentage || 1.0;
+        await fetch(`/api/accounts/${acc.id}/settings`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ riskPercentage: newPct })
+        });
+      }));
+    } catch (e) {
+      console.error("Failed to save settings", e);
+    } finally {
+      setIsSaving(false);
+      setHasChanges(false);
+      router.refresh();
+    }
   };
 
   return (
@@ -52,7 +75,7 @@ export function RiskControls({ initialAccounts }: { initialAccounts: any[] }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {accounts.map((account) => {
-          const currentPct = account.copySettings?.riskPercentage || 100;
+          const currentPct = account.copySettings?.riskPercentage ?? 1.0;
           
           return (
             <div key={account.id} className="plaiz-card bg-secondary/30 p-6 rounded-[24px]">
