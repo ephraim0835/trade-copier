@@ -9,7 +9,7 @@ import { MultiMoneyDisplay } from '@/components/multi-money-display';
 import { ProtectedAction } from '@/components/protected-action';
 import Link from 'next/link';
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '../../api/auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { PrismaClient } from '@trade-copier/database';
 
