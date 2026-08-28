@@ -399,6 +399,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
 
     const now = new Date();
     const telemetry = this.calculateMasterTelemetry(dto, backendReceivedAt);
+    const executionCommandsData: HotCommandData[] = [];
 
     if (signal) {
       signal.sl = dto.sl ?? signal.sl;
@@ -465,6 +466,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
             };
 
             await this.hotDispatch.enqueueCommand(hotCmd);
+            executionCommandsData.push(hotCmd);
             this.logger.log(`[HOTPATH] WAITING_FOR_SL copy ${copy.id} transitioned to APPROVED, OPEN_ORDER enqueued.`);
           }
           continue;
@@ -513,6 +515,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
         };
 
         await this.hotDispatch.enqueueCommand(hotCmd);
+        executionCommandsData.push(hotCmd);
         this.logger.log(`[HOTPATH] Enqueued MODIFY command ${commandId} for sub ${copy.subAccountId}, posTicket: ${targetSubPositionTicket}, sl: ${dto.sl}, tp: ${dto.tp}`);
       }
     } else {
@@ -563,6 +566,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
       tp: dto.tp,
       priceOpen: dto.priceOpen,
       sequenceNumber: dto.sequenceNumber,
+      executionCommands: executionCommandsData,
     });
 
     return { success: true, message: 'MODIFY processed' };
@@ -579,6 +583,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
     const signal = this.activeSignalsByTicket.get(dto.ticket.toString());
     const now = new Date();
     const telemetry = this.calculateMasterTelemetry(dto, backendReceivedAt);
+    const executionCommandsData: HotCommandData[] = [];
 
     if (signal) {
       const isPartial = dto.volume !== undefined && dto.volume < signal.volume;
@@ -633,6 +638,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
         };
 
         await this.hotDispatch.enqueueCommand(hotCmd);
+        executionCommandsData.push(hotCmd);
         this.logger.log(`[HOTPATH] Enqueued CLOSE command ${commandId} for sub ${copy.subAccountId}, posTicket: ${targetSubPositionTicket}, vol: ${requestedCloseVol}`);
       }
     } else {
@@ -672,6 +678,12 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
           }
         }
       }).catch(err => this.logger.error(`Error querying fallback trade signal: ${err.message}`));
+    }
+    
+    if (executionCommandsData.length > 0) {
+      this.asyncPersistence.enqueueTask('UPDATE_SIGNAL_CLOSE', {
+        executionCommands: executionCommandsData,
+      });
     }
 
     return { success: true, message: 'CLOSE processed' };

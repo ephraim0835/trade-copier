@@ -7,11 +7,31 @@
 #property description "DEMO ONLY Master Copier EA (Non-Blocking Queue)"
 
 #include <Trade\Trade.mqh>
+#include "MqlJson.mqh"
 #include "WinInet.mqh"
 
-input string API_URL = "https://plaiz-markets-api.onrender.com/master/signal";
-input string EA_TOKEN = "master-token-id.secret123";
-input int DISPATCH_INTERVAL_MS = 25; // 25ms high-speed dispatch loop
+string API_URL = "https://plaiz-markets-api.onrender.com/master/signal";
+string EA_TOKEN = "";
+int DISPATCH_INTERVAL_MS = 25; // 25ms high-speed dispatch loop
+
+void LoadConfig()
+{
+    int handle = FileOpen("ea_config.txt", FILE_READ|FILE_TXT|FILE_ANSI);
+    if(handle != INVALID_HANDLE)
+    {
+        while(!FileIsEnding(handle))
+        {
+            string line = FileReadString(handle);
+            string result[];
+            if(StringSplit(line, StringGetCharacter("=",0), result) >= 2)
+            {
+                if(result[0] == "API_URL") API_URL = result[1];
+                if(result[0] == "EA_TOKEN") EA_TOKEN = result[1];
+            }
+        }
+        FileClose(handle);
+    }
+}
 
 ulong lastProcessedDeal = 0;
 ulong lastProcessedOrder = 0;
@@ -42,6 +62,7 @@ int CacheCount = 0;
 //+------------------------------------------------------------------+
 int OnInit()
   {
+   LoadConfig();
    InitCache();
    EventSetMillisecondTimer(DISPATCH_INTERVAL_MS);
 
@@ -398,12 +419,10 @@ void OnTimer()
       }
       
       char post[], result[];
-      string resultHeaders;
       StringToCharArray(payload, post, 0, WHOLE_ARRAY, CP_UTF8);
       ArrayResize(post, StringLen(payload)); // Remove null terminator
       
       string headers = "Content-Type: application/json\r\nAuthorization: Bearer " + EA_TOKEN + "\r\n";
-      
       int res = CWinInet::Post(API_URL + endpoint, headers, post, result);
       if(res != 200 && res != 201)
         {
@@ -444,14 +463,12 @@ void SendTelemetry()
    json += "}";
    
    char post[], result[];
-   string resultHeaders;
    StringToCharArray(json, post, 0, WHOLE_ARRAY, CP_UTF8);
    ArrayResize(post, StringLen(json)); // Remove null terminator
-   string headers = "Content-Type: application/json\r\nAuthorization: Bearer " + EA_TOKEN + "\r\n";
+   string headers = "Content-Type: application/json\r\nAuthorization: Bearer " + EA_TOKEN + "\r\nConnection: close\r\n";
    
    string baseUrl = API_URL;
    // API_URL is something like "http://127.0.0.1:9001/master/signal"
-   // We need to route to "/accounts/telemetry". Let's parse base URL.
    int pos = StringFind(baseUrl, "/master");
    if (pos > 0) baseUrl = StringSubstr(baseUrl, 0, pos);
    

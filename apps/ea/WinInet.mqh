@@ -6,12 +6,12 @@
 #property strict
 
 #import "wininet.dll"
-int InternetOpenW(string sAgent, int lAccessType, string sProxyName, string sProxyBypass, int lFlags);
-int InternetConnectW(int hInternet, string sServerName, int nServerPort, string sUserName, string sPassword, int lService, int lFlags, int lContext);
-int HttpOpenRequestW(int hConnect, string sVerb, string sObjectName, string sVersion, string sReferrer, string &sAcceptTypes[], int lFlags, int lContext);
-bool HttpSendRequestW(int hRequest, string sHeaders, int dwHeadersLength, uchar &sOptional[], int dwOptionalLength);
-int InternetReadFile(int hFile, uchar &sBuffer[], int lNumBytesToRead, int &lNumberOfBytesRead);
-bool InternetCloseHandle(int hInternet);
+long InternetOpenW(string sAgent, int lAccessType, string sProxyName, string sProxyBypass, int lFlags);
+long InternetConnectW(long hInternet, string sServerName, int nServerPort, string sUserName, string sPassword, int lService, int lFlags, long lContext);
+long HttpOpenRequestW(long hConnect, string sVerb, string sObjectName, string sVersion, string sReferrer, long lplpszAcceptTypes, int lFlags, long lContext);
+bool HttpSendRequestW(long hRequest, string sHeaders, int dwHeadersLength, uchar &sOptional[], int dwOptionalLength);
+int InternetReadFile(long hFile, uchar &sBuffer[], int lNumBytesToRead, int &lNumberOfBytesRead);
+bool InternetCloseHandle(long hInternet);
 #import
 
 #define INTERNET_OPEN_TYPE_PRECONFIG 0
@@ -65,13 +65,13 @@ public:
         
         ParseUrl(url, host, path, port, isHttps);
         
-        int hInternet = InternetOpenW("MQL5 WinInet", INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
+        long hInternet = InternetOpenW("MQL5 WinInet", INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
         if(hInternet == 0) {
             Print("InternetOpenW failed");
             return -1;
         }
         
-        int hConnect = InternetConnectW(hInternet, host, port, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
+        long hConnect = InternetConnectW(hInternet, host, port, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
         if(hConnect == 0) {
             Print("InternetConnectW failed");
             InternetCloseHandle(hInternet);
@@ -83,8 +83,7 @@ public:
             flags |= INTERNET_FLAG_SECURE;
         }
         
-        string acceptTypes[] = {"*/*"};
-        int hRequest = HttpOpenRequestW(hConnect, method, path, "HTTP/1.1", NULL, acceptTypes, flags, 0);
+        long hRequest = HttpOpenRequestW(hConnect, method, path, "HTTP/1.1", NULL, 0, flags, 0);
         if(hRequest == 0) {
             Print("HttpOpenRequestW failed");
             InternetCloseHandle(hConnect);

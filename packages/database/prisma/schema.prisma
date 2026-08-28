@@ -9,6 +9,288 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+model User {
+  id                  String        @id @default(uuid())
+  email               String        @unique
+  password            String
+  role                Role          @default(USER)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  name                String?
+  emailVerified       Boolean       @default(false)
+  verificationToken   String?
+  resetToken          String?
+  resetTokenExpiresAt DateTime?
+  accounts            Mt5Account[]
+  subscription        Subscription?
+}
+
+model Mt5Account {
+  id                  String                @id @default(uuid())
+  userId              String
+  login               String
+  broker              String
+  server              String
+  role                AccountRole
+  isActive            Boolean               @default(true)
+  isDemo              Boolean               @default(true)
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  balance             Float?
+  currency            String?               @db.VarChar(10)
+  equity              Float?
+  floatingPl          Float?
+  freeMargin          Float?
+  margin              Float?
+  password            String?
+  displayName         String?
+  masterSubscriptions AccountSubscription[] @relation("MasterSubscriptions")
+  subSubscriptions    AccountSubscription[] @relation("SubSubscriptions")
+  auditLogs           AuditLog[]
+  copySettings        CopySettings?
+  deals               Deal[]
+  eaTokens            EaToken[]
+  executionCommands   ExecutionCommand[]
+  user                User                  @relation(fields: [userId], references: [id])
+  orders              Order[]
+  positions           Position[]
+  tradeCopies         TradeCopy[]
+
+  @@unique([login, broker, server])
+}
+
+model EaToken {
+  id           String     @id @default(uuid())
+  mt5AccountId String
+  tokenHash    String
+  name         String     @default("Default EA Token")
+  lastUsedAt   DateTime?
+  expiresAt    DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  mt5Account   Mt5Account @relation(fields: [mt5AccountId], references: [id])
+}
+
+model AccountSubscription {
+  id              String     @id @default(uuid())
+  masterAccountId String
+  subAccountId    String
+  isActive        Boolean    @default(true)
+  riskPercentage  Float?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  masterAccount   Mt5Account @relation("MasterSubscriptions", fields: [masterAccountId], references: [id])
+  subAccount      Mt5Account @relation("SubSubscriptions", fields: [subAccountId], references: [id])
+
+  @@unique([masterAccountId, subAccountId])
+}
+
+model CopySettings {
+  id                       String     @id @default(uuid())
+  mt5AccountId             String     @unique
+  riskPercentage           Float      @default(1.0)
+  roundingTolerancePct     Float      @default(2.0)
+  dailyRiskEnabled         Boolean    @default(false)
+  maxDailyRisk             Float      @default(0)
+  maxTradesEnabled         Boolean    @default(false)
+  maxActiveTrades          Int        @default(0)
+  requireTp                Boolean    @default(true)
+  missingSlTimeoutSec      Int        @default(60)
+  maxRecoveryRRDegradation Float      @default(0.5)
+  createdAt                DateTime   @default(now())
+  updatedAt                DateTime   @updatedAt
+  mt5Account               Mt5Account @relation(fields: [mt5AccountId], references: [id])
+}
+
+model TradeSignal {
+  id             String      @id @default(uuid())
+  ticket         BigInt      @unique
+  masterAcctId   String
+  symbol         String
+  type           OrderType
+  volume         Float
+  priceOpen      Float
+  sl             Float       @default(0)
+  tp             Float       @default(0)
+  time           DateTime
+  createdAt      DateTime    @default(now())
+  sequenceNumber Int?
+  copies         TradeCopy[]
+}
+
+model TradeCopy {
+  id              String             @id @default(uuid())
+  signalId        String
+  subAccountId    String
+  state           CopyState          @default(WAITING)
+  subOrderTicket  BigInt?
+  subDealTicket   BigInt?
+  subPositionId   BigInt?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  closedVolume    Float              @default(0)
+  currentVolume   Float?
+  executedVolume  Float?
+  remainingVolume Float?
+  requestedVolume Float?
+  auditLogs       AuditLog[]
+  commands        ExecutionCommand[]
+  signal          TradeSignal        @relation(fields: [signalId], references: [id])
+  subAccount      Mt5Account         @relation(fields: [subAccountId], references: [id])
+
+  @@index([subAccountId])
+  @@index([signalId])
+  @@index([state])
+}
+
+model AuditLog {
+  id               String     @id @default(uuid())
+  tradeCopyId      String?
+  subAccountId     String
+  equity           Float
+  intendedRisk     Float
+  maxPermittedRisk Float
+  calculatedVol    Float
+  executedVol      Float
+  estimatedSlRisk  Float
+  roundingDiff     Float
+  dailyRiskBefore  Float
+  dailyRiskAfter   Float
+  decision         CopyState
+  rejectionReason  String?
+  createdAt        DateTime   @default(now())
+  subAccount       Mt5Account @relation(fields: [subAccountId], references: [id])
+  tradeCopy        TradeCopy? @relation(fields: [tradeCopyId], references: [id])
+}
+
+model Order {
+  id           String     @id @default(uuid())
+  mt5AccountId String
+  ticket       BigInt     @unique
+  symbol       String
+  type         OrderType
+  volume       Float
+  filledVolume Float      @default(0)
+  price        Float
+  state        OrderState
+  timeSetup    DateTime
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  mt5Account   Mt5Account @relation(fields: [mt5AccountId], references: [id])
+}
+
+model Deal {
+  id           String     @id @default(uuid())
+  mt5AccountId String
+  ticket       BigInt     @unique
+  orderTicket  BigInt
+  positionId   BigInt
+  symbol       String
+  type         OrderType
+  volume       Float
+  price        Float
+  commission   Float      @default(0)
+  swap         Float      @default(0)
+  profit       Float      @default(0)
+  time         DateTime
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  mt5Account   Mt5Account @relation(fields: [mt5AccountId], references: [id])
+}
+
+model Position {
+  id           String       @id @default(uuid())
+  mt5AccountId String
+  ticket       BigInt       @unique
+  symbol       String
+  type         PositionType
+  volume       Float
+  priceOpen    Float
+  sl           Float        @default(0)
+  tp           Float        @default(0)
+  time         DateTime
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  mt5Account   Mt5Account   @relation(fields: [mt5AccountId], references: [id])
+}
+
+model ExecutionCommand {
+  id                      String        @id @default(uuid())
+  tradeCopyId             String
+  subAccountId            String
+  status                  CommandStatus @default(CREATED)
+  type                    CommandType
+  masterSignalId          String?
+  masterOrderTicket       BigInt?
+  masterPositionTicket    BigInt?
+  symbol                  String
+  orderType               OrderType
+  direction               PositionType?
+  volume                  Float
+  price                   Float?
+  sl                      Float?
+  tp                      Float?
+  magicNumber             BigInt?
+  success                 Boolean?
+  mt5Retcode              Int?
+  retcodeDescription      String?
+  orderTicket             BigInt?
+  dealTicket              BigInt?
+  executedVolume          Float?
+  executedPrice           Float?
+  requestedPrice          Float?
+  brokerError             String?
+  comment                 String?
+  deliveredAt             DateTime?
+  acknowledgedAt          DateTime?
+  executedAt              DateTime?
+  expiresAt               DateTime
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
+  backendReceivedAt       DateTime?
+  backendResultReceivedAt DateTime?
+  commandCreatedAt        DateTime?
+  masterEventDetectedAt   DateTime?
+  masterEventQueuedAt     DateTime?
+  masterEventSentAt       DateTime?
+  riskDecisionCompletedAt DateTime?
+  subAcknowledgedAt       DateTime?
+  subExecutionCompletedAt DateTime?
+  subExecutionStartedAt   DateTime?
+  subReceivedAt           DateTime?
+  subOrderTicket          BigInt?
+  subPositionTicket       BigInt?
+  subAccount              Mt5Account    @relation(fields: [subAccountId], references: [id])
+  tradeCopy               TradeCopy     @relation(fields: [tradeCopyId], references: [id])
+
+  @@index([subAccountId])
+  @@index([status])
+  @@index([tradeCopyId])
+}
+
+model Subscription {
+  id               String             @id @default(uuid())
+  userId           String             @unique
+  status           SubscriptionStatus @default(TRIAL)
+  planId           String?
+  stripeCustomerId String?
+  currentPeriodEnd DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  user             User               @relation(fields: [userId], references: [id])
+}
+
+model VpsEnvironment {
+  id              String   @id @default(uuid())
+  name            String   @unique
+  status          String   @default("HEALTHY")
+  cpuPercent      Float    @default(0)
+  ramPercent      Float    @default(0)
+  diskPercent     Float    @default(0)
+  activeTerminals Int      @default(0)
+  lastHeartbeatAt DateTime @default(now())
+}
+
 enum Role {
   OWNER
   ADMIN
@@ -76,340 +358,6 @@ enum CopyState {
   FAILED
 }
 
-model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  name      String?
-  password  String
-  role      Role     @default(USER)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  emailVerified       Boolean  @default(false)
-  verificationToken   String?
-  resetToken          String?
-  resetTokenExpiresAt DateTime?
-
-  accounts Mt5Account[]
-  subscription Subscription?
-}
-
-model Mt5Account {
-  id     String @id @default(uuid())
-  userId String
-  user   User   @relation(fields: [userId], references: [id])
-
-  login       String
-  displayName String?
-  password    String?
-  broker      String
-  server      String
-  role        AccountRole
-  isActive    Boolean     @default(true)
-  isDemo      Boolean     @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Telemetry (Live metrics)
-  balance    Float?
-  equity     Float?
-  margin     Float?
-  freeMargin Float?
-  floatingPl Float?
-  currency   String? @db.VarChar(10)
-
-  eaTokens          EaToken[]
-  orders            Order[]
-  deals             Deal[]
-  positions         Position[]
-  copySettings      CopySettings?
-  tradeCopies       TradeCopy[]
-  auditLogs         AuditLog[]
-  executionCommands ExecutionCommand[]
-  masterSubscriptions AccountSubscription[] @relation("MasterSubscriptions")
-  subSubscriptions    AccountSubscription[] @relation("SubSubscriptions")
-
-  @@unique([login, broker, server])
-}
-
-model EaToken {
-  id           String     @id @default(uuid())
-  mt5AccountId String
-  mt5Account   Mt5Account @relation(fields: [mt5AccountId], references: [id])
-
-  tokenHash  String
-  name       String    @default("Default EA Token")
-  lastUsedAt DateTime?
-  expiresAt  DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model AccountSubscription {
-  id              String     @id @default(uuid())
-  masterAccountId String
-  masterAccount   Mt5Account @relation("MasterSubscriptions", fields: [masterAccountId], references: [id])
-  subAccountId    String
-  subAccount      Mt5Account @relation("SubSubscriptions", fields: [subAccountId], references: [id])
-
-  isActive        Boolean    @default(true)
-  
-  // Specific risk overrides for this subscription
-  riskPercentage  Float?     // If null, falls back to subAccount.copySettings.riskPercentage
-  
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
-
-  @@unique([masterAccountId, subAccountId])
-}
-
-model CopySettings {
-  id           String     @id @default(uuid())
-  mt5AccountId String     @unique
-  mt5Account   Mt5Account @relation(fields: [mt5AccountId], references: [id])
-
-  // Risk Configuration
-  riskPercentage       Float @default(1.0)
-  roundingTolerancePct Float @default(2.0) // e.g. 2.0 = 2% max rounding excess
-
-  // Daily Risk
-  dailyRiskEnabled Boolean @default(false)
-  maxDailyRisk     Float   @default(0) // static monetary limit
-
-  // Max Trades
-  maxTradesEnabled Boolean @default(false)
-  maxActiveTrades  Int     @default(0)
-
-  // Missing TP/SL behavior
-  requireTp           Boolean @default(true)
-  missingSlTimeoutSec Int     @default(60)
-
-  // Recovery
-  maxRecoveryRRDegradation Float @default(0.5)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-// Normalized signal originating from Master EA
-model TradeSignal {
-  id           String @id @default(uuid())
-  ticket       BigInt @unique
-  masterAcctId String
-
-  symbol    String
-  type      OrderType
-  volume    Float
-  priceOpen Float
-  sl        Float     @default(0)
-  tp        Float     @default(0)
-
-  sequenceNumber Int?
-
-  time DateTime
-
-  createdAt DateTime @default(now())
-
-  copies TradeCopy[]
-}
-
-// Maps a TradeSignal to a specific Sub account execution
-model TradeCopy {
-  id       String      @id @default(uuid())
-  signalId String
-  signal   TradeSignal @relation(fields: [signalId], references: [id])
-
-  subAccountId String
-  subAccount   Mt5Account @relation(fields: [subAccountId], references: [id])
-
-  state CopyState @default(WAITING)
-
-  // Volume tracking
-  requestedVolume Float?
-  executedVolume  Float?
-  currentVolume   Float?
-  closedVolume    Float  @default(0)
-  remainingVolume Float?
-
-  // Execution references
-  subOrderTicket BigInt?
-  subDealTicket  BigInt?
-  subPositionId  BigInt?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  auditLogs AuditLog[]
-  commands  ExecutionCommand[]
-
-  @@index([subAccountId])
-  @@index([signalId])
-  @@index([state])
-}
-
-// Pre-execution decision audit
-model AuditLog {
-  id          String     @id @default(uuid())
-  tradeCopyId String?
-  tradeCopy   TradeCopy? @relation(fields: [tradeCopyId], references: [id])
-
-  subAccountId String
-  subAccount   Mt5Account @relation(fields: [subAccountId], references: [id])
-
-  // State at calculation
-  equity           Float
-  intendedRisk     Float
-  maxPermittedRisk Float
-  calculatedVol    Float
-  executedVol      Float
-  estimatedSlRisk  Float
-  roundingDiff     Float
-  dailyRiskBefore  Float
-  dailyRiskAfter   Float
-
-  decision        CopyState
-  rejectionReason String?
-
-  createdAt DateTime @default(now())
-}
-
-// MT5 Order (A request to execute a trade)
-model Order {
-  id           String     @id @default(uuid())
-  mt5AccountId String
-  mt5Account   Mt5Account @relation(fields: [mt5AccountId], references: [id])
-
-  ticket       BigInt     @unique
-  symbol       String
-  type         OrderType
-  volume       Float
-  filledVolume Float      @default(0) // Added for partial fills
-  price        Float
-  state        OrderState
-
-  timeSetup DateTime
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-// MT5 Deal (The execution of an order)
-model Deal {
-  id           String     @id @default(uuid())
-  mt5AccountId String
-  mt5Account   Mt5Account @relation(fields: [mt5AccountId], references: [id])
-
-  ticket      BigInt @unique
-  orderTicket BigInt
-  positionId  BigInt
-
-  symbol     String
-  type       OrderType
-  volume     Float
-  price      Float
-  commission Float     @default(0)
-  swap       Float     @default(0)
-  profit     Float     @default(0)
-
-  time DateTime
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-// MT5 Position (The current open holding)
-model Position {
-  id           String     @id @default(uuid())
-  mt5AccountId String
-  mt5Account   Mt5Account @relation(fields: [mt5AccountId], references: [id])
-
-  ticket    BigInt       @unique
-  symbol    String
-  type      PositionType
-  volume    Float
-  priceOpen Float
-  sl        Float        @default(0)
-  tp        Float        @default(0)
-
-  time DateTime
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-// Commands sent to the Sub EA for execution
-model ExecutionCommand {
-  id String @id @default(uuid())
-
-  tradeCopyId String
-  tradeCopy   TradeCopy @relation(fields: [tradeCopyId], references: [id])
-
-  subAccountId String
-  subAccount   Mt5Account @relation(fields: [subAccountId], references: [id])
-
-  status CommandStatus @default(CREATED)
-  type   CommandType
-
-  // Master mapping for execution and reconciliation
-  masterSignalId       String?
-  masterOrderTicket    BigInt?
-  masterPositionTicket BigInt?
-
-  // Sub execution target mapping (Denormalized to optimize /poll)
-  subOrderTicket    BigInt?
-  subPositionTicket BigInt?
-
-  // Execution Payload
-  symbol      String
-  orderType   OrderType
-  direction   PositionType?
-  volume      Float
-  price       Float?
-  sl          Float?
-  tp          Float?
-  magicNumber BigInt?
-
-  // Execution Results
-  success            Boolean?
-  mt5Retcode         Int?
-  retcodeDescription String?
-  orderTicket        BigInt?
-  dealTicket         BigInt?
-  executedVolume     Float?
-  executedPrice      Float?
-  requestedPrice     Float?
-  brokerError        String?
-  comment            String?
-
-  // Telemetry (Latency Tracking)
-  masterEventDetectedAt   DateTime?
-  masterEventQueuedAt     DateTime?
-  masterEventSentAt       DateTime?
-  backendReceivedAt       DateTime?
-  riskDecisionCompletedAt DateTime?
-  commandCreatedAt        DateTime?
-  subReceivedAt           DateTime?
-  subAcknowledgedAt       DateTime?
-  subExecutionStartedAt   DateTime?
-  subExecutionCompletedAt DateTime?
-  backendResultReceivedAt DateTime?
-
-  // Timestamps
-  deliveredAt    DateTime?
-  acknowledgedAt DateTime?
-  executedAt     DateTime?
-  expiresAt      DateTime
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([subAccountId])
-  @@index([status])
-  @@index([tradeCopyId])
-}
-
 enum SubscriptionStatus {
   TRIAL
   ACTIVE
@@ -417,27 +365,4 @@ enum SubscriptionStatus {
   CANCELED
   EXPIRED
   INTERNAL_FREE
-}
-
-model Subscription {
-  id               String             @id @default(uuid())
-  userId           String             @unique
-  user             User               @relation(fields: [userId], references: [id])
-  status           SubscriptionStatus @default(TRIAL)
-  planId           String?
-  stripeCustomerId String?
-  currentPeriodEnd DateTime?
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-}
-
-model VpsEnvironment {
-  id               String   @id @default(uuid())
-  name             String   @unique
-  status           String   @default("HEALTHY")
-  cpuPercent       Float    @default(0)
-  ramPercent       Float    @default(0)
-  diskPercent      Float    @default(0)
-  activeTerminals  Int      @default(0)
-  lastHeartbeatAt  DateTime @default(now())
 }

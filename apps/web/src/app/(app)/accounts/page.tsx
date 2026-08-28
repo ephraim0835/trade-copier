@@ -7,6 +7,9 @@ import { SubAccountCard } from '@/components/accounts/sub-account-card';
 import { AlertCircle } from 'lucide-react';
 import { PrismaClient } from '@trade-copier/database';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default async function AccountsPage() {
   const session = await getServerSession(authOptions);
 

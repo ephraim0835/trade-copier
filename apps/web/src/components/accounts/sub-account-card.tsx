@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import Link from 'next/link';
 import { Settings2, Activity, Trash2, Power, PowerOff } from 'lucide-react';
 import { MoneyDisplay } from '@/components/money-display';
@@ -16,8 +16,10 @@ interface SubAccountCardProps {
     balance: number | null;
     currency: string | null;
     isActive: boolean;
+    updatedAt: string | Date;
+    floatingPl?: number | null;
+    equity?: number | null;
     copySettings?: { riskPercentage?: number | null } | null;
-    eaTokens?: { lastUsedAt?: Date | null }[];
   };
 }
 
@@ -26,8 +28,15 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  const isOnline = account.eaTokens?.[0]?.lastUsedAt
-    ? new Date().getTime() - new Date(account.eaTokens[0].lastUsedAt).getTime() < 5 * 60 * 1000
+  const [isMounted, setIsMounted] = useState(false);
+  
+  // Prevent hydration mismatch by evaluating time-sensitive logic only on the client
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const isOnline = isMounted && account.updatedAt
+    ? new Date().getTime() - new Date(account.updatedAt).getTime() < 5 * 60 * 1000
     : false;
 
   function handleToggle() {
@@ -78,6 +87,21 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
                 ? <MoneyDisplay amount={account.balance} sourceCurrency={account.currency || 'USD'} />
                 : 'N/A'}
             </span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Equity</span>
+            <div className="flex gap-2 items-center">
+              <span className="font-bold num-tabular text-foreground">
+                {account.equity != null
+                  ? <MoneyDisplay amount={account.equity} sourceCurrency={account.currency || 'USD'} />
+                  : (account.balance != null ? <MoneyDisplay amount={account.balance} sourceCurrency={account.currency || 'USD'} /> : 'N/A')}
+              </span>
+              {account.floatingPl != null ? (
+                <span className={`text-[11px] font-semibold ${account.floatingPl > 0 ? 'text-emerald-500' : account.floatingPl < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                  ({account.floatingPl > 0 ? '+' : ''}{account.floatingPl.toFixed(2)})
+                </span>
+              ) : null}
+            </div>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Risk Percentage</span>

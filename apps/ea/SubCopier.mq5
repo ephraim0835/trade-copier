@@ -10,11 +10,32 @@
 #include "MqlJson.mqh"
 #include "WinInet.mqh"
 
-input string API_URL = "https://plaiz-markets-api.onrender.com/execution";
-input string SUB_ACCOUNT_ID = "DEMO-SUB-1";
-input string EA_TOKEN = "sub-token-id.secret123";
-input int TIMER_INTERVAL_MS = 50;           // Polling interval (benchmark: 25, 50, 100)
-input int WEBREQUEST_TIMEOUT_MS = 2000;     // Failure timeout deadline (2000ms safety deadline for local hot path)
+
+string API_URL = "https://plaiz-markets-api.onrender.com/execution";
+string SUB_ACCOUNT_ID = "";
+string EA_TOKEN = "";
+int TIMER_INTERVAL_MS = 50;           // Polling interval (benchmark: 25, 50, 100)
+int WEBREQUEST_TIMEOUT_MS = 2000;     // Failure timeout deadline (2000ms safety deadline for local hot path)
+
+void LoadConfig()
+{
+    int handle = FileOpen("ea_config.txt", FILE_READ|FILE_TXT|FILE_ANSI);
+    if(handle != INVALID_HANDLE)
+    {
+        while(!FileIsEnding(handle))
+        {
+            string line = FileReadString(handle);
+            string result[];
+            if(StringSplit(line, StringGetCharacter("=",0), result) >= 2)
+            {
+                if(result[0] == "API_URL") API_URL = result[1];
+                if(result[0] == "EA_TOKEN") EA_TOKEN = result[1];
+                if(result[0] == "SUB_ACCOUNT_ID") SUB_ACCOUNT_ID = result[1];
+            }
+        }
+        FileClose(handle);
+    }
+}
 
 CTrade trade;
 string lastProcessedCommandId = ""; // Local Idempotency cache
@@ -28,10 +49,9 @@ const ulong TELEMETRY_INTERVAL_US = 5000000; // 5 seconds in microseconds
 //+------------------------------------------------------------------+
 int OnInit()
   {
-
-
-   PrintFormat("SubCopier v2.0 initialized in DEMO safe mode. Timer: %d ms, Timeout: %d ms", TIMER_INTERVAL_MS, WEBREQUEST_TIMEOUT_MS);
+   LoadConfig();
    EventSetMillisecondTimer(TIMER_INTERVAL_MS);
+   PrintFormat("SubCopier v2.0 initialized. SubAccount: %s, Polling: %d ms", SUB_ACCOUNT_ID, TIMER_INTERVAL_MS);
    return(INIT_SUCCEEDED);
   }
 
@@ -70,8 +90,7 @@ void PollCommands()
    if(pollInFlight) return; // Strict guard: prevent overlapping WebRequests
    pollInFlight = true;
 
-   char post[], result[];
-   string resultHeaders;
+   char result[];
    string headers = "Authorization: Bearer " + EA_TOKEN + "\r\nConnection: close\r\n";
    
    ResetLastError();
@@ -123,7 +142,6 @@ void ProcessCommand(string json, ulong subReceivedAt)
 
    // 1. ACK the command (T8)
    char post[], result[];
-   string resultHeaders;
    ulong subAcknowledgedAt = GetMicrosecondCount(); // T8
    string ackJson = "{\"commandId\":\"" + commandId + "\",\"subReceivedAt\": " + IntegerToString(subReceivedAt) + ",\"subAcknowledgedAt\": " + IntegerToString(subAcknowledgedAt) + "}";
    StringToCharArray(ackJson, post, 0, WHOLE_ARRAY, CP_UTF8);
@@ -423,13 +441,15 @@ void ReportResult(string commandId, bool success, uint retcode, string errorStr,
    json += "\"timestamp\":\"" + TimeToString(TimeCurrent(), TIME_DATE|TIME_SECONDS) + "\"";
    json += "}";
    
-   string result;
+   char post[], result[];
+   StringToCharArray(json, post, 0, WHOLE_ARRAY, CP_UTF8);
+   ArrayResize(post, StringLen(json)); // Remove null terminator
    string headers = "Content-Type: application/json\r\nAuthorization: Bearer " + EA_TOKEN + "\r\n";
    
-   int res = CWinInet::Post(API_URL + "/result", headers, json, result);
+   int res = CWinInet::Post(API_URL + "/result", headers, post, result);
    if(res != 200 && res != 201)
      {
-      PrintFormat("POST /result failed! HTTP: %d, Err: %d, Msg: %s", res, GetLastError(), result);
+      PrintFormat("POST /result failed! HTTP: %d, Err: %d", res, GetLastError());
      }
   }
 
@@ -455,7 +475,6 @@ void SendTelemetry()
    json += "}";
    
    char post[], result[];
-   string resultHeaders;
    StringToCharArray(json, post, 0, WHOLE_ARRAY, CP_UTF8);
    ArrayResize(post, StringLen(json)); // Remove null terminator
    string headers = "Content-Type: application/json\r\nAuthorization: Bearer " + EA_TOKEN + "\r\nConnection: close\r\n";
@@ -465,8 +484,10 @@ void SendTelemetry()
    int pos = StringFind(baseUrl, "/execution");
    if (pos > 0) baseUrl = StringSubstr(baseUrl, 0, pos);
    
-   int res = WebRequest("POST", baseUrl + "/accounts/telemetry", headers, 30000, post, result, resultHeaders);
-   if(res != 200 && res != 201)
+   int res = CWinInet::Post(baseUrl + "/accounts/telemetry", headers, post, result);
+   if (res == -1) {
+      Print("Telemetry failed! HTTP: -1, Error code: ", GetLastError());
+   } else if(res != 200 && res != 201)
      {
       PrintFormat("Telemetry failed! HTTP: %d", res);
      }

@@ -16,6 +16,7 @@ import MetaTrader5 as mt5
 from dotenv import load_dotenv
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from supabase import create_client, Client
+import shutil
 
 # Configure logging first
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(message)s')
@@ -70,70 +71,51 @@ def launch_mt5_and_attach_ea(account):
         logger.warning(f"Skipping MT5 initialization for account {login} because it is not numeric.")
         return False
 
-    # The data path is in AppData\Roaming\MetaQuotes\Terminal\<hash>
-    appdata = Path(os.environ.get('APPDATA', 'C:\\Users\\Plaiz\\AppData\\Roaming'))
-    terminal_dir = appdata / 'MetaQuotes' / 'Terminal'
-    
-    data_path = None
-    if terminal_dir.exists():
-        # Find all valid terminal data directories
-        valid_dirs = []
-        for child in terminal_dir.iterdir():
-            if child.is_dir() and len(child.name) == 32:  # MD5 hash length
-                if (child / 'config').exists():
-                    valid_dirs.append(child)
-        # Sort by modification time (newest first)
-        valid_dirs.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+    def get_terminal_path_for_account(account):
+        # Dynamically provision a completely independent portable MT5 instance for this account
+        account_id = account['id']
+        instance_dir = Path("C:/Users/Plaiz/MT5_Instances") / account_id
         
-        # Assign each account its own directory so they run as separate MT5 instances
-        # active_terminals maps login -> account dict (already imported from outer scope)
-        already_assigned = {
-            acc.get('data_path') for acc in active_terminals.values()
-            if acc.get('data_path')
-        }
-        for d in valid_dirs:
-            if str(d) not in already_assigned:
-                data_path = d
-                break
-        # Fallback: reuse first dir if only one exists
-        if not data_path and valid_dirs:
-            data_path = valid_dirs[0]
-    
-    if not data_path:
-        logger.error(f"Could not find MT5 Data Path in {terminal_dir}")
+        if not instance_dir.exists():
+            logger.info(f"Provisioning new portable MT5 instance for account {account_id}...")
+            base_install = Path("C:/Program Files/MetaTrader 5")
+            if not base_install.exists():
+                logger.error(f"Base MT5 installation at {base_install} not found!")
+                return None, None
+            try:
+                shutil.copytree(base_install, instance_dir)
+                # Seed the portable instance with the Master account's data directory so it has the MQL5 standard libraries
+                master_data = Path(os.environ.get('APPDATA', 'C:\\Users\\Plaiz\\AppData\\Roaming')) / 'MetaQuotes' / 'Terminal' / 'D0E8209F77C8CF37AD8BF550E51FF075'
+                if master_data.exists():
+                    shutil.copytree(master_data, instance_dir, dirs_exist_ok=True)
+            except Exception as e:
+                logger.error(f"Failed to copy MT5 instance: {e}")
+                return None, None
+                
+        # For portable instances, the terminal path AND data path are the exact same directory
+        return instance_dir, instance_dir
+
+    terminal_path, data_path = get_terminal_path_for_account(account)
+    if not terminal_path or not data_path:
         return False
+        
+    logger.info(f"Portable Instance Path: {terminal_path}")
     
-    # Store the assigned data path on the account so future assignments can avoid it
+    # Store the assigned data path on the account
     account['data_path'] = str(data_path)
 
-    # Read the correct terminal installation path from origin.txt
-    origin_file = data_path / 'origin.txt'
-    if origin_file.exists():
-        try:
-            terminal_path = Path(origin_file.read_text(encoding='utf-16').strip())
-        except UnicodeError:
-            terminal_path = Path(origin_file.read_text(encoding='utf-8', errors='ignore').strip())
-    else:
-        logger.warning(f"origin.txt not found in {data_path}, falling back to default Program Files")
-        terminal_path = Path(os.environ.get('ProgramW6432', 'C:\\Program Files')) / 'MetaTrader 5'
-
-    if not terminal_path.exists():
-        logger.error(f"Terminal installation path {terminal_path} from origin.txt does not exist.")
-        return False
-
-    logger.info(f"Terminal Data Path: {data_path}")
-    logger.info(f"Terminal Path: {terminal_path}")
-    
     # 2. Auto-compile EA using MetaEditor
     # Copy EA and dependencies into the terminal's MQL5/Experts folder to avoid MetaEditor /out: path space bugs
     source_ea = Path(__file__).parent.parent / 'ea' / ea_file
     source_json = Path(__file__).parent.parent / 'ea' / 'MqlJson.mqh'
+    source_wininet = Path(__file__).parent.parent / 'ea' / 'WinInet.mqh'
     
     experts_dir = data_path / 'MQL5' / 'Experts'
     experts_dir.mkdir(parents=True, exist_ok=True)
     
     target_ea = experts_dir / ea_file
     target_json = experts_dir / 'MqlJson.mqh'
+    target_wininet = experts_dir / 'WinInet.mqh'
     compiled_ea = experts_dir / f"{ea_base}.ex5"
     
     metaeditor = terminal_path / 'metaeditor64.exe'
@@ -143,6 +125,8 @@ def launch_mt5_and_attach_ea(account):
         shutil.copy2(source_ea, target_ea)
         if source_json.exists():
             shutil.copy2(source_json, target_json)
+        if source_wininet.exists():
+            shutil.copy2(source_wininet, target_wininet)
             
         # Compile directly in the target directory without using /out:
         compile_cmd = [str(metaeditor), f"/compile:{target_ea}", f"/inc:{data_path / 'MQL5'}"]
@@ -164,45 +148,78 @@ def launch_mt5_and_attach_ea(account):
     set_file_dir.mkdir(parents=True, exist_ok=True)
     set_file_path = set_file_dir / f"{login}_config.set"
     
-    base_api = os.getenv('NEXT_PUBLIC_API_URL', 'https://plaiz-markets-api.onrender.com')
+    base_api = os.getenv('API_URL') or os.getenv('NEXT_PUBLIC_API_URL')
+    if not base_api:
+        logger.error("API_URL or NEXT_PUBLIC_API_URL must be defined in environment variables.")
+        return False
     if account.get('role') == 'MASTER':
         api_url = f"{base_api}/master/signal"
     else:
         api_url = f"{base_api}/execution"
 
-    with open(set_file_path, 'w') as f:
+    files_dir = data_path / 'MQL5' / 'Files'
+    files_dir.mkdir(parents=True, exist_ok=True)
+    with open(files_dir / "ea_config.txt", 'w') as f:
         f.write(f"API_URL={api_url}\n")
-        f.write(f"SUB_ACCOUNT_ID={account.get('id', '')}\n")
         f.write(f"EA_TOKEN={account.get('ea_token', '')}\n")
+        if account.get('role') == 'SUB':
+            f.write(f"SUB_ACCOUNT_ID={account.get('id', '')}\n")
+
+    # Use the user's manually saved default.tpl from the Master account's roaming folder and copy it into the Default profile!
+    # This ensures we get a perfectly formatted chart template.
+    tpl_file_path = Path(os.environ.get('APPDATA', 'C:\\Users\\Plaiz\\AppData\\Roaming')) / 'MetaQuotes' / 'Terminal' / 'D0E8209F77C8CF37AD8BF550E51FF075' / 'MQL5' / 'Profiles' / 'Templates' / 'default.tpl'
+    
+    profile_dir = data_path / 'MQL5' / 'Profiles' / 'Charts' / 'Default'
+    if profile_dir.exists():
+        shutil.rmtree(profile_dir, ignore_errors=True)
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    
+    with open(profile_dir / "order.wnd", 'w') as f:
+        f.write("chart01\n")
+        
+    chr_file_path = profile_dir / "chart01.chr"
+    if tpl_file_path.exists():
+        # Read the template, dynamically replace the EA name so it matches MasterCopier or SubCopier
+        content = tpl_file_path.read_text(encoding='utf-16', errors='ignore')
+        if not '<chart>' in content:
+            content = tpl_file_path.read_text(encoding='utf-8', errors='ignore')
+            
+        content = content.replace("name=MasterCopier", f"name={ea_base}")
+        content = content.replace("path=Experts\\MasterCopier.ex5", f"path=Experts\\{ea_base}.ex5")
+        
+        chr_file_path.write_text(content, encoding='utf-8')
+    else:
+        logger.error(f"FATAL: {tpl_file_path} does not exist! Cannot seed chart01.chr!")
         
     # 4. Create startup.ini file
     ini_file_dir = data_path / 'config'
     ini_file_dir.mkdir(parents=True, exist_ok=True)
-    ini_file_path = ini_file_dir / f"startup_{login}.ini"
+    ini_file_name = f"startup_{login}.ini"
+    ini_file_path = ini_file_dir / ini_file_name
     
     with open(ini_file_path, 'w') as f:
         f.write(f"[Common]\n")
         f.write(f"Login={login}\n")
         f.write(f"Password={password}\n")
-        f.write(f"Server={server}\n\n")
-        f.write(f"[StartUp]\n")
-        f.write(f"Symbol=EURUSDm\n")
-        f.write(f"Period=H1\n")
-        f.write(f"Expert={ea_base}\n")
-        # ExpertParameters expects the file to be relative to MQL5\Presets
-        f.write(f"ExpertParameters={set_file_path.name}\n\n")
+        f.write(f"Server={server}\n")
+        f.write(f"CertInstall=0\n")
+        f.write(f"[Charts]\n")
+        f.write(f"ProfileLast=Default\n")
         f.write(f"[Experts]\n")
         f.write(f"AllowDllImport=1\n")
         f.write(f"Enabled=1\n")
         f.write(f"WebRequest=1\n")
-        f.write(f"WebRequestUrl=https://plaiz-markets-api.onrender.com\n")
+        f.write(f"AllowWebRequest=1\n\n")
+
     # 5. Launch Terminal with the config
     logger.info(f"Launching MT5 terminal for account {login} with config and EA attached...")
     terminal_exe = terminal_path / 'terminal64.exe'
     
-    # /allowwebfrom whitelists the URL for WebRequest on the command line, bypassing the GUI setting
-    launch_cmd = [str(terminal_exe), f"/config:{ini_file_path}", "/allowwebfrom:https://plaiz-markets-api.onrender.com"]
-    subprocess.Popen(launch_cmd)
+    # We MUST use /portable to ensure it uses the current folder as its data path
+    launch_cmd = [str(terminal_exe), "/portable", f"/config:config\\{ini_file_name}"]
+    logger.info(f"Command: {launch_cmd}")
+    proc = subprocess.Popen(launch_cmd, cwd=str(terminal_path))
+    account['process'] = proc
     
     return True
 
@@ -238,14 +255,22 @@ def poll_db_worker():
                 }
                 
                 # Fetch a real EA token from the API
-                base_api = os.getenv('NEXT_PUBLIC_API_URL', 'https://plaiz-markets-api.onrender.com')
+                base_api = os.getenv('API_URL') or os.getenv('NEXT_PUBLIC_API_URL')
+                if not base_api:
+                    logger.error("API_URL or NEXT_PUBLIC_API_URL must be defined.")
+                    continue
                 for attempt in range(3):
                     try:
+                        internal_secret = os.getenv('INTERNAL_MANAGER_SECRET')
+                        if not internal_secret:
+                            logger.error("INTERNAL_MANAGER_SECRET is missing. Cannot generate EA token.")
+                            continue
+                            
                         token_res = requests.post(
                             f"{base_api}/accounts/internal/ea-token",
                             json={"accountId": account['id']},
-                            headers={"Authorization": "Bearer internal_manager_secret_998877"},
-                            timeout=30
+                            headers={"Authorization": f"Bearer {internal_secret}"},
+                            timeout=10
                         )
                         if token_res.status_code == 201 or token_res.status_code == 200:
                             account['ea_token'] = token_res.json().get('token', 'dummy_token')
@@ -259,11 +284,43 @@ def poll_db_worker():
                             time.sleep(2 ** attempt)
                 
                 login = account['login']
-                if login not in active_terminals:
-                    logger.info(f"New active account detected: {login}. Launching MT5...")
-                    success = launch_mt5_and_attach_ea(account)
-                    if success:
-                        active_terminals[login] = account
+                if account['is_active']:
+                    if login not in active_terminals:
+                        logger.info(f"New active account detected: {login}. Launching MT5...")
+                        success = launch_mt5_and_attach_ea(account)
+                        if success:
+                            active_terminals[login] = account
+                else:
+                    if login in active_terminals:
+                        logger.info(f"Account {login} is no longer active. Terminal will be stopped.")
+                        # We just remove it from active_terminals, a cleanup loop should kill it,
+                        # or we kill it right here.
+                        import psutil
+                        for proc in psutil.process_iter(['name', 'cmdline']):
+                            try:
+                                if proc.info['name'] and 'terminal' in proc.info['name'].lower():
+                                    if proc.info['cmdline'] and f"startup_{login}.ini" in ' '.join(proc.info['cmdline']):
+                                        proc.kill()
+                                        logger.info(f"Killed MT5 terminal for {login}")
+                            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                pass
+                        del active_terminals[login]
+            
+            # Detect deleted accounts
+            fetched_logins = set(str(row.get('login')) for row in response.data)
+            for login in list(active_terminals.keys()):
+                if login not in fetched_logins:
+                    logger.info(f"Account {login} was deleted. Killing terminal.")
+                    import psutil
+                    for proc in psutil.process_iter(['name', 'cmdline']):
+                        try:
+                            if proc.info['name'] and 'terminal' in proc.info['name'].lower():
+                                if proc.info['cmdline'] and f"startup_{login}.ini" in ' '.join(proc.info['cmdline']):
+                                    proc.kill()
+                                    logger.info(f"Killed MT5 terminal for {login}")
+                        except (psutil.NoSuchProcess, psutil.AccessDenied):
+                            pass
+                    del active_terminals[login]
                         
         except Exception as e:
             logger.error(f"Supabase API polling error: {e}")
@@ -311,7 +368,10 @@ def telemetry_worker():
 
 def keep_alive_worker():
     """Background thread that pings the Render API to prevent it from sleeping on the free tier."""
-    ping_url = os.getenv('KEEP_ALIVE_URL', 'https://plaiz-markets-api.onrender.com/api/health')
+    ping_url = os.getenv('KEEP_ALIVE_URL')
+    if not ping_url:
+        logger.warning("KEEP_ALIVE_URL not set. Keep-alive worker will not run.")
+        return
     logger.info(f"Keep-alive worker started. Will ping {ping_url} every 10 minutes.")
     
     # Wait a bit before the first ping
@@ -350,6 +410,14 @@ def force_webrequest_permission():
     """Write the WebRequest whitelist into common.ini BEFORE MT5 starts.
     MT5 overwrites common.ini on shutdown; we must patch it after every kill.
     """
+    base_api = os.getenv('API_URL') or os.getenv('NEXT_PUBLIC_API_URL')
+    if not base_api:
+        logger.error("API_URL or NEXT_PUBLIC_API_URL must be defined for WebRequest permission.")
+        return
+    import urllib.parse
+    parsed = urllib.parse.urlparse(base_api)
+    base_api_root = f"{parsed.scheme}://{parsed.netloc}"
+
     appdata = Path(os.environ.get('APPDATA', 'C:\\Users\\Plaiz\\AppData\\Roaming'))
     terminal_dir = appdata / 'MetaQuotes' / 'Terminal'
     if not terminal_dir.exists():
@@ -357,7 +425,7 @@ def force_webrequest_permission():
     for child in terminal_dir.iterdir():
         if child.is_dir() and len(child.name) == 32 and (child / 'config').exists():
             common_ini_path = child / 'config' / 'common.ini'
-            content = "[Experts]\nAllowWebRequest=1\nWebRequestUrl=https://plaiz-markets-api.onrender.com\n\n[Common]\n"
+            content = f"[Experts]\nEnabled=1\nAllowDllImport=1\nWebRequest=1\nAllowWebRequest=1\nWebRequestUrl1={base_api_root}\n\n[Common]\n"
             # Preserve Environment key if present
             if common_ini_path.exists():
                 try:

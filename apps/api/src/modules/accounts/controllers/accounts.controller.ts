@@ -56,9 +56,9 @@ export class AccountsController {
 
   @Post('internal/ea-token')
   async generateEaToken(@Body() body: { accountId: string }, @Request() req: any) {
-    const serviceKey = 'internal_manager_secret_998877';
-    if (req.headers.authorization !== `Bearer ${serviceKey}`) {
-      throw new ForbiddenException(`Invalid auth header: ${req.headers.authorization}`);
+    const serviceKey = process.env.INTERNAL_MANAGER_SECRET;
+    if (!serviceKey || req.headers.authorization !== `Bearer ${serviceKey}`) {
+      throw new ForbiddenException(`Invalid auth header or missing internal secret.`);
     }
     const crypto = require('crypto');
     const bcrypt = require('bcrypt');

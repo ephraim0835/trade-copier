@@ -15,8 +15,7 @@ async function checkAdmin() {
   });
   
   if (!user || (user.role !== 'ADMIN' && user.role !== 'OWNER')) {
-    // For now, allow it to work during setup if no owner exists, but ideally strictly enforce it.
-    console.warn("User is not an admin, but allowing action for setup phase.");
+    throw new Error("Forbidden: Admin privileges required.");
   }
 }
 

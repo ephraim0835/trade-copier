@@ -40,7 +40,7 @@ export function MultiMoneyDisplay({ balances, className = '', colored = false, s
     const colorClass = colored ? (fallbackSum >= 0 ? 'text-emerald-500' : 'text-destructive') : '';
     const sign = showSign && fallbackSum >= 0 ? '+' : '';
     return (
-      <span className={`${className} ${colorClass}`}>
+      <span className={`${className} ${colorClass}`} suppressHydrationWarning>
         {sign}{new Intl.NumberFormat('en-US', {
           style: 'currency',
           currency: 'USD',

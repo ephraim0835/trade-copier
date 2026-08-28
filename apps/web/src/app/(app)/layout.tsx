@@ -21,10 +21,25 @@ export default async function AppLayout({
   }
 
   const { prisma } = await import('@/lib/prisma');
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
-    include: { subscription: true }
-  });
+  
+  let user: any = null;
+  let retries = 3;
+  while (retries > 0) {
+    try {
+      user = await prisma.user.findUnique({
+        where: { email: session.user.email },
+        include: { subscription: true }
+      });
+      break;
+    } catch (err) {
+      retries--;
+      if (retries === 0) {
+        console.error("Layout failed to fetch user after retries", err);
+        redirect('/login?error=db_timeout');
+      }
+      await new Promise(res => setTimeout(res, 1000));
+    }
+  }
 
   if (!user) {
     redirect('/login');

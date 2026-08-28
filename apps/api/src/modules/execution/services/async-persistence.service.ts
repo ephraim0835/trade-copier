@@ -10,6 +10,7 @@ export type PersistenceTaskType =
   | 'UPDATE_COMMAND_ACK'
   | 'UPDATE_COMMAND_RESULT'
   | 'UPDATE_SIGNAL_MODIFY'
+  | 'UPDATE_SIGNAL_CLOSE'
   | 'UPDATE_SIGNAL_TRIGGER';
 
 export interface PersistenceTask {
@@ -233,16 +234,89 @@ export class AsyncPersistenceService implements OnModuleInit, OnModuleDestroy {
       }
 
       case 'UPDATE_SIGNAL_MODIFY': {
-        const { signalId, sl, tp, priceOpen, sequenceNumber } = task.payload;
-        await this.prisma.tradeSignal.update({
-          where: { id: signalId },
-          data: {
-            sl,
-            tp,
-            priceOpen,
-            sequenceNumber,
-          },
+        const { signalId, sl, tp, priceOpen, sequenceNumber, executionCommands } = task.payload;
+        await this.prisma.$transaction(async (tx) => {
+          if (signalId) {
+            await tx.tradeSignal.update({
+              where: { id: signalId },
+              data: {
+                sl,
+                tp,
+                priceOpen,
+                sequenceNumber,
+              },
+            });
+          }
+          if (executionCommands && executionCommands.length > 0) {
+            await tx.executionCommand.createMany({
+              data: executionCommands.map((c: HotCommandData) => ({
+                id: c.id,
+                tradeCopyId: c.tradeCopyId,
+                subAccountId: c.subAccountId,
+                status: c.status,
+                type: c.type,
+                symbol: c.symbol,
+                orderType: c.orderType,
+                direction: c.direction,
+                volume: c.volume,
+                price: c.price,
+                sl: c.sl,
+                tp: c.tp,
+                expiresAt: c.expiresAt,
+                masterSignalId: c.masterSignalId,
+                masterOrderTicket: c.masterOrderTicket,
+                masterPositionTicket: c.masterPositionTicket,
+                subPositionTicket: c.subPositionTicket,
+                subOrderTicket: c.subOrderTicket,
+                masterEventDetectedAt: c.masterEventDetectedAt,
+                masterEventQueuedAt: c.masterEventQueuedAt,
+                masterEventSentAt: c.masterEventSentAt,
+                backendReceivedAt: c.backendReceivedAt,
+                riskDecisionCompletedAt: c.riskDecisionCompletedAt,
+                createdAt: c.createdAt,
+                updatedAt: c.updatedAt,
+              })),
+              skipDuplicates: true,
+            });
+          }
         });
+        break;
+      }
+
+      case 'UPDATE_SIGNAL_CLOSE': {
+        const { executionCommands } = task.payload;
+        if (executionCommands && executionCommands.length > 0) {
+          await this.prisma.executionCommand.createMany({
+            data: executionCommands.map((c: HotCommandData) => ({
+              id: c.id,
+              tradeCopyId: c.tradeCopyId,
+              subAccountId: c.subAccountId,
+              status: c.status,
+              type: c.type,
+              symbol: c.symbol,
+              orderType: c.orderType,
+              direction: c.direction,
+              volume: c.volume,
+              price: c.price,
+              sl: c.sl,
+              tp: c.tp,
+              expiresAt: c.expiresAt,
+              masterSignalId: c.masterSignalId,
+              masterOrderTicket: c.masterOrderTicket,
+              masterPositionTicket: c.masterPositionTicket,
+              subPositionTicket: c.subPositionTicket,
+              subOrderTicket: c.subOrderTicket,
+              masterEventDetectedAt: c.masterEventDetectedAt,
+              masterEventQueuedAt: c.masterEventQueuedAt,
+              masterEventSentAt: c.masterEventSentAt,
+              backendReceivedAt: c.backendReceivedAt,
+              riskDecisionCompletedAt: c.riskDecisionCompletedAt,
+              createdAt: c.createdAt,
+              updatedAt: c.updatedAt,
+            })),
+            skipDuplicates: true,
+          });
+        }
         break;
       }
 
@@ -295,6 +369,12 @@ export class AsyncPersistenceService implements OnModuleInit, OnModuleDestroy {
           const { signalData, tradeCopies, executionCommands } = task.payload;
           if (signalData?.masterAcctId) accountIdsToNotify.add(signalData.masterAcctId);
           tradeCopies?.forEach((c: any) => accountIdsToNotify.add(c.subAccountId));
+          break;
+        }
+        case 'UPDATE_SIGNAL_MODIFY':
+        case 'UPDATE_SIGNAL_CLOSE': {
+          const { executionCommands } = task.payload;
+          executionCommands?.forEach((c: any) => accountIdsToNotify.add(c.subAccountId));
           break;
         }
         case 'UPDATE_COMMAND_DELIVERED':

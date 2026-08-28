@@ -61,9 +61,9 @@ export async function createMt5Account(data: {
         }
       });
 
-      // Auto-subscribe to the first Master account to prevent breakage until UI is built
+      // Auto-subscribe to the user's first Master account to prevent breakage until UI is built
       const firstMaster = await prisma.mt5Account.findFirst({
-        where: { role: 'MASTER' }
+        where: { role: 'MASTER', userId: user.id }
       });
       
       if (firstMaster) {

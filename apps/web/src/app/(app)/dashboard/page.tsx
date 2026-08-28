@@ -14,6 +14,7 @@ import { redirect } from 'next/navigation';
 import { PrismaClient } from '@trade-copier/database';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export default async function DashboardOverview() {
   const startOfDay = new Date();
@@ -24,9 +25,25 @@ export default async function DashboardOverview() {
     redirect('/login');
   }
 
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email }
-  });
+  let user: any = null;
+  let retries = 3;
+  while (retries > 0) {
+    try {
+      user = await prisma.user.findUnique({
+        where: { email: session.user.email }
+      });
+      break;
+    } catch (err) {
+      retries--;
+      if (retries === 0) {
+        console.error("Failed to fetch user after retries", err);
+        // Fallback or throw a more specific error, but here we redirect to let the user log in again or try again.
+        redirect('/login?error=db_timeout');
+      }
+      // wait a bit before retrying
+      await new Promise(res => setTimeout(res, 1000));
+    }
+  }
 
   if (!user) {
     redirect('/login');
@@ -427,7 +444,7 @@ export default async function DashboardOverview() {
                     <h4 className="text-[16px] font-bold text-foreground tracking-tight group-hover:text-primary transition-colors leading-none">{sub.login}</h4>
                     <span className="text-[11px] text-muted-foreground mt-1 block">{sub.broker || 'Unknown'}</span>
                   </div>
-                  <div className={`w-2 h-2 rounded-full ${sub.isActive && isOnline(sub.eaTokens?.[0]) ? 'bg-emerald-500' : 'bg-muted-foreground/40'}`}></div>
+                  <div className={`w-2 h-2 rounded-full ${sub.isActive && isOnline(sub) ? 'bg-emerald-500' : 'bg-muted-foreground/40'}`}></div>
                 </div>
                 
                 <div className="flex items-center justify-between pt-4 border-t border-border/30">

@@ -2,11 +2,14 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import helmet from 'helmet';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   
+  app.use(helmet());
+
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT') || 3001;
   const isProduction = process.env.NODE_ENV === 'production';

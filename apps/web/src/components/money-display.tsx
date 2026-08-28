@@ -20,7 +20,7 @@ export function MoneyDisplay({ amount, sourceCurrency = 'USD', className = '' }:
   // During SSR and initial hydration, we render a fallback or standard USD to prevent hydration mismatch
   if (!mounted) {
     return (
-      <span className={className}>
+      <span className={className} suppressHydrationWarning>
         {new Intl.NumberFormat('en-US', {
           style: 'currency',
           currency: sourceCurrency,
