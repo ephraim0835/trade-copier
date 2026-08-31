@@ -145,7 +145,10 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
       
       let totalSubs = 0;
       for (const subs of newCache.values()) totalSubs += subs.length;
-      this.logger.debug(`[MasterSignal] Sub accounts cache updated: ${totalSubs} active subscriptions mapped`);
+      this.logger.log(`[MasterSignal] Sub accounts cache updated: ${totalSubs} active subscriptions mapped`);
+      for (const [masterId, subs] of newCache.entries()) {
+        this.logger.log(`[MasterSignal] Master ${masterId} -> sub accounts: [${subs.map(s => s.id).join(', ')}]`);
+      }
     } catch (err: any) {
       this.logger.warn(`[MasterSignal] DB error refreshing sub accounts: ${err.message}. Using existing cache.`);
     }
@@ -204,7 +207,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
       maxDailyRisk: copySettings.maxDailyRisk ?? 0,
       maxTradesEnabled: copySettings.maxTradesEnabled ?? false,
       maxActiveTrades: copySettings.maxActiveTrades ?? 0,
-      requireTp: copySettings.requireTp ?? true,
+      requireTp: copySettings.requireTp ?? false,
       missingSlTimeoutSec: copySettings.missingSlTimeoutSec ?? 60,
       maxRecoveryRRDegradation: copySettings.maxRecoveryRRDegradation ?? 0.5,
       currentDailyRisk: 0,

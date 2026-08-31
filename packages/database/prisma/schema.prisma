@@ -94,7 +94,7 @@ model CopySettings {
   maxDailyRisk             Float      @default(0)
   maxTradesEnabled         Boolean    @default(false)
   maxActiveTrades          Int        @default(0)
-  requireTp                Boolean    @default(true)
+  requireTp                Boolean    @default(false)
   missingSlTimeoutSec      Int        @default(60)
   maxRecoveryRRDegradation Float      @default(0.5)
   createdAt                DateTime   @default(now())
