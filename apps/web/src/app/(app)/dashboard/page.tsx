@@ -12,6 +12,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { PrismaClient } from '@trade-copier/database';
+import { AutoRefresh } from '@/components/auto-refresh';
 
 export default async function DashboardOverview() {
   const startOfDay = new Date();
@@ -134,6 +135,7 @@ export default async function DashboardOverview() {
 
   return (
     <div className="flex-1 p-4 md:p-6 lg:p-12 flex flex-col gap-10 pb-32 overflow-y-auto custom-scrollbar relative">
+      <AutoRefresh intervalMs={5000} />
       
       {/* Removed heavy blue gradients in favor of subtle environment lighting */}
 
