@@ -2,6 +2,7 @@ import { ShieldAlert, Users, Server, Activity, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { BottomNav } from '@/components/layout/bottom-nav';
+import { AdminSidebarNav } from '@/components/admin-sidebar-nav';
 
 import { getServerSession } from "next-auth/next";
 import { redirect } from 'next/navigation';
@@ -39,24 +40,7 @@ export default async function AdminLayout({
         </div>
         <div className="p-6 pb-2">
           <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4">Console Modules</h2>
-          <nav className="flex flex-col gap-1">
-            <Link href="/admin" className="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary font-medium text-sm">
-              <Activity className="w-4 h-4" />
-              Overview
-            </Link>
-            <Link href="/admin/users" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-muted-foreground hover:text-foreground font-medium text-sm transition-colors">
-              <Users className="w-4 h-4" />
-              Users & Subs
-            </Link>
-            <Link href="/admin/infrastructure" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-muted-foreground hover:text-foreground font-medium text-sm transition-colors">
-              <Server className="w-4 h-4" />
-              Infrastructure
-            </Link>
-            <Link href="/admin/copier" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-muted-foreground hover:text-foreground font-medium text-sm transition-colors">
-              <ShieldAlert className="w-4 h-4" />
-              Copier Ops
-            </Link>
-          </nav>
+          <AdminSidebarNav />
         </div>
       </aside>
 
