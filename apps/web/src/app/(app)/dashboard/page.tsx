@@ -13,9 +13,6 @@ import { authOptions } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { PrismaClient } from '@trade-copier/database';
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-
 export default async function DashboardOverview() {
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);

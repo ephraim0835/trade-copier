@@ -1,14 +1,7 @@
 import CredentialsProvider from "next-auth/providers/credentials"
 import type { NextAuthOptions } from "next-auth"
 
-let API_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL;
-if (!API_URL) {
-  if (process.env.NODE_ENV === 'development') {
-    API_URL = 'http://127.0.0.1:3001';
-  } else {
-    throw new Error("API_URL or NEXT_PUBLIC_API_URL must be configured in production.");
-  }
-}
+let API_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'https://plaiz-markets-api.onrender.com';
 
 async function refreshAccessToken(refreshToken: string) {
   const res = await fetch(`${API_URL}/auth/refresh`, {
