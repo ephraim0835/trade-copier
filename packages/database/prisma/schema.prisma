@@ -55,6 +55,7 @@ model Mt5Account {
   orders              Order[]
   positions           Position[]
   tradeCopies         TradeCopy[]
+  snapshots           AccountSnapshot[]
 
   @@unique([login, broker, server])
 }
@@ -291,6 +292,20 @@ model VpsEnvironment {
   diskPercent     Float    @default(0)
   activeTerminals Int      @default(0)
   lastHeartbeatAt DateTime @default(now())
+}
+
+model AccountSnapshot {
+  id           String     @id @default(uuid())
+  mt5AccountId String
+  balance      Float
+  equity       Float
+  floatingPl   Float      @default(0)
+  timestamp    DateTime   @default(now())
+  createdAt    DateTime   @default(now())
+  mt5Account   Mt5Account @relation(fields: [mt5AccountId], references: [id])
+
+  @@index([mt5AccountId])
+  @@index([timestamp])
 }
 
 enum Role {

@@ -71,4 +71,40 @@ export class ReconciliationRepository {
       },
     });
   }
+
+  async recordSnapshotIfDue(accountId: string, balance: number, equity: number, floatingPl: number): Promise<void> {
+    // Find the latest snapshot for this account
+    const latestSnapshot = await this.prisma.accountSnapshot.findFirst({
+      where: { mt5AccountId: accountId },
+      orderBy: { timestamp: 'desc' },
+    });
+
+    const now = new Date();
+    
+    // Take a snapshot if there are NO snapshots yet (baseline) 
+    // OR if the latest one is older than 1 hour.
+    let shouldTakeSnapshot = false;
+
+    if (!latestSnapshot) {
+      shouldTakeSnapshot = true;
+    } else {
+      const msSinceLast = now.getTime() - latestSnapshot.timestamp.getTime();
+      const hoursSinceLast = msSinceLast / (1000 * 60 * 60);
+      if (hoursSinceLast >= 1) {
+        shouldTakeSnapshot = true;
+      }
+    }
+
+    if (shouldTakeSnapshot) {
+      await this.prisma.accountSnapshot.create({
+        data: {
+          mt5AccountId: accountId,
+          balance,
+          equity,
+          floatingPl,
+          timestamp: now,
+        },
+      });
+    }
+  }
 }

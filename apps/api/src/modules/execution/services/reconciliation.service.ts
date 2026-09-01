@@ -32,6 +32,14 @@ export class ReconciliationService {
         state.equity,
         state.marginFree || 0
       );
+      
+      // Hourly Snapshot Logic / Baseline creation
+      await this.reconciliationRepo.recordSnapshotIfDue(
+        subAccountId,
+        state.balance,
+        state.equity,
+        state.equity - state.balance
+      );
     }
 
     // Phase 3 implementation: compare state against expected state

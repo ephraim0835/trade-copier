@@ -54,6 +54,7 @@ export default async function DashboardOverview() {
   let todayDeals: any[] = [];
   let copiedTradesToday = 0;
   let recentActivity: any[] = [];
+  let snapshots: any[] = [];
 
   try {
     accounts = await prisma.mt5Account.findMany({
@@ -92,6 +93,11 @@ export default async function DashboardOverview() {
         subAccount: true
       }
     });
+
+    snapshots = await prisma.accountSnapshot.findMany({
+      where: { mt5Account: { userId: user.id } },
+      orderBy: { timestamp: 'asc' },
+    });
   } catch (err) {
     console.warn("Database unreachable, using empty arrays to allow UI render:", err);
   }
@@ -129,9 +135,23 @@ export default async function DashboardOverview() {
     }))
   ];
 
-  // Since we do not have a dedicated historical time-series endpoint for performance,
-  // we pass an empty array to trigger the real honest empty state in the chart.
-  const chartData: any[] = [];
+  // Group snapshots by Date (hourly aggregation)
+  const groupedSnapshots = snapshots.reduce((acc: any, curr: any) => {
+    const date = new Date(curr.timestamp);
+    const hourKey = `${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()} ${date.getHours()}:00`;
+    
+    if (!acc[hourKey]) {
+      acc[hourKey] = {
+        date: date.toLocaleString('default', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        timestamp: date.getTime(),
+        value: 0
+      };
+    }
+    acc[hourKey].value += curr.equity || 0;
+    return acc;
+  }, {});
+
+  const chartData: any[] = Object.values(groupedSnapshots).sort((a: any, b: any) => a.timestamp - b.timestamp);
 
   return (
     <div className="flex-1 p-4 md:p-6 lg:p-12 flex flex-col gap-10 pb-32 overflow-y-auto custom-scrollbar relative">
