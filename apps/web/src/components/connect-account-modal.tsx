@@ -16,7 +16,7 @@ interface ConnectAccountModalProps {
 export function ConnectAccountModal({ isOpen, onClose, defaultRole = 'SUB' }: ConnectAccountModalProps) {
   const router = useRouter();
   const [role, setRole] = useState<'MASTER' | 'SUB'>(defaultRole);
-  const [isDemo, setIsDemo] = useState(true); // Default to Demo for safety
+  const [isDemo, setIsDemo] = useState(false); // Changed default based on user request
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

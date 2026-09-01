@@ -24,6 +24,16 @@ export class ReconciliationService {
       throw new Error(`DEMO_ONLY mode is active. Live execution sync is prohibited.`);
     }
 
+    // Update real-time account stats
+    if (state.balance != null && state.equity != null) {
+      await this.reconciliationRepo.updateAccountStats(
+        subAccountId,
+        state.balance,
+        state.equity,
+        state.marginFree || 0
+      );
+    }
+
     // Phase 3 implementation: compare state against expected state
 
     // 1. Check for EXECUTION_UNKNOWN commands

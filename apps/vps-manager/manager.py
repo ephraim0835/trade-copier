@@ -254,39 +254,31 @@ def poll_db_worker():
                     'ea_file': 'MasterCopier.mq5' if row.get('role') == 'MASTER' else 'SubCopier.mq5'
                 }
                 
-                # Fetch a real EA token from the API
-                base_api = os.getenv('API_URL') or os.getenv('NEXT_PUBLIC_API_URL')
-                if not base_api:
-                    logger.error("API_URL or NEXT_PUBLIC_API_URL must be defined.")
-                    continue
-                for attempt in range(3):
-                    try:
-                        internal_secret = os.getenv('INTERNAL_MANAGER_SECRET')
-                        if not internal_secret:
-                            logger.error("INTERNAL_MANAGER_SECRET is missing. Cannot generate EA token.")
-                            continue
-                            
-                        token_res = requests.post(
-                            f"{base_api}/accounts/internal/ea-token",
-                            json={"accountId": account['id']},
-                            headers={"Authorization": f"Bearer {internal_secret}"},
-                            timeout=10
-                        )
-                        if token_res.status_code == 201 or token_res.status_code == 200:
-                            account['ea_token'] = token_res.json().get('token', 'dummy_token')
-                            break
-                        else:
-                            logger.error(f"Failed to generate EA token: {token_res.text}")
-                            break
-                    except Exception as e:
-                        logger.error(f"Error fetching EA token (attempt {attempt + 1}/3): {e}")
-                        if attempt < 2:
-                            time.sleep(2 ** attempt)
-                
                 login = account['login']
                 if account['is_active']:
                     if login not in active_terminals:
-                        logger.info(f"New active account detected: {login}. Launching MT5...")
+                        logger.info(f"New active account detected: {login}. Fetching EA token and launching MT5...")
+                        
+                        # Fetch EA token only when launching
+                        base_api = os.getenv('API_URL') or os.getenv('NEXT_PUBLIC_API_URL')
+                        if base_api:
+                            for attempt in range(3):
+                                try:
+                                    internal_secret = os.getenv('INTERNAL_MANAGER_SECRET')
+                                    if internal_secret:
+                                        token_res = requests.post(
+                                            f"{base_api}/accounts/internal/ea-token",
+                                            json={"accountId": account['id']},
+                                            headers={"Authorization": f"Bearer {internal_secret}"},
+                                            timeout=10
+                                        )
+                                        if token_res.status_code in [200, 201]:
+                                            account['ea_token'] = token_res.json().get('token', 'dummy_token')
+                                            break
+                                except Exception as e:
+                                    logger.error(f"Error fetching EA token (attempt {attempt + 1}/3): {e}")
+                                    time.sleep(2 ** attempt)
+
                         success = launch_mt5_and_attach_ea(account)
                         if success:
                             active_terminals[login] = account

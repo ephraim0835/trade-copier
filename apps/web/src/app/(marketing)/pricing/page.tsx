@@ -4,11 +4,11 @@ import { getServerSession } from 'next-auth/next';
 
 const pricingPlans = [
   {
-    id: "personal",
-    name: "Personal",
+    id: "basic",
+    name: "Basic",
     description: "For individual traders running a focused copy setup.",
-    priceUSD: 19,
-    priceNGN: 28500,
+    priceUSD: 26,
+    priceNGN: 39000,
     features: [
       { text: "1 Master Account", included: true },
       { text: "Up to 3 Sub Accounts", included: true },
@@ -61,8 +61,11 @@ const pricingPlans = [
   }
 ];
 
+import { CheckoutButton } from '@/components/checkout-button';
+import { authOptions } from '@/lib/auth';
+
 export default async function PricingPage() {
-  const session = await getServerSession();
+  const session = await getServerSession(authOptions);
   const isLoggedIn = !!session?.user?.email;
 
   return (
@@ -138,12 +141,28 @@ export default async function PricingPage() {
               ))}
             </ul>
             
-            <Link 
-              href={plan.status === 'coming_later' ? plan.ctaUrl : (isLoggedIn ? '/dashboard' : '/signup')} 
-              className={`plaiz-btn w-full py-3 justify-center ${plan.popular ? 'plaiz-btn-primary relative z-10' : 'plaiz-btn-secondary'}`}
-            >
-              {plan.status === 'coming_later' ? plan.cta : (isLoggedIn ? 'Select Plan' : plan.cta)}
-            </Link>
+            {plan.status === 'coming_later' ? (
+              <Link 
+                href={plan.ctaUrl} 
+                className={`plaiz-btn w-full py-3 justify-center ${plan.popular ? 'plaiz-btn-primary relative z-10' : 'plaiz-btn-secondary'}`}
+              >
+                {plan.cta}
+              </Link>
+            ) : isLoggedIn ? (
+              <CheckoutButton 
+                planId={plan.id as "basic" | "pro"} 
+                className={`plaiz-btn w-full py-3 justify-center ${plan.popular ? 'plaiz-btn-primary relative z-10' : 'plaiz-btn-secondary'}`}
+              >
+                Select Plan
+              </CheckoutButton>
+            ) : (
+              <Link 
+                href="/signup" 
+                className={`plaiz-btn w-full py-3 justify-center ${plan.popular ? 'plaiz-btn-primary relative z-10' : 'plaiz-btn-secondary'}`}
+              >
+                {plan.cta}
+              </Link>
+            )}
           </div>
         ))}
       </div>

@@ -59,4 +59,16 @@ export class ReconciliationRepository {
       },
     });
   }
+
+  async updateAccountStats(subAccountId: string, balance: number, equity: number, marginFree: number): Promise<void> {
+    await this.prisma.mt5Account.update({
+      where: { id: subAccountId },
+      data: {
+        balance,
+        equity,
+        floatingPl: equity - balance,
+        freeMargin: marginFree,
+      },
+    });
+  }
 }
