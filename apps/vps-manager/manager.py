@@ -158,6 +158,10 @@ def launch_mt5_and_attach_ea(account):
         api_url = f"{base_api}/master/signal"
     else:
         api_url = f"{base_api}/execution"
+        
+    import urllib.parse
+    parsed = urllib.parse.urlparse(base_api)
+    base_api_root = f"{parsed.scheme}://{parsed.netloc}"
 
     files_dir = data_path / 'MQL5' / 'Files'
     files_dir.mkdir(parents=True, exist_ok=True)
@@ -205,13 +209,7 @@ def launch_mt5_and_attach_ea(account):
         f.write(f"Password={password}\n")
         f.write(f"Server={server}\n")
         f.write(f"CertInstall=0\n")
-        f.write(f"[Charts]\n")
-        f.write(f"ProfileLast=Default\n")
-        f.write(f"[Experts]\n")
-        f.write(f"AllowDllImport=1\n")
-        f.write(f"Enabled=1\n")
-        f.write(f"WebRequest=1\n")
-        f.write(f"AllowWebRequest=1\n\n")
+        f.write(f"ProfileLast=Default\n\n")
 
     # 5. Launch Terminal with the config
     logger.info(f"Launching MT5 terminal for account {login} with config and EA attached...")
@@ -496,12 +494,12 @@ def force_webrequest_permission():
     parsed = urllib.parse.urlparse(base_api)
     base_api_root = f"{parsed.scheme}://{parsed.netloc}"
 
-    appdata = Path(os.environ.get('APPDATA', 'C:\\Users\\Plaiz\\AppData\\Roaming'))
-    terminal_dir = appdata / 'MetaQuotes' / 'Terminal'
+    appdata = Path(r"C:\Users\Plaiz\MT5_Instances")
+    terminal_dir = appdata
     if not terminal_dir.exists():
         return
     for child in terminal_dir.iterdir():
-        if child.is_dir() and len(child.name) == 32 and (child / 'config').exists():
+        if child.is_dir() and (child / 'config').exists():
             common_ini_path = child / 'config' / 'common.ini'
             content = f"[Experts]\nEnabled=1\nAllowDllImport=1\nWebRequest=1\nAllowWebRequest=1\nWebRequestUrl1={base_api_root}\n\n[Common]\n"
             # Preserve Environment key if present
