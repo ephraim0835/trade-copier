@@ -44,7 +44,7 @@ const string HISTORY_FILE = "SubCopier_History.csv";
 static bool pollInFlight = false;   // In-flight guard to prevent WebRequest overlap & Error 1003
 
 ulong lastTelemetryAt = 0;
-const ulong TELEMETRY_INTERVAL_US = 50000; // 50 milliseconds in microseconds
+const ulong TELEMETRY_INTERVAL_US = 5000000; // 5 seconds in microseconds
 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
