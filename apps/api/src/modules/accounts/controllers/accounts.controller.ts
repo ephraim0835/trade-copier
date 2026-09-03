@@ -5,6 +5,7 @@ import { UpdateTelemetryDto } from '../dto/update-telemetry.dto';
 import { EaAuthGuard } from '../../ea-auth/ea-auth.guard';
 import { AuthGuard } from '@nestjs/passport';
 import { PrismaService } from '../../../database/prisma.service';
+import { Throttle } from '@nestjs/throttler';
 
 @Controller('accounts')
 export class AccountsController {
@@ -44,6 +45,7 @@ export class AccountsController {
     return this.accountsService.updateCopySettings(accountId, dto);
   }
 
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
   @Post('telemetry')
   @UseGuards(EaAuthGuard)
   async updateTelemetry(

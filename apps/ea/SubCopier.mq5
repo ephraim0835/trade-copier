@@ -38,11 +38,13 @@ void LoadConfig()
 }
 
 CTrade trade;
-string lastProcessedCommandId = ""; // Local Idempotency cache
+string ProcessedCommands[];
+const int MAX_PROCESSED = 50;
+const string HISTORY_FILE = "SubCopier_History.csv";
 static bool pollInFlight = false;   // In-flight guard to prevent WebRequest overlap & Error 1003
 
 ulong lastTelemetryAt = 0;
-const ulong TELEMETRY_INTERVAL_US = 5000000; // 5 seconds in microseconds
+const ulong TELEMETRY_INTERVAL_US = 50000; // 50 milliseconds in microseconds
 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
@@ -50,8 +52,37 @@ const ulong TELEMETRY_INTERVAL_US = 5000000; // 5 seconds in microseconds
 int OnInit()
   {
    LoadConfig();
+   
+   // Load idempotency history
+   if(FileIsExist(HISTORY_FILE))
+     {
+      int handle = FileOpen(HISTORY_FILE, FILE_READ|FILE_CSV|FILE_ANSI);
+      if(handle != INVALID_HANDLE)
+        {
+         while(!FileIsEnding(handle))
+           {
+            string cmdId = FileReadString(handle);
+            if(cmdId != "")
+              {
+               int size = ArraySize(ProcessedCommands);
+               if(size >= MAX_PROCESSED)
+                 {
+                  for(int i = 0; i < size - 1; i++) ProcessedCommands[i] = ProcessedCommands[i+1];
+                  ProcessedCommands[size - 1] = cmdId;
+                 }
+               else
+                 {
+                  ArrayResize(ProcessedCommands, size + 1);
+                  ProcessedCommands[size] = cmdId;
+                 }
+              }
+           }
+         FileClose(handle);
+        }
+     }
+     
    EventSetMillisecondTimer(TIMER_INTERVAL_MS);
-   PrintFormat("SubCopier v2.0 initialized. SubAccount: %s, Polling: %d ms", SUB_ACCOUNT_ID, TIMER_INTERVAL_MS);
+   PrintFormat("SubCopier v2.0 initialized. SubAccount: %s, Polling: %d ms, History: %d items", SUB_ACCOUNT_ID, TIMER_INTERVAL_MS, ArraySize(ProcessedCommands));
    return(INIT_SUCCEEDED);
   }
 
@@ -98,6 +129,12 @@ void PollCommands()
    
    if(res == 200 || res == 201)
      {
+      // Reset backoff on success
+      if (TIMER_INTERVAL_MS != 50) {
+         TIMER_INTERVAL_MS = 50;
+         EventSetMillisecondTimer(TIMER_INTERVAL_MS);
+      }
+      
       string response = CharArrayToString(result);
       // Extract and process all command objects from the commands array in FIFO order
       int commandsPos = StringFind(response, "\"commands\"");
@@ -116,12 +153,23 @@ void PollCommands()
          }
       }
      }
+   else if(res == 204)
+     {
+      // 204 No Content - success but empty
+      if (TIMER_INTERVAL_MS != 50) {
+         TIMER_INTERVAL_MS = 50;
+         EventSetMillisecondTimer(TIMER_INTERVAL_MS);
+      }
+     }
    else
      {
       int err = GetLastError();
-      if (err != 0 || res != 200) {
-         PrintFormat("Poll GET /poll failed! HTTP: %d, Err: %d", res, err);
-      }
+      PrintFormat("Poll GET /poll failed! HTTP: %d, Err: %d", res, err);
+      
+      // Exponential backoff
+      TIMER_INTERVAL_MS = TIMER_INTERVAL_MS * 2;
+      if (TIMER_INTERVAL_MS > 5000) TIMER_INTERVAL_MS = 5000;
+      EventSetMillisecondTimer(TIMER_INTERVAL_MS);
      }
 
    pollInFlight = false; // Always release guard regardless of outcome
@@ -133,12 +181,14 @@ void PollCommands()
 void ProcessCommand(string json, ulong subReceivedAt)
   {
    string commandId = CMqlJson::GetString(json, "commandId");
-   if(commandId == "" || commandId == lastProcessedCommandId) 
-     {
-      return; // Idempotency
-     }
+   if(commandId == "") return;
    
-   lastProcessedCommandId = commandId;
+   // Idempotency: Check if already processed
+   for(int i = 0; i < ArraySize(ProcessedCommands); i++)
+     {
+      if(ProcessedCommands[i] == commandId) return; // Already processed
+     }
+     
 
    // 1. ACK the command (T8)
    char post[], result[];
@@ -156,6 +206,7 @@ void ProcessCommand(string json, ulong subReceivedAt)
      }
 
    // 2. Validate Command
+   PrintFormat("DEBUG RECEIVED JSON: %s", json);
    string symbol = CMqlJson::GetString(json, "symbol");
    if(!SymbolSelect(symbol, true))
      {
@@ -188,9 +239,12 @@ void ProcessCommand(string json, ulong subReceivedAt)
          if(riskPerLot > 0)
            {
             volume = intendedRisk / riskPerLot;
+            PrintFormat("DEBUG VOLUME CALC: intendedRisk=%f, price=%f, sl=%f, slDistance=%f, tickSize=%f, tickValue=%f, riskPerLot=%f, volume=%f", 
+                        intendedRisk, price, sl, slDistance, tickSize, tickValue, riskPerLot, volume);
            }
         }
      }
+
 
    double minVol = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MIN);
    double maxVol = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MAX);
@@ -418,6 +472,32 @@ void ProcessCommand(string json, ulong subReceivedAt)
    } else if (execVol == 0 && success && commandType == "OPEN_ORDER") {
       execVol = volume;
    }
+   
+   if(success)
+     {
+      // Mark as processed in memory
+      int size = ArraySize(ProcessedCommands);
+      if(size >= MAX_PROCESSED)
+        {
+         for(int i = 0; i < size - 1; i++) ProcessedCommands[i] = ProcessedCommands[i+1];
+         ProcessedCommands[size - 1] = commandId;
+        }
+      else
+        {
+         ArrayResize(ProcessedCommands, size + 1);
+         ProcessedCommands[size] = commandId;
+        }
+        
+      // Explicitly flush to history file
+      int handle = FileOpen(HISTORY_FILE, FILE_READ|FILE_WRITE|FILE_CSV|FILE_ANSI);
+      if(handle != INVALID_HANDLE)
+        {
+         FileSeek(handle, 0, SEEK_END);
+         FileWrite(handle, commandId);
+         FileFlush(handle); // Force write to disk to prevent crash-window data loss
+         FileClose(handle);
+        }
+     }
    
    ReportResult(commandId, success, retcode, trade.ResultComment(), resultTicket, execVol, subReceivedAt, subAcknowledgedAt, subExecutionStartedAt, subExecutionCompletedAt);
   }

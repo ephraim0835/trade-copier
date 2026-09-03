@@ -63,6 +63,7 @@ export class LocalQueueService implements IHotDispatchQueue, OnModuleInit, OnMod
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS commands (
         id TEXT PRIMARY KEY,
+        eventId TEXT,
         subAccountId TEXT NOT NULL,
         masterAccountId TEXT NOT NULL,
         type TEXT NOT NULL,
@@ -83,12 +84,7 @@ export class LocalQueueService implements IHotDispatchQueue, OnModuleInit, OnMod
       CREATE INDEX IF NOT EXISTS idx_poll ON commands(subAccountId, status, sequenceNumber);
       
       -- Idempotency constraint
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_idem ON commands(
-        masterAccountId, 
-        COALESCE(masterOrderTicket, masterPositionTicket, '0'), 
-        sequenceNumber, 
-        type
-      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_idem ON commands(eventId);
       
       -- Index for sweeping
       CREATE INDEX IF NOT EXISTS idx_sweep ON commands(status, deliveredAt);
@@ -162,15 +158,13 @@ export class LocalQueueService implements IHotDispatchQueue, OnModuleInit, OnMod
     return data as HotCommandData;
   }
 
-  checkIdempotency(masterAccountId: string, masterTicket: bigint | string, sequenceNumber: number, eventType: string): HotCommandData | null {
+  checkIdempotency(eventId: string): HotCommandData | null {
+    if (!eventId) return null;
     const stmt = this.db.prepare(`
       SELECT payload FROM commands 
-      WHERE masterAccountId = ? 
-        AND COALESCE(masterOrderTicket, masterPositionTicket, '0') = ? 
-        AND sequenceNumber = ? 
-        AND type = ?
+      WHERE eventId = ?
     `);
-    const row = stmt.get(masterAccountId, masterTicket.toString(), sequenceNumber, eventType) as { payload: string } | undefined;
+    const row = stmt.get(eventId) as { payload: string } | undefined;
     if (row) {
       return this.deserializePayload(row.payload);
     }
@@ -185,24 +179,22 @@ export class LocalQueueService implements IHotDispatchQueue, OnModuleInit, OnMod
     cmd.hotPathCommandAvailableAt = now;
 
     // Check Idempotency First
-    const existing = this.checkIdempotency(
-      cmd.masterAccountId, 
-      cmd.masterOrderTicket || cmd.masterPositionTicket || '0', 
-      cmd.sequenceNumber, 
-      cmd.type
-    );
-    if (existing) return existing;
+    if (cmd.eventId) {
+      const existing = this.checkIdempotency(cmd.eventId);
+      if (existing) return existing;
+    }
 
     const stmt = this.db.prepare(`
       INSERT INTO commands (
-        id, subAccountId, masterAccountId, type, status, symbol, sequenceNumber, 
+        id, eventId, subAccountId, masterAccountId, type, status, symbol, sequenceNumber, 
         masterOrderTicket, masterPositionTicket, payload, createdAt, updatedAt, expiresAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     try {
       stmt.run(
         cmd.id,
+        cmd.eventId || null,
         cmd.subAccountId,
         cmd.masterAccountId,
         cmd.type,
@@ -217,14 +209,8 @@ export class LocalQueueService implements IHotDispatchQueue, OnModuleInit, OnMod
         cmd.expiresAt.getTime()
       );
     } catch (err: any) {
-      // Check for SQLite UNIQUE constraint violation
-      if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
-        const raceExisting = this.checkIdempotency(
-          cmd.masterAccountId, 
-          cmd.masterOrderTicket || cmd.masterPositionTicket || '0', 
-          cmd.sequenceNumber, 
-          cmd.type
-        );
+      if (err.code === 'SQLITE_CONSTRAINT_UNIQUE' && cmd.eventId) {
+        const raceExisting = this.checkIdempotency(cmd.eventId);
         if (raceExisting) return raceExisting;
       }
       throw err;

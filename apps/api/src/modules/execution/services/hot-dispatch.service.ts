@@ -20,6 +20,7 @@ export interface HotCommandData {
   tp?: number | null;
   magicNumber?: bigint | null;
   sequenceNumber: number;
+  eventId?: string | null;
   masterSignalId?: string | null;
   masterOrderTicket?: bigint | null;
   masterPositionTicket?: bigint | null;
@@ -74,7 +75,7 @@ export interface IHotDispatchQueue {
   acknowledgeCommand(subAccountId: string, commandId: string, subTelemetry?: any): HotCommandData;
   recordExecutionResult(subAccountId: string, result: any, subTelemetry?: any): HotCommandData;
   getCommand(commandId: string): HotCommandData | null;
-  checkIdempotency(masterAccountId: string, masterTicket: bigint | string, sequenceNumber: number, eventType: string): HotCommandData | null;
+  checkIdempotency(eventId: string): HotCommandData | null;
   markExecutionUnknown(commandId: string, reason: string): HotCommandData;
 }
 
@@ -193,13 +194,9 @@ export class HotDispatchService implements IHotDispatchQueue, OnModuleInit, OnMo
           this.commandMap.set(cmdData.id, cmdData);
 
           // Update idempotency index
-          const idemKey = this.buildIdempotencyKey(
-            cmdData.masterAccountId,
-            cmdData.masterOrderTicket || cmdData.masterPositionTicket || '0',
-            cmdData.sequenceNumber,
-            cmdData.type
-          );
-          this.idempotencyIndex.set(idemKey, cmdData.id);
+          if (cmdData.eventId) {
+            this.idempotencyIndex.set(cmdData.eventId, cmdData.id);
+          }
 
           // Update sequence tracker
           const seqKey = `${cmdData.masterAccountId}:${cmdData.masterOrderTicket || cmdData.masterPositionTicket || '0'}`;
@@ -248,23 +245,9 @@ export class HotDispatchService implements IHotDispatchQueue, OnModuleInit, OnMo
     }
   }
 
-  private buildIdempotencyKey(
-    masterAccountId: string,
-    masterTicket: bigint | string,
-    sequenceNumber: number,
-    eventType: string
-  ): string {
-    return `${masterAccountId}:${masterTicket.toString()}:${sequenceNumber}:${eventType}`;
-  }
-
-  checkIdempotency(
-    masterAccountId: string,
-    masterTicket: bigint | string,
-    sequenceNumber: number,
-    eventType: string
-  ): HotCommandData | null {
-    const key = this.buildIdempotencyKey(masterAccountId, masterTicket, sequenceNumber, eventType);
-    const existingId = this.idempotencyIndex.get(key);
+  checkIdempotency(eventId: string): HotCommandData | null {
+    if (!eventId) return null;
+    const existingId = this.idempotencyIndex.get(eventId);
     if (existingId) {
       return this.commandMap.get(existingId) || null;
     }
@@ -288,15 +271,11 @@ export class HotDispatchService implements IHotDispatchQueue, OnModuleInit, OnMo
     cmd.hotPathCommandAvailableAt = now;
 
     // 1. Check idempotency
-    const idemKey = this.buildIdempotencyKey(
-      cmd.masterAccountId,
-      cmd.masterOrderTicket || cmd.masterPositionTicket || '0',
-      cmd.sequenceNumber,
-      cmd.type
-    );
-    if (this.idempotencyIndex.has(idemKey)) {
-      const existingId = this.idempotencyIndex.get(idemKey)!;
-      return this.commandMap.get(existingId)!;
+    if (cmd.eventId) {
+      if (this.idempotencyIndex.has(cmd.eventId)) {
+        const existingId = this.idempotencyIndex.get(cmd.eventId)!;
+        return this.commandMap.get(existingId)!;
+      }
     }
 
     // 2. Append-Before-Delivery Journal write
@@ -304,7 +283,9 @@ export class HotDispatchService implements IHotDispatchQueue, OnModuleInit, OnMo
 
     // 3. Register in in-memory lookups
     this.commandMap.set(cmd.id, cmd);
-    this.idempotencyIndex.set(idemKey, cmd.id);
+    if (cmd.eventId) {
+      this.idempotencyIndex.set(cmd.eventId, cmd.id);
+    }
 
     // 4. Update highest sequence
     const seqKey = `${cmd.masterAccountId}:${(cmd.masterOrderTicket || cmd.masterPositionTicket || '0').toString()}`;

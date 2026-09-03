@@ -261,8 +261,12 @@ def poll_db_worker():
                         
                         # Fetch EA token only when launching
                         base_api = os.getenv('API_URL') or os.getenv('NEXT_PUBLIC_API_URL')
+                        # Fetch EA token only when launching. 
+                        # We will block launch and retry infinitely with bounded backoff if the API is offline.
+                        base_api = os.getenv('API_URL') or os.getenv('NEXT_PUBLIC_API_URL')
                         if base_api:
-                            for attempt in range(3):
+                            attempt = 0
+                            while True:
                                 try:
                                     internal_secret = os.getenv('INTERNAL_MANAGER_SECRET')
                                     if internal_secret:
@@ -273,11 +277,16 @@ def poll_db_worker():
                                             timeout=10
                                         )
                                         if token_res.status_code in [200, 201]:
-                                            account['ea_token'] = token_res.json().get('token', 'dummy_token')
-                                            break
+                                            account['ea_token'] = token_res.json().get('token')
+                                            if account['ea_token']:
+                                                logger.info(f"Successfully obtained EA token for {login}")
+                                                break
                                 except Exception as e:
-                                    logger.error(f"Error fetching EA token (attempt {attempt + 1}/3): {e}")
-                                    time.sleep(2 ** attempt)
+                                    # Bounded exponential backoff: 1, 2, 4, 8, 10, 10, ...
+                                    sleep_time = min(2 ** attempt, 10)
+                                    logger.error(f"Error fetching EA token (attempt {attempt + 1}). API offline? Retrying in {sleep_time}s: {e}")
+                                    time.sleep(sleep_time)
+                                    attempt += 1
 
                         success = launch_mt5_and_attach_ea(account)
                         if success:

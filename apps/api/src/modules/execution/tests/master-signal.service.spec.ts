@@ -97,6 +97,7 @@ describe('MasterSignalService - Hot Path Suite', () => {
         sl: 64000,
         tp: 66000,
         sequenceNumber: 1,
+        eventId: 'test-event-1',
       },
       Date.now()
     );
@@ -135,6 +136,7 @@ describe('MasterSignalService - Hot Path Suite', () => {
         priceOpen: 64500,
         sl: 0,
         sequenceNumber: 1,
+        eventId: 'test-event-2',
       },
       Date.now()
     );
@@ -154,6 +156,7 @@ describe('MasterSignalService - Hot Path Suite', () => {
         ticket: '20002',
         sl: 64100,
         sequenceNumber: 2,
+        eventId: 'test-event-3',
       },
       Date.now()
     );
@@ -182,6 +185,7 @@ describe('MasterSignalService - Hot Path Suite', () => {
         priceOpen: 64000,
         sl: 63500,
         sequenceNumber: 1,
+        eventId: 'test-event-4',
       },
       Date.now()
     );
@@ -201,6 +205,7 @@ describe('MasterSignalService - Hot Path Suite', () => {
         orderTicket: '30003',
         positionTicket: '30004',
         sequenceNumber: 2,
+        eventId: 'test-event-5',
       },
       Date.now()
     );

@@ -35,7 +35,8 @@ void LoadConfig()
 
 ulong lastProcessedDeal = 0;
 ulong lastProcessedOrder = 0;
-int sequenceNum = 1;
+ulong sequenceNum = 1;
+string gvName = "";
 
 // --- Queue System ---
 string QueueEndpoints[];
@@ -45,7 +46,7 @@ ulong QueueQueuedAt[];
 int EventCount = 0;
 
 ulong lastTelemetryAt = 0;
-const ulong TELEMETRY_INTERVAL_US = 5000000; // 5 seconds in microseconds
+const ulong TELEMETRY_INTERVAL_US = 50000; // 50 milliseconds in microseconds
 
 // --- State Cache ---
 struct StateCache {
@@ -65,6 +66,18 @@ int OnInit()
    LoadConfig();
    InitCache();
    EventSetMillisecondTimer(DISPATCH_INTERVAL_MS);
+
+   gvName = "TC_Seq_" + IntegerToString(AccountInfoInteger(ACCOUNT_LOGIN));
+   if(GlobalVariableCheck(gvName))
+     {
+      sequenceNum = (ulong)GlobalVariableGet(gvName);
+     }
+   else
+     {
+      sequenceNum = 1;
+      GlobalVariableSet(gvName, (double)sequenceNum);
+      GlobalVariablesFlush();
+     }
 
    PrintFormat("MasterCopier v2.0 initialized in DEMO safe mode. Dispatch: %d ms", DISPATCH_INTERVAL_MS);
    return(INIT_SUCCEEDED);
@@ -161,9 +174,25 @@ void EnqueueEvent(string endpoint, string payload, ulong detectedAt)
 //+------------------------------------------------------------------+
 //| Event Generators                                                 |
 //+------------------------------------------------------------------+
+string GenerateEventId(string eventType, ulong ticket, ulong seq)
+  {
+   return IntegerToString(AccountInfoInteger(ACCOUNT_LOGIN)) + "_" + eventType + "_" + IntegerToString(ticket) + "_" + IntegerToString(seq);
+  }
+
+void AdvanceSequence()
+  {
+   sequenceNum++;
+   GlobalVariableSet(gvName, (double)sequenceNum);
+   GlobalVariablesFlush();
+  }
 void SendOpenSignal(ulong ticket, string symbol, string type, double volume, double priceOpen, double sl, double tp, ulong detectedAt)
   {
+   ulong seq = sequenceNum;
+   AdvanceSequence();
+   string eventId = GenerateEventId("OPEN", ticket, seq);
+   
    string json = "{";
+   json += "\"eventId\":\"" + eventId + "\",";
    json += "\"ticket\":\"" + IntegerToString(ticket) + "\",";
    json += "\"symbol\":\"" + symbol + "\",";
    json += "\"type\":\"" + type + "\",";
@@ -171,39 +200,54 @@ void SendOpenSignal(ulong ticket, string symbol, string type, double volume, dou
    json += "\"priceOpen\":" + DoubleToString(priceOpen, 5) + ",";
    json += "\"sl\":" + DoubleToString(sl, 5) + ",";
    json += "\"tp\":" + DoubleToString(tp, 5) + ",";
-   json += "\"sequenceNumber\":" + IntegerToString(sequenceNum++) + "";
+   json += "\"sequenceNumber\":" + IntegerToString(seq) + "";
    json += "}";
    EnqueueEvent("/open", json, detectedAt);
   }
 
 void SendModifySignal(ulong ticket, double priceOpen, double sl, double tp, ulong detectedAt)
   {
+   ulong seq = sequenceNum;
+   AdvanceSequence();
+   string eventId = GenerateEventId("MODIFY", ticket, seq);
+   
    string json = "{";
+   json += "\"eventId\":\"" + eventId + "\",";
    json += "\"ticket\":\"" + IntegerToString(ticket) + "\",";
    if(priceOpen > 0) json += "\"priceOpen\":" + DoubleToString(priceOpen, 5) + ",";
    json += "\"sl\":" + DoubleToString(sl, 5) + ",";
    json += "\"tp\":" + DoubleToString(tp, 5) + ",";
-   json += "\"sequenceNumber\":" + IntegerToString(sequenceNum++) + "";
+   json += "\"sequenceNumber\":" + IntegerToString(seq) + "";
    json += "}";
    EnqueueEvent("/modify", json, detectedAt);
   }
 
 void SendCloseSignal(ulong ticket, double volume, ulong detectedAt)
   {
+   ulong seq = sequenceNum;
+   AdvanceSequence();
+   string eventId = GenerateEventId("CLOSE", ticket, seq);
+   
    string json = "{";
+   json += "\"eventId\":\"" + eventId + "\",";
    json += "\"ticket\":\"" + IntegerToString(ticket) + "\",";
    json += "\"volume\":" + DoubleToString(volume, 2) + ",";
-   json += "\"sequenceNumber\":" + IntegerToString(sequenceNum++) + "";
+   json += "\"sequenceNumber\":" + IntegerToString(seq) + "";
    json += "}";
    EnqueueEvent("/close", json, detectedAt);
   }
 
 void SendTriggerSignal(ulong orderTicket, ulong positionTicket, ulong detectedAt)
   {
+   ulong seq = sequenceNum;
+   AdvanceSequence();
+   string eventId = GenerateEventId("TRIGGER", orderTicket, seq);
+   
    string json = "{";
+   json += "\"eventId\":\"" + eventId + "\",";
    json += "\"orderTicket\":\"" + IntegerToString(orderTicket) + "\",";
    json += "\"positionTicket\":\"" + IntegerToString(positionTicket) + "\",";
-   json += "\"sequenceNumber\":" + IntegerToString(sequenceNum++) + "";
+   json += "\"sequenceNumber\":" + IntegerToString(seq) + "";
    json += "}";
    EnqueueEvent("/trigger", json, detectedAt);
   }
@@ -404,6 +448,8 @@ void OnTimer()
      
    if(EventCount == 0) return;
    
+   int successfulDispatches = 0;
+   
    for(int i = 0; i < EventCount; i++)
      {
       ulong sentAt = GetMicrosecondCount();
@@ -423,22 +469,38 @@ void OnTimer()
       ArrayResize(post, StringLen(payload)); // Remove null terminator
       
       string headers = "Content-Type: application/json\r\nAuthorization: Bearer " + EA_TOKEN + "\r\n";
+      
+      // Timeout is reasonably bounded (e.g. 1000-2000ms internally in CWinInet)
       int res = CWinInet::Post(API_URL + endpoint, headers, post, result);
-      if(res != 200 && res != 201)
+      if(res == 200 || res == 201)
         {
-         Print("Failed to dispatch event. HTTP: ", res, ". Endpoint: ", endpoint);
+         Print("Dispatched event successfully to ", endpoint, ": ", payload);
+         successfulDispatches++;
         }
       else
         {
-         Print("Dispatched event successfully to ", endpoint, ": ", payload);
+         Print("Failed to dispatch event. HTTP: ", res, ". Endpoint: ", endpoint, ". Preserving queue and retrying later.");
+         break; // Stop dispatching to preserve monotonic ordering
         }
      }
      
-   ArrayResize(QueueEndpoints, 0);
-   ArrayResize(QueuePayloads, 0);
-   ArrayResize(QueueDetectedAt, 0);
-   ArrayResize(QueueQueuedAt, 0);
-   EventCount = 0;
+   // Shift arrays left by successfulDispatches
+   if(successfulDispatches > 0)
+     {
+      int remaining = EventCount - successfulDispatches;
+      for(int i = 0; i < remaining; i++)
+        {
+         QueueEndpoints[i] = QueueEndpoints[i + successfulDispatches];
+         QueuePayloads[i] = QueuePayloads[i + successfulDispatches];
+         QueueDetectedAt[i] = QueueDetectedAt[i + successfulDispatches];
+         QueueQueuedAt[i] = QueueQueuedAt[i + successfulDispatches];
+        }
+      EventCount = remaining;
+      ArrayResize(QueueEndpoints, remaining);
+      ArrayResize(QueuePayloads, remaining);
+      ArrayResize(QueueDetectedAt, remaining);
+      ArrayResize(QueueQueuedAt, remaining);
+     }
   }
 
 //+------------------------------------------------------------------+

@@ -2,6 +2,9 @@ import { IsString, IsNumber, IsOptional, IsInt, Min } from 'class-validator';
 
 export class MasterSignalDto {
   @IsString()
+  eventId!: string;
+
+  @IsString()
   ticket!: string;
 
   @IsString()
@@ -43,6 +46,9 @@ export class MasterSignalDto {
 
 export class MasterModifyDto {
   @IsString()
+  eventId!: string;
+
+  @IsString()
   ticket!: string;
 
   @IsNumber()
@@ -75,6 +81,9 @@ export class MasterModifyDto {
 
 export class MasterCloseDto {
   @IsString()
+  eventId!: string;
+
+  @IsString()
   ticket!: string;
 
   @IsNumber()
@@ -98,6 +107,9 @@ export class MasterCloseDto {
 }
 
 export class MasterTriggerDto {
+  @IsString()
+  eventId!: string;
+
   @IsString()
   orderTicket!: string; // Original pending order ticket
 

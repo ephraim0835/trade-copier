@@ -14,6 +14,8 @@ import { redirect } from 'next/navigation';
 import { PrismaClient } from '@trade-copier/database';
 import { AutoRefresh } from '@/components/auto-refresh';
 
+export const dynamic = 'force-dynamic';
+
 export default async function DashboardOverview() {
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
@@ -155,7 +157,7 @@ export default async function DashboardOverview() {
 
   return (
     <div className="flex-1 p-4 md:p-6 lg:p-12 flex flex-col gap-10 pb-32 overflow-y-auto custom-scrollbar relative">
-      <AutoRefresh intervalMs={5000} />
+      <AutoRefresh />
       
       {/* Removed heavy blue gradients in favor of subtle environment lighting */}
 

@@ -69,6 +69,7 @@ async function runBenchmark() {
           priceOpen: 1.1,
           sl: 1.05,
           sequenceNumber: i + 1,
+          eventId: `test-event-${i}`,
         },
         Date.now()
       );

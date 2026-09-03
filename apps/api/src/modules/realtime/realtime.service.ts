@@ -80,8 +80,8 @@ export class RealtimeService {
   getStreamForUser(userId: string): Observable<MessageEvent> {
     return this.eventSubject.asObservable().pipe(
       filter(event => event.userId === userId),
-      // Batch events every 500ms to avoid overwhelming the frontend UI during high-frequency trading
-      bufferTime(500),
+      // Batch events every 50ms to provide near-instant real-time updates
+      bufferTime(50),
       // Only emit if there's actually an event in the buffer
       filter(events => events.length > 0),
       map(events => {

@@ -242,9 +242,9 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
     this.logger.debug(`[HOTPATH] Processing OPEN for master: ${masterAccountId}, ticket: ${dto.ticket}, seq: ${dto.sequenceNumber}`);
 
     // 1. In-memory Idempotency check
-    const existing = this.hotDispatch.checkIdempotency(masterAccountId, dto.ticket, dto.sequenceNumber || 1, 'OPEN_ORDER');
+    const existing = this.hotDispatch.checkIdempotency(dto.eventId);
     if (existing) {
-      this.logger.log(`Signal ${dto.ticket} already processed. Idempotent return.`);
+      this.logger.log(`Signal ${dto.ticket} already processed (eventId: ${dto.eventId}). Idempotent return.`);
       return { success: true, message: 'Already processed' };
     }
 
@@ -322,6 +322,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
 
         const hotCmd: HotCommandData = {
           id: commandId,
+          eventId: dto.eventId,
           tradeCopyId,
           subAccountId: sub.id,
           masterAccountId,
@@ -331,7 +332,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
           orderType: dto.type,
           volume: decision.executedVol,
           intendedRisk: decision.intendedRisk,
-          price: 0,
+          price: dto.priceOpen || 0,
           sl: dto.sl ?? 0,
           tp: dto.tp ?? 0,
           sequenceNumber: dto.sequenceNumber || 1,
@@ -439,6 +440,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
             const commandId = `cmd-open-${copy.id}-${dto.sequenceNumber}`;
             const hotCmd: HotCommandData = {
               id: commandId,
+              eventId: dto.eventId,
               tradeCopyId: copy.id,
               subAccountId: copy.subAccountId,
               masterAccountId,
@@ -470,6 +472,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
 
             await this.hotDispatch.enqueueCommand(hotCmd);
             executionCommandsData.push(hotCmd);
+            copy.state = CopyState.APPROVED;
             this.logger.log(`[HOTPATH] WAITING_FOR_SL copy ${copy.id} transitioned to APPROVED, OPEN_ORDER enqueued.`);
           }
           continue;
@@ -489,6 +492,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
         const commandId = `cmd-mod-${copy.id}-${dto.sequenceNumber}`;
         const hotCmd: HotCommandData = {
           id: commandId,
+          eventId: dto.eventId,
           tradeCopyId: copy.id,
           subAccountId: copy.subAccountId,
           masterAccountId,
@@ -533,6 +537,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
             const targetPos = copy.subPositionId ?? copy.subOrderTicket;
             const hotCmd: HotCommandData = {
               id: commandId,
+              eventId: dto.eventId,
               tradeCopyId: copy.id,
               subAccountId: copy.subAccountId,
               masterAccountId,
@@ -616,6 +621,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
         const commandId = `cmd-close-${copy.id}-${dto.sequenceNumber}`;
         const hotCmd: HotCommandData = {
           id: commandId,
+          eventId: dto.eventId,
           tradeCopyId: copy.id,
           subAccountId: copy.subAccountId,
           masterAccountId,
@@ -657,6 +663,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
             const targetPos = copy.subPositionId ?? copy.subOrderTicket;
             const hotCmd: HotCommandData = {
               id: commandId,
+              eventId: dto.eventId,
               tradeCopyId: copy.id,
               subAccountId: copy.subAccountId,
               masterAccountId,
