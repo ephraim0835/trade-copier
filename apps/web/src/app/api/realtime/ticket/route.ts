@@ -11,11 +11,7 @@ export async function POST() {
   try {
     let apiUrl = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL;
     if (!apiUrl) {
-      if (process.env.NODE_ENV === 'development') {
-        apiUrl = 'http://127.0.0.1:9001';
-      } else {
-        throw new Error("API_URL or NEXT_PUBLIC_API_URL must be configured in production.");
-      }
+      apiUrl = 'https://plaiz-markets-api.onrender.com';
     }
     const response = await fetch(`${apiUrl}/realtime/ticket`, {
       method: "POST",
