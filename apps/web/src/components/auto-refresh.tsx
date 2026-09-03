@@ -9,6 +9,7 @@ export function AutoRefresh() {
   useEffect(() => {
     let evtSource: EventSource | null = null;
     let isActive = true;
+    let reconnectTimeout: NodeJS.Timeout;
     
     async function connect() {
       try {
@@ -34,10 +35,16 @@ export function AutoRefresh() {
         evtSource.onerror = (err) => {
           console.error('SSE Error, closing connection', err);
           evtSource?.close();
+          if (isActive) {
+            reconnectTimeout = setTimeout(connect, 3000);
+          }
         };
 
       } catch (err) {
         console.error('SSE connect error', err);
+        if (isActive) {
+          reconnectTimeout = setTimeout(connect, 5000);
+        }
       }
     }
     
@@ -45,6 +52,7 @@ export function AutoRefresh() {
     
     return () => {
       isActive = false;
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
       if (evtSource) evtSource.close();
     };
   }, [router]);
