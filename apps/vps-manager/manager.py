@@ -34,6 +34,8 @@ else:
 
 SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
 SUPABASE_URL = os.getenv('SUPABASE_URL')
+MAX_VPS_CPU_PERCENT = int(os.getenv('MAX_VPS_CPU_PERCENT', '85'))
+MAX_VPS_RAM_PERCENT = int(os.getenv('MAX_VPS_RAM_PERCENT', '85'))
 
 def decrypt_password(encrypted_str):
     if not encrypted_str or ':' not in encrypted_str or not encryption_key:
@@ -239,7 +241,7 @@ def poll_db_worker():
     while not stop_event.is_set():
         try:
             # Fetch active accounts using the Supabase REST API (immune to all connection pooler issues)
-            response = supabase.table('Mt5Account').select('id,login,password,broker,server,isActive,role').execute()
+            response = supabase.table('Mt5Account').select('id,login,password,broker,server,isActive,role,connectionStatus,lastHeartbeatAt').execute()
             
             for row in response.data:
                 account = {
@@ -250,17 +252,60 @@ def poll_db_worker():
                     'server': row.get('server'),
                     'is_active': row.get('isActive'),
                     'role': row.get('role'),
-                    'ea_token': 'dummy_token',
+                    'connectionStatus': row.get('connectionStatus'),
+                    'lastHeartbeatAt': row.get('lastHeartbeatAt'),
                     'ea_file': 'MasterCopier.mq5' if row.get('role') == 'MASTER' else 'SubCopier.mq5'
                 }
                 
                 login = account['login']
+                
+                # Check stale heartbeat for intelligent watchdog
+                is_stale = False
+                if account['connectionStatus'] == 'ONLINE' and account['lastHeartbeatAt']:
+                    # parse ISO datetime from Supabase (e.g. 2026-09-03T12:00:00.000Z or similar)
+                    try:
+                        hb_str = account['lastHeartbeatAt'].replace('Z', '+00:00')
+                        hb_time = datetime.fromisoformat(hb_str)
+                        if (datetime.utcnow().astimezone() - hb_time).total_seconds() > 180:
+                            is_stale = True
+                    except Exception:
+                        pass
+                
                 if account['is_active']:
-                    if login not in active_terminals:
-                        logger.info(f"New active account detected: {login}. Fetching EA token and launching MT5...")
+                    # Prevent endless restart loops for FAILED terminals
+                    if account['connectionStatus'] == 'FAILED' and login not in active_terminals:
+                        continue
                         
-                        # Fetch EA token only when launching
-                        base_api = os.getenv('API_URL') or os.getenv('NEXT_PUBLIC_API_URL')
+                    # Prevent double-provisioning
+                    if account['connectionStatus'] == 'PROVISIONING' and login not in active_terminals:
+                        continue
+                        
+                    if login not in active_terminals or is_stale:
+                        if is_stale:
+                            logger.info(f"Intelligent Watchdog: Account {login} is ONLINE but heartbeat is stale. Terminating for safe recovery.")
+                            # Kill process if running
+                            for proc in psutil.process_iter(['name', 'cmdline']):
+                                try:
+                                    if proc.info['name'] and 'terminal' in proc.info['name'].lower():
+                                        if proc.info['cmdline'] and f"startup_{login}.ini" in ' '.join(proc.info['cmdline']):
+                                            proc.kill()
+                                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                    pass
+                            if login in active_terminals:
+                                del active_terminals[login]
+                        
+                        # Pre-flight check: CPU / RAM limits
+                        cpu = psutil.cpu_percent()
+                        ram = psutil.virtual_memory().percent
+                        if cpu > MAX_VPS_CPU_PERCENT or ram > MAX_VPS_RAM_PERCENT:
+                            logger.warning(f"Capacity limit reached (CPU: {cpu}%, RAM: {ram}%). Cannot provision {login}.")
+                            supabase.table('Mt5Account').update({'connectionStatus': 'FAILED', 'provisioningError': 'VPS Capacity Limit Exceeded'}).eq('id', account['id']).execute()
+                            continue
+                            
+                        logger.info(f"New active account detected (or recovering): {login}. Fetching EA token and launching MT5...")
+                        
+                        supabase.table('Mt5Account').update({'connectionStatus': 'PROVISIONING', 'provisioningError': None}).eq('id', account['id']).execute()
+                        
                         # Fetch EA token only when launching. 
                         # We will block launch and retry infinitely with bounded backoff if the API is offline.
                         base_api = os.getenv('API_URL') or os.getenv('NEXT_PUBLIC_API_URL')
@@ -281,22 +326,33 @@ def poll_db_worker():
                                             if account['ea_token']:
                                                 logger.info(f"Successfully obtained EA token for {login}")
                                                 break
+                                            else:
+                                                raise Exception("Token was empty")
+                                        else:
+                                            raise Exception(f"Status {token_res.status_code}")
                                 except Exception as e:
                                     # Bounded exponential backoff: 1, 2, 4, 8, 10, 10, ...
                                     sleep_time = min(2 ** attempt, 10)
                                     logger.error(f"Error fetching EA token (attempt {attempt + 1}). API offline? Retrying in {sleep_time}s: {e}")
+                                    
+                                    if attempt >= 5:
+                                        logger.error(f"Max retries reached for EA token {login}. Marking failed.")
+                                        supabase.table('Mt5Account').update({'connectionStatus': 'FAILED', 'provisioningError': 'Failed to fetch EA token'}).eq('id', account['id']).execute()
+                                        break
+                                        
                                     time.sleep(sleep_time)
                                     attempt += 1
 
-                        success = launch_mt5_and_attach_ea(account)
-                        if success:
-                            active_terminals[login] = account
+                        if account.get('ea_token'):
+                            success = launch_mt5_and_attach_ea(account)
+                            if success:
+                                active_terminals[login] = account
+                                account['launch_time'] = time.time()
+                        else:
+                            logger.error(f"Cannot launch {login} without an EA token.")
                 else:
                     if login in active_terminals:
                         logger.info(f"Account {login} is no longer active. Terminal will be stopped.")
-                        # We just remove it from active_terminals, a cleanup loop should kill it,
-                        # or we kill it right here.
-                        import psutil
                         for proc in psutil.process_iter(['name', 'cmdline']):
                             try:
                                 if proc.info['name'] and 'terminal' in proc.info['name'].lower():
@@ -306,13 +362,34 @@ def poll_db_worker():
                             except (psutil.NoSuchProcess, psutil.AccessDenied):
                                 pass
                         del active_terminals[login]
+                        supabase.table('Mt5Account').update({'connectionStatus': 'OFFLINE'}).eq('id', account['id']).execute()
+                        
+            # Check for provisioning timeouts (60s without ONLINE status)
+            current_time = time.time()
+            for login, acc in list(active_terminals.items()):
+                if acc.get('launch_time') and (current_time - acc['launch_time']) > 60:
+                    # check actual status from DB
+                    for row in response.data:
+                        if str(row.get('login')) == login:
+                            if row.get('connectionStatus') == 'PROVISIONING':
+                                logger.error(f"Timeout: EA {login} never sent heartbeat after 60s. Killing process.")
+                                supabase.table('Mt5Account').update({'connectionStatus': 'FAILED', 'provisioningError': 'EA initialization timeout (no heartbeat)'}).eq('id', acc['id']).execute()
+                                
+                                for proc in psutil.process_iter(['name', 'cmdline']):
+                                    try:
+                                        if proc.info['name'] and 'terminal' in proc.info['name'].lower():
+                                            if proc.info['cmdline'] and f"startup_{login}.ini" in ' '.join(proc.info['cmdline']):
+                                                proc.kill()
+                                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                        pass
+                                del active_terminals[login]
+                            break
             
             # Detect deleted accounts
             fetched_logins = set(str(row.get('login')) for row in response.data)
             for login in list(active_terminals.keys()):
                 if login not in fetched_logins:
                     logger.info(f"Account {login} was deleted. Killing terminal.")
-                    import psutil
                     for proc in psutil.process_iter(['name', 'cmdline']):
                         try:
                             if proc.info['name'] and 'terminal' in proc.info['name'].lower():

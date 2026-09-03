@@ -44,6 +44,9 @@ model Mt5Account {
   margin              Float?
   password            String?
   displayName         String?
+  connectionStatus    ConnectionStatus      @default(PENDING)
+  provisioningError   String?
+  lastHeartbeatAt     DateTime?
   masterSubscriptions AccountSubscription[] @relation("MasterSubscriptions")
   subSubscriptions    AccountSubscription[] @relation("SubSubscriptions")
   auditLogs           AuditLog[]
@@ -382,4 +385,12 @@ enum SubscriptionStatus {
   CANCELED
   EXPIRED
   INTERNAL_FREE
+}
+
+enum ConnectionStatus {
+  PENDING
+  PROVISIONING
+  ONLINE
+  FAILED
+  OFFLINE
 }

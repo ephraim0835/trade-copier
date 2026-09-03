@@ -45,7 +45,7 @@ export class AccountsController {
     return this.accountsService.updateCopySettings(accountId, dto);
   }
 
-  @Throttle({ default: { limit: 120, ttl: 60000 } })
+  @Throttle({ telemetry: { limit: 30, ttl: 10000 } })
   @Post('telemetry')
   @UseGuards(EaAuthGuard)
   async updateTelemetry(

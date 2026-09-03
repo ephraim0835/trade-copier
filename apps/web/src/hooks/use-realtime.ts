@@ -29,7 +29,8 @@ export function useRealtime() {
         // 2. Connect EventSource using the single-use ticket
         if (!isComponentMounted) return;
 
-        eventSource = new EventSource(`${process.env.NEXT_PUBLIC_API_URL}/realtime/stream?ticket=${ticket}`);
+        let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://plaiz-markets-api.onrender.com';
+        eventSource = new EventSource(`${apiUrl}/realtime/stream?ticket=${ticket}`);
 
         eventSource.onopen = () => {
           setIsConnected(true);

@@ -112,8 +112,8 @@ export default async function DashboardOverview() {
   const activeSubs = subAccounts.filter((a: any) => a.isActive).length;
   
   const isOnline = (account: any) => {
-    if (!account?.updatedAt) return false;
-    return new Date().getTime() - new Date(account.updatedAt).getTime() < 30_000;
+    if (!account?.lastHeartbeatAt) return false;
+    return account.connectionStatus === 'ONLINE' && new Date().getTime() - new Date(account.lastHeartbeatAt).getTime() < 120_000;
   };
 
   const masterOnline = (masterAccount?.isActive ?? false) && isOnline(masterAccount);

@@ -50,6 +50,8 @@ export class AccountsService {
       where: { id: accountId },
       data: {
         isActive: true,
+        connectionStatus: 'ONLINE',
+        lastHeartbeatAt: new Date(),
         balance: dto.balance,
         equity: dto.equity,
         margin: dto.margin,

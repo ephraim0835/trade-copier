@@ -16,10 +16,18 @@ import { LoggerMiddleware } from './common/middleware/logger.middleware';
       isGlobal: true,
       envFilePath: '.env',
     }),
-    ThrottlerModule.forRoot([{
-      ttl: 60000,
-      limit: 100,
-    }]),
+    ThrottlerModule.forRoot([
+      {
+        name: 'default',
+        ttl: 60000,
+        limit: 100,
+      },
+      {
+        name: 'telemetry',
+        ttl: 10000,
+        limit: 30,
+      }
+    ]),
     DatabaseModule,
     AuthModule,
     ExecutionModule,
