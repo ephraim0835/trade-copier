@@ -85,12 +85,15 @@ export class RealtimeService {
       // Only emit if there's actually an event in the buffer
       filter(events => events.length > 0),
       map(events => {
+        // Collect all payloads from the batched events
+        const payloads = events.map(e => e.payload).filter(p => p !== undefined);
         return {
           data: {
             type: 'REFRESH',
             // Send timestamp of latest batch
             timestamp: Date.now(),
-            count: events.length
+            count: events.length,
+            payloads: payloads
           }
         } as MessageEvent;
       })

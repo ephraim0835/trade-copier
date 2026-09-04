@@ -26,7 +26,11 @@ export function AutoRefresh() {
             const data = JSON.parse(event.data);
             if (data.type === 'REFRESH') {
               // Emit instant event for client components
-              if (data.payload) {
+              if (data.payloads && Array.isArray(data.payloads)) {
+                data.payloads.forEach((payload: any) => {
+                  window.dispatchEvent(new CustomEvent('realtime-refresh', { detail: payload }));
+                });
+              } else if (data.payload) {
                 window.dispatchEvent(new CustomEvent('realtime-refresh', { detail: data.payload }));
               }
               // Still do background refresh to sync DB state
