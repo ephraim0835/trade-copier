@@ -25,6 +25,11 @@ bool InternetCloseHandle(long hInternet);
 #define INTERNET_FLAG_IGNORE_CERT_DATE_INVALID 0x00002000
 #define SECURITY_FLAG_IGNORE_UNKNOWN_CA 0x00000100
 
+long g_hInternet = 0;
+long g_hConnect = 0;
+string g_lastHost = "";
+int g_lastPort = 0;
+
 class CWinInet {
 private:
     static void ParseUrl(string url, string &host, string &path, int &port, bool &isHttps) {
@@ -68,17 +73,26 @@ public:
         
         ParseUrl(url, host, path, port, isHttps);
         
-        long hInternet = InternetOpenW("MQL5 WinInet", INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
-        if(hInternet == 0) {
-            Print("InternetOpenW failed");
-            return -1;
+        if(g_hInternet == 0) {
+            g_hInternet = InternetOpenW("MQL5 WinInet", INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
+            if(g_hInternet == 0) {
+                Print("InternetOpenW failed");
+                return -1;
+            }
         }
         
-        long hConnect = InternetConnectW(hInternet, host, port, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
-        if(hConnect == 0) {
-            Print("InternetConnectW failed");
-            InternetCloseHandle(hInternet);
-            return -1;
+        if(g_hConnect == 0 || g_lastHost != host || g_lastPort != port) {
+            if(g_hConnect != 0) {
+                InternetCloseHandle(g_hConnect);
+                g_hConnect = 0;
+            }
+            g_hConnect = InternetConnectW(g_hInternet, host, port, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
+            if(g_hConnect == 0) {
+                Print("InternetConnectW failed");
+                return -1;
+            }
+            g_lastHost = host;
+            g_lastPort = port;
         }
         
         int flags = INTERNET_FLAG_RELOAD | INTERNET_FLAG_NO_CACHE_WRITE;
@@ -86,13 +100,11 @@ public:
             flags |= INTERNET_FLAG_SECURE | INTERNET_FLAG_IGNORE_CERT_CN_INVALID | INTERNET_FLAG_IGNORE_CERT_DATE_INVALID | SECURITY_FLAG_IGNORE_UNKNOWN_CA;
         }
         
-        PrintFormat("WinInet Request: Host=%s, Port=%d, Path=%s, HTTPS=%d", host, port, path, isHttps);
-        
-        long hRequest = HttpOpenRequestW(hConnect, method, path, "HTTP/1.1", NULL, 0, flags, 0);
+        long hRequest = HttpOpenRequestW(g_hConnect, method, path, "HTTP/1.1", NULL, 0, flags, 0);
         if(hRequest == 0) {
             Print("HttpOpenRequestW failed");
-            InternetCloseHandle(hConnect);
-            InternetCloseHandle(hInternet);
+            InternetCloseHandle(g_hConnect);
+            g_hConnect = 0;
             return -1;
         }
         
@@ -107,8 +119,8 @@ public:
         if(!sendRes) {
             Print("HttpSendRequestW failed");
             InternetCloseHandle(hRequest);
-            InternetCloseHandle(hConnect);
-            InternetCloseHandle(hInternet);
+            InternetCloseHandle(g_hConnect);
+            g_hConnect = 0;
             return -1;
         }
         
@@ -124,8 +136,6 @@ public:
         }
         
         InternetCloseHandle(hRequest);
-        InternetCloseHandle(hConnect);
-        InternetCloseHandle(hInternet);
         
         // Just return 200 for now if no errors occurred during send/read. 
         // Real HTTP status code extraction is complex in WinInet without HttpQueryInfo,

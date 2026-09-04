@@ -9,10 +9,7 @@ export async function POST() {
   }
 
   try {
-    let apiUrl = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL;
-    if (!apiUrl) {
-      apiUrl = 'https://plaiz-markets-api.onrender.com';
-    }
+    let apiUrl = 'https://plaiz-markets-api.onrender.com';
     const response = await fetch(`${apiUrl}/realtime/ticket`, {
       method: "POST",
       headers: {

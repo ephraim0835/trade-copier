@@ -18,7 +18,7 @@ export function AutoRefresh() {
         const { ticket } = await res.json();
         if (!ticket) return;
         
-        let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://plaiz-markets-api.onrender.com';
+        let apiUrl = 'https://plaiz-markets-api.onrender.com';
         evtSource = new EventSource(`${apiUrl}/realtime/stream?ticket=${ticket}`);
         
         evtSource.onmessage = (event) => {
