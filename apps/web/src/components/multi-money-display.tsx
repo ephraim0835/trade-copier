@@ -4,22 +4,55 @@ import { useCurrency } from './currency-provider';
 import { useEffect, useState } from 'react';
 
 interface MultiMoneyDisplayProps {
-  balances: { amount: number; currency: string }[];
+  balances: { id?: string; amount: number; currency: string }[];
   className?: string;
   colored?: boolean;
   showSign?: boolean;
+  liveType?: 'balance' | 'floatingPl';
 }
 
-export function MultiMoneyDisplay({ balances, className = '', colored = false, showSign = false }: MultiMoneyDisplayProps) {
+export function MultiMoneyDisplay({ balances, className = '', colored = false, showSign = false, liveType }: MultiMoneyDisplayProps) {
   const { currency, exchangeRate, formatMoney } = useCurrency();
   const [mounted, setMounted] = useState(false);
+  const [localBalances, setLocalBalances] = useState(balances);
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    
+    // Listen for realtime SSE events emitted by AutoRefresh
+    const handleRealtime = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const payload = customEvent.detail;
+      if (!payload || !payload.accountId || !liveType) return;
+      
+      setLocalBalances(prev => {
+        // Only update if this balance array actually contains the accountId
+        const exists = prev.some(b => b.id === payload.accountId);
+        if (!exists) return prev;
+        
+        return prev.map(b => {
+          if (b.id === payload.accountId) {
+            return {
+              ...b,
+              amount: liveType === 'balance' ? payload.balance : payload.floatingPl
+            };
+          }
+          return b;
+        });
+      });
+    };
+    
+    window.addEventListener('realtime-refresh', handleRealtime);
+    return () => window.removeEventListener('realtime-refresh', handleRealtime);
+  }, [liveType]);
+
+  // Sync with SSR props if they change (e.g. from a real router.refresh())
+  useEffect(() => {
+    setLocalBalances(balances);
+  }, [balances]);
 
   // Calculate the total in the target currency
-  const total = balances.reduce((sum, balance) => {
+  const total = localBalances.reduce((sum, balance) => {
     let converted = balance.amount;
     
     // Normalize source currency to match supported standard
@@ -36,7 +69,7 @@ export function MultiMoneyDisplay({ balances, className = '', colored = false, s
 
   if (!mounted) {
     // SSR Fallback (just display something so it doesn't break hydration layout)
-    const fallbackSum = balances.reduce((sum, b) => sum + b.amount, 0);
+    const fallbackSum = localBalances.reduce((sum, b) => sum + b.amount, 0);
     const colorClass = colored ? (fallbackSum >= 0 ? 'text-emerald-500' : 'text-destructive') : '';
     const sign = showSign && fallbackSum >= 0 ? '+' : '';
     return (

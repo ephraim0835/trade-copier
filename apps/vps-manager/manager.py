@@ -293,10 +293,8 @@ def poll_db_worker():
                                 del active_terminals[login]
                         
                         # Pre-flight check: CPU / RAM limits
-                        cpu = psutil.cpu_percent()
-                        ram = psutil.virtual_memory().percent
-                        if cpu > MAX_VPS_CPU_PERCENT or ram > MAX_VPS_RAM_PERCENT:
-                            logger.warning(f"Capacity limit reached (CPU: {cpu}%, RAM: {ram}%). Cannot provision {login}.")
+                        if psutil.virtual_memory().percent > 95:
+                            logger.warning(f"Capacity limit reached (CPU: {psutil.cpu_percent()}%, RAM: {psutil.virtual_memory().percent}%). Cannot provision {account['login']}.")
                             supabase.table('Mt5Account').update({'connectionStatus': 'FAILED', 'provisioningError': 'VPS Capacity Limit Exceeded'}).eq('id', account['id']).execute()
                             continue
                             

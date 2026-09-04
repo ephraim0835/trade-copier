@@ -122,6 +122,7 @@ export default async function DashboardOverview() {
   const allConnected = masterOnline && onlineSubs === subAccounts.length;
 
   const totalBalanceArray = accounts.map((a: any) => ({
+    id: a.id,
     amount: a.balance || 0,
     currency: a.currency || 'USD'
   }));
@@ -132,6 +133,7 @@ export default async function DashboardOverview() {
       currency: deal.mt5Account?.currency || 'USD'
     })),
     ...accounts.map((a: any) => ({
+      id: a.id,
       amount: a.floatingPl || 0,
       currency: a.currency || 'USD'
     }))
@@ -238,7 +240,8 @@ export default async function DashboardOverview() {
                     <span className="text-[11px] text-muted-foreground uppercase tracking-[0.2em] font-semibold">Total Vault Balance</span>
                   </div>
                   <MultiMoneyDisplay 
-                    balances={totalBalanceArray} 
+                    balances={totalBalanceArray}
+                    liveType="balance"
                     className="text-[36px] sm:text-[44px] md:text-[48px] font-bold tracking-tighter leading-none num-tabular text-foreground break-words block"
                   />
                   <div className="mt-3 sm:mt-4 flex items-center gap-2">
@@ -256,6 +259,7 @@ export default async function DashboardOverview() {
                       balances={todaysTotalPlArray} 
                       colored={true} 
                       showSign={true} 
+                      liveType="floatingPl"
                       className="text-[28px] sm:text-[34px] md:text-[38px] font-bold tracking-tighter leading-none num-tabular"
                     />
                   </div>
@@ -296,7 +300,7 @@ export default async function DashboardOverview() {
                     <div className="bg-card/50 px-4 py-2 rounded-xl border border-border/30 text-right">
                       <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-0.5">Balance</p>
                       <p className="text-[16px] font-semibold text-foreground num-tabular leading-none">
-                        {masterAccount.balance != null ? <MoneyDisplay amount={masterAccount.balance} sourceCurrency={masterAccount.currency || 'USD'} /> : 'N/A'}
+                        {masterAccount.balance != null ? <MoneyDisplay amount={masterAccount.balance} sourceCurrency={masterAccount.currency || 'USD'} accountId={masterAccount.id} liveType="balance" /> : 'N/A'}
                       </p>
                     </div>
                   </div>
@@ -306,13 +310,13 @@ export default async function DashboardOverview() {
                   <div className="flex flex-col">
                     <span className="text-[10px] text-muted-foreground uppercase tracking-[0.1em] mb-1">Equity</span>
                     <span className="text-[15px] font-semibold text-foreground num-tabular">
-                      {masterAccount.equity != null ? <MoneyDisplay amount={masterAccount.equity} sourceCurrency={masterAccount.currency || 'USD'} /> : 'N/A'}
+                      {masterAccount.equity != null ? <MoneyDisplay amount={masterAccount.equity} sourceCurrency={masterAccount.currency || 'USD'} accountId={masterAccount.id} /> : 'N/A'}
                     </span>
                   </div>
                   <div className="flex flex-col">
                     <span className="text-[10px] text-muted-foreground uppercase tracking-[0.1em] mb-1">Floating P/L</span>
                     <span className={`text-[15px] font-semibold num-tabular ${(masterAccount.floatingPl || 0) >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>
-                      {(masterAccount.floatingPl || 0) >= 0 ? '+' : ''}<MoneyDisplay amount={masterAccount.floatingPl || 0} sourceCurrency={masterAccount.currency || 'USD'} />
+                      {(masterAccount.floatingPl || 0) >= 0 ? '+' : ''}<MoneyDisplay amount={masterAccount.floatingPl || 0} sourceCurrency={masterAccount.currency || 'USD'} accountId={masterAccount.id} liveType="floatingPl" />
                     </span>
                   </div>
                 </div>
@@ -352,12 +356,12 @@ export default async function DashboardOverview() {
                     <div className="flex items-center gap-6 sm:justify-end border-t sm:border-t-0 border-border/10 pt-3 sm:pt-0 mt-1 sm:mt-0">
                       <div className="flex flex-col sm:text-right">
                         <span className="text-[9px] text-muted-foreground uppercase tracking-widest mb-1">Balance</span>
-                        <span className="text-[13px] font-semibold text-foreground num-tabular"><MoneyDisplay amount={sub.balance || 0} sourceCurrency={sub.currency || 'USD'} /></span>
+                        <span className="text-[13px] font-semibold text-foreground num-tabular"><MoneyDisplay amount={sub.balance || 0} sourceCurrency={sub.currency || 'USD'} accountId={sub.id} liveType="balance" /></span>
                       </div>
                       <div className="flex flex-col sm:text-right">
                         <span className="text-[9px] text-muted-foreground uppercase tracking-widest mb-1">Live PnL</span>
                         <span className={`text-[13px] font-semibold num-tabular ${(sub.floatingPl || 0) >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>
-                          {(sub.floatingPl || 0) >= 0 ? '+' : ''}<MoneyDisplay amount={sub.floatingPl || 0} sourceCurrency={sub.currency || 'USD'} />
+                          {(sub.floatingPl || 0) >= 0 ? '+' : ''}<MoneyDisplay amount={sub.floatingPl || 0} sourceCurrency={sub.currency || 'USD'} accountId={sub.id} liveType="floatingPl" />
                         </span>
                       </div>
                     </div>
@@ -472,13 +476,13 @@ export default async function DashboardOverview() {
                   <div className="flex flex-col">
                     <span className="text-[10px] text-muted-foreground uppercase tracking-[0.1em] mb-0.5">Balance</span>
                     <span className="text-[13px] font-semibold text-foreground num-tabular">
-                      {sub.balance != null ? <MoneyDisplay amount={sub.balance} sourceCurrency={sub.currency || 'USD'} /> : 'N/A'}
+                      {sub.balance != null ? <MoneyDisplay amount={sub.balance} sourceCurrency={sub.currency || 'USD'} accountId={sub.id} liveType="balance" /> : 'N/A'}
                     </span>
                   </div>
                   <div className="flex flex-col items-end">
                     <span className="text-[10px] text-muted-foreground uppercase tracking-[0.1em] mb-0.5">P/L</span>
                     <span className={`text-[13px] font-semibold num-tabular ${sub.floatingPl && sub.floatingPl > 0 ? 'text-emerald-500' : sub.floatingPl && sub.floatingPl < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
-                      {sub.floatingPl && sub.floatingPl > 0 ? '+' : ''}{sub.floatingPl ? <MoneyDisplay amount={sub.floatingPl} sourceCurrency={sub.currency || 'USD'} /> : '$0.00'}
+                      {sub.floatingPl && sub.floatingPl > 0 ? '+' : ''}{sub.floatingPl ? <MoneyDisplay amount={sub.floatingPl} sourceCurrency={sub.currency || 'USD'} accountId={sub.id} liveType="floatingPl" /> : '$0.00'}
                     </span>
                   </div>
                 </div>
