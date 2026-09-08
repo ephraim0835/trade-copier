@@ -25,16 +25,30 @@ export function AutoRefresh() {
           try {
             const data = JSON.parse(event.data);
             if (data.type === 'REFRESH') {
+              let shouldRefresh = false;
+              
               // Emit instant event for client components
               if (data.payloads && Array.isArray(data.payloads)) {
                 data.payloads.forEach((payload: any) => {
                   window.dispatchEvent(new CustomEvent('realtime-refresh', { detail: payload }));
+                  if (!payload || payload.type !== 'TELEMETRY') {
+                    shouldRefresh = true;
+                  }
                 });
               } else if (data.payload) {
                 window.dispatchEvent(new CustomEvent('realtime-refresh', { detail: data.payload }));
+                if (!data.payload || data.payload.type !== 'TELEMETRY') {
+                  shouldRefresh = true;
+                }
+              } else {
+                // If no payload at all, it's a general refresh
+                shouldRefresh = true;
               }
-              // Still do background refresh to sync DB state
-              router.refresh();
+              
+              if (shouldRefresh) {
+                // Background refresh to sync DB state (slow, expensive)
+                router.refresh();
+              }
             }
           } catch (e) {
             console.error('Failed to parse SSE event', e);

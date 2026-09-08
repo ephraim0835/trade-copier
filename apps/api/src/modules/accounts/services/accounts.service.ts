@@ -61,7 +61,13 @@ export class AccountsService {
       },
     });
     
-    this.realtimeService.emit(account.userId, 'REFRESH');
+    this.realtimeService.emit(account.userId, 'REFRESH', {
+      type: 'TELEMETRY',
+      accountId: account.id,
+      floatingPl: dto.floatingPl,
+      balance: dto.balance,
+      equity: dto.equity
+    });
     
     return { success: true };
   }
