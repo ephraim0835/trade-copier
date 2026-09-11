@@ -5,8 +5,14 @@ import Link from 'next/link';
 import { Menu, X } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 
+import { usePathname } from 'next/navigation';
+
 export function MarketingHeader() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const pathname = usePathname();
+
+  // Highlight exact match, but since Features/Infrastructure are hashes on "/", we just highlight Pricing when on /pricing.
+  const isPricing = pathname === '/pricing';
 
   return (
     <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-4xl">
@@ -20,9 +26,9 @@ export function MarketingHeader() {
         
         {/* Center: Desktop Nav */}
         <nav className="hidden md:flex items-center gap-8 text-[13px] font-medium text-muted-foreground">
-          <Link href="/#features" className="hover:text-foreground transition-colors">Features</Link>
-          <Link href="/#infrastructure" className="hover:text-foreground transition-colors">Infrastructure</Link>
-          <Link href="/pricing" className="hover:text-foreground transition-colors">Pricing</Link>
+          <Link href="/#features" className={`transition-colors ${!isPricing ? 'text-foreground font-semibold' : 'hover:text-foreground'}`}>Features</Link>
+          <Link href="/#infrastructure" className={`transition-colors ${!isPricing ? 'text-foreground font-semibold' : 'hover:text-foreground'}`}>Infrastructure</Link>
+          <Link href="/pricing" className={`transition-colors ${isPricing ? 'text-foreground font-semibold' : 'hover:text-foreground'}`}>Pricing</Link>
         </nav>
         
         {/* Right: Actions */}
@@ -49,9 +55,9 @@ export function MarketingHeader() {
       {isMenuOpen && (
         <div className="md:hidden absolute top-[110%] left-0 w-full bg-background border border-border rounded-2xl shadow-xl p-4 flex flex-col gap-4">
           <nav className="flex flex-col gap-3 text-sm font-medium">
-            <Link href="/#features" className="hover:text-primary transition-colors px-2 py-1" onClick={() => setIsMenuOpen(false)}>Features</Link>
-            <Link href="/#infrastructure" className="hover:text-primary transition-colors px-2 py-1" onClick={() => setIsMenuOpen(false)}>Infrastructure</Link>
-            <Link href="/pricing" className="hover:text-primary transition-colors px-2 py-1" onClick={() => setIsMenuOpen(false)}>Pricing</Link>
+            <Link href="/#features" className={`transition-colors px-2 py-1 ${!isPricing ? 'text-primary font-semibold' : 'hover:text-primary'}`} onClick={() => setIsMenuOpen(false)}>Features</Link>
+            <Link href="/#infrastructure" className={`transition-colors px-2 py-1 ${!isPricing ? 'text-primary font-semibold' : 'hover:text-primary'}`} onClick={() => setIsMenuOpen(false)}>Infrastructure</Link>
+            <Link href="/pricing" className={`transition-colors px-2 py-1 ${isPricing ? 'text-primary font-semibold' : 'hover:text-primary'}`} onClick={() => setIsMenuOpen(false)}>Pricing</Link>
           </nav>
           <div className="flex flex-col gap-2 pt-3 border-t border-border/50 sm:hidden">
              <Link href="/login" className="text-center font-medium hover:text-primary transition-colors py-2" onClick={() => setIsMenuOpen(false)}>

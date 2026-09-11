@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Check, X } from 'lucide-react';
-import { getServerSession } from 'next-auth/next';
+import { PricingAction } from '@/components/pricing-action';
 
 const pricingPlans = [
   {
@@ -61,13 +61,7 @@ const pricingPlans = [
   }
 ];
 
-import { CheckoutButton } from '@/components/checkout-button';
-import { authOptions } from '@/lib/auth';
-
-export default async function PricingPage() {
-  const session = await getServerSession(authOptions);
-  const isLoggedIn = !!session?.user?.email;
-
+export default function PricingPage() {
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col relative overflow-hidden pb-32">
       {/* Background decoration */}
@@ -141,28 +135,7 @@ export default async function PricingPage() {
               ))}
             </ul>
             
-            {plan.status === 'coming_later' ? (
-              <Link 
-                href={plan.ctaUrl} 
-                className={`plaiz-btn w-full py-3 justify-center ${plan.popular ? 'plaiz-btn-primary relative z-10' : 'plaiz-btn-secondary'}`}
-              >
-                {plan.cta}
-              </Link>
-            ) : isLoggedIn ? (
-              <CheckoutButton 
-                planId={plan.id as "basic" | "pro"} 
-                className={`plaiz-btn w-full py-3 justify-center ${plan.popular ? 'plaiz-btn-primary relative z-10' : 'plaiz-btn-secondary'}`}
-              >
-                Select Plan
-              </CheckoutButton>
-            ) : (
-              <Link 
-                href="/signup" 
-                className={`plaiz-btn w-full py-3 justify-center ${plan.popular ? 'plaiz-btn-primary relative z-10' : 'plaiz-btn-secondary'}`}
-              >
-                {plan.cta}
-              </Link>
-            )}
+            <PricingAction plan={plan} />
           </div>
         ))}
       </div>
