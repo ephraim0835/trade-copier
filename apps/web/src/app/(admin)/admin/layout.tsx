@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { BottomNav } from '@/components/layout/bottom-nav';
 import { AdminSidebarNav } from '@/components/admin-sidebar-nav';
+import { AdminBotStatus } from '@/components/admin-bot-status';
 
 import { getServerSession } from "next-auth/next";
 import { redirect } from 'next/navigation';
@@ -22,6 +23,32 @@ export default async function AdminLayout({
 
   if (!user || (user.role !== 'ADMIN' && user.role !== 'OWNER')) {
     redirect('/dashboard');
+  }
+
+  let initialBotData: any = { isOnline: false, vps: null };
+  try {
+    const vps = await prisma.vpsEnvironment.findFirst({
+      orderBy: { lastHeartbeatAt: 'desc' }
+    });
+    if (vps && vps.lastHeartbeatAt) {
+      const diffSeconds = Math.round((Date.now() - new Date(vps.lastHeartbeatAt).getTime()) / 1000);
+      initialBotData = {
+        isOnline: diffSeconds < 90,
+        vps: {
+          id: vps.id,
+          name: vps.name,
+          status: vps.status,
+          cpuPercent: vps.cpuPercent,
+          ramPercent: vps.ramPercent,
+          diskPercent: vps.diskPercent,
+          activeTerminals: vps.activeTerminals,
+          lastHeartbeatAt: vps.lastHeartbeatAt.toISOString(),
+          secondsAgo: Math.max(0, diffSeconds),
+        }
+      };
+    }
+  } catch (err) {
+    console.error("Failed to query initial VPS status for layout:", err);
   }
 
   return (
@@ -53,7 +80,8 @@ export default async function AdminLayout({
           <div className="hidden md:block">
             {/* Breadcrumb could go here */}
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+             <AdminBotStatus initialData={initialBotData} />
              <div className="plaiz-pill plaiz-pill-destructive">
                <span className="w-1.5 h-1.5 rounded-full bg-destructive animate-pulse"></span>
                God Mode
