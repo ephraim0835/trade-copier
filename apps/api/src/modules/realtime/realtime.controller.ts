@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Query, UseGuards, Request, Sse, UnauthorizedException, MessageEvent } from '@nestjs/common';
+import { Controller, Get, Post, Query, UseGuards, Request, Body, Sse, UnauthorizedException, BadRequestException, MessageEvent } from '@nestjs/common';
 import { RealtimeService } from './realtime.service';
 import { AuthGuard } from '@nestjs/passport';
 import { Observable } from 'rxjs';
@@ -16,6 +16,24 @@ export class RealtimeController {
   getTicket(@Request() req: any) {
     const userId = req.user.userId;
     const ticket = this.realtimeService.generateTicket(userId);
+    return { ticket };
+  }
+
+  /**
+   * Internal ticket endpoint for trusted internal services (e.g. Next.js server session proxy).
+   * Authenticated via INTERNAL_MANAGER_SECRET.
+   */
+  @Post('internal/ticket')
+  getInternalTicket(@Body() body: { userId: string }, @Request() req: any) {
+    const serviceKey = process.env.INTERNAL_MANAGER_SECRET || 'internal_manager_secret_998877';
+    const authHeader = req.headers?.authorization;
+    if (!authHeader || authHeader !== `Bearer ${serviceKey}`) {
+      throw new UnauthorizedException('Invalid internal service authorization');
+    }
+    if (!body?.userId) {
+      throw new BadRequestException('userId is required');
+    }
+    const ticket = this.realtimeService.generateTicket(body.userId);
     return { ticket };
   }
 

@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Subject, Observable, bufferTime, filter, map } from 'rxjs';
+import { Subject, Observable, bufferTime, filter, map, interval, merge } from 'rxjs';
 import * as crypto from 'crypto';
 
 export interface SseEvent {
@@ -75,10 +75,11 @@ export class RealtimeService {
   }
 
   /**
-   * Returns an RxJS Observable batched (throttled) per 500ms for a specific user.
+   * Returns an RxJS Observable batched (throttled) per 50ms for a specific user,
+   * merged with a 25-second keepalive ping to prevent proxy/browser idle disconnects.
    */
   getStreamForUser(userId: string): Observable<MessageEvent> {
-    return this.eventSubject.asObservable().pipe(
+    const userEvents$ = this.eventSubject.asObservable().pipe(
       filter(event => event.userId === userId),
       // Batch events every 50ms to provide near-instant real-time updates
       bufferTime(50),
@@ -98,5 +99,17 @@ export class RealtimeService {
         } as MessageEvent;
       })
     );
+
+    // Keep-alive ping every 25 seconds to prevent Render / reverse proxy idle timeout (55s limit)
+    const keepAlive$ = interval(25000).pipe(
+      map(() => ({
+        data: {
+          type: 'PING',
+          timestamp: Date.now()
+        }
+      } as MessageEvent))
+    );
+
+    return merge(userEvents$, keepAlive$);
   }
 }

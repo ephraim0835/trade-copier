@@ -1,7 +1,8 @@
 import CredentialsProvider from "next-auth/providers/credentials"
 import type { NextAuthOptions } from "next-auth"
 
-let API_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'https://plaiz-markets-api.onrender.com';
+const RAW_API_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'https://plaiz-markets-api.onrender.com';
+const API_URL = RAW_API_URL.replace(/\/api\/v1\/?$/, '').replace(/\/+$/, '');
 
 async function refreshAccessToken(refreshToken: string) {
   const res = await fetch(`${API_URL}/auth/refresh`, {
