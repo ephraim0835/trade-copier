@@ -1,6 +1,7 @@
 import { Server, Users, ArrowRightLeft, ShieldAlert, Cpu, HardDrive, Bot, Activity, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
+import { AdminBotControls } from '@/components/admin-bot-controls';
 
 export const dynamic = 'force-dynamic';
 
@@ -188,11 +189,23 @@ export default async function AdminOverviewPage() {
               <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
               <div>
                 <span className="font-bold text-foreground block text-sm">VPS MT5 Manager daemon is not running</span>
-                <span className="text-muted-foreground">Start the bot using <code className="px-1.5 py-0.5 rounded bg-black/10 dark:bg-white/10 font-mono">apps/vps-manager/startup.bat</code> on your host VPS to enable automated trade execution.</span>
+                <span className="text-muted-foreground">Click <strong>Start Bot Engine</strong> below or run <code className="px-1.5 py-0.5 rounded bg-black/10 dark:bg-white/10 font-mono">start_bot.bat</code> on your host machine to wake the fleet.</span>
               </div>
             </div>
           </div>
         )}
+
+        {/* Remote Bot Controls */}
+        <div className="pt-2 border-t border-border/40">
+          <AdminBotControls
+            initialIsOnline={isBotActive}
+            vpsName={latestVps?.name}
+            lastCommand={latestVps?.lastCommand}
+            commandStatus={latestVps?.commandStatus}
+            commandMessage={latestVps?.commandMessage}
+            commandAt={latestVps?.commandAt ? new Date(latestVps.commandAt).toISOString() : null}
+          />
+        </div>
       </section>
       
       {/* System Events & Quick Actions */}

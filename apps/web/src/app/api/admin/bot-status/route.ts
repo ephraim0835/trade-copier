@@ -49,6 +49,10 @@ export async function GET() {
         activeTerminals: vps.activeTerminals,
         lastHeartbeatAt: vps.lastHeartbeatAt,
         secondsAgo: Math.max(0, diffSeconds),
+        lastCommand: (vps as any).lastCommand || null,
+        commandStatus: (vps as any).commandStatus || null,
+        commandMessage: (vps as any).commandMessage || null,
+        commandAt: (vps as any).commandAt || null,
       },
     });
   } catch (error) {

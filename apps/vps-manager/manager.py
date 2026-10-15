@@ -214,16 +214,29 @@ def launch_mt5_and_attach_ea(account):
         if source_wininet.exists():
             shutil.copy2(source_wininet, target_wininet)
             
-        # Compile directly in the target directory using portable mode
-        compile_cmd = [str(metaeditor), '/portable', f'/compile:MQL5\\Experts\\{ea_file}', '/log']
-        logger.info(f"Compiling EA {ea_file} with cmd: {' '.join(compile_cmd)}")
-        result = subprocess.run(compile_cmd, cwd=str(terminal_path), capture_output=True, text=True)
-        
-        if not compiled_ea.exists():
-            logger.error(f"Failed to compile {ea_file} and no precompiled fallback found. Stdout: {result.stdout}, Stderr: {result.stderr}")
-            return False
+        # Check if already compiled and fresh to save 100% of compile CPU
+        needs_compile = True
+        if compiled_ea.exists():
+            try:
+                if compiled_ea.stat().st_mtime >= source_ea.stat().st_mtime:
+                    needs_compile = False
+                    logger.info(f"EA binary {ea_base}.ex5 is already compiled and up-to-date. Skipping compilation to conserve CPU.")
+            except Exception:
+                needs_compile = True
+
+        if needs_compile:
+            # Compile directly in the target directory using portable mode
+            compile_cmd = [str(metaeditor), '/portable', f'/compile:MQL5\\Experts\\{ea_file}', '/log']
+            logger.info(f"Compiling EA {ea_file} with cmd: {' '.join(compile_cmd)}")
+            result = subprocess.run(compile_cmd, cwd=str(terminal_path), capture_output=True, text=True)
+            
+            if not compiled_ea.exists():
+                logger.error(f"Failed to compile {ea_file} and no precompiled fallback found. Stdout: {result.stdout}, Stderr: {result.stderr}")
+                return False
+            else:
+                logger.info(f"EA binary ready at {compiled_ea}")
         else:
-            logger.info(f"EA binary ready at {compiled_ea}")
+            logger.info(f"Using cached compiled EA binary at {compiled_ea}")
     else:
         if not compiled_ea.exists():
             logger.error(f"Source EA {source_ea} not found and no compiled binary exists.")
@@ -303,7 +316,7 @@ def launch_mt5_and_attach_ea(account):
     else:
         logger.error(f"FATAL: No default.tpl found in candidates! Cannot seed chart01.chr!")
         
-    # 4. Create startup.ini file
+    # 4. Create startup.ini file with resource-saving flags
     ini_file_dir = data_path / 'config'
     ini_file_dir.mkdir(parents=True, exist_ok=True)
     ini_file_name = f"startup_{login}.ini"
@@ -318,6 +331,19 @@ def launch_mt5_and_attach_ea(account):
         f.write(f"EnableNews=false\n")
         f.write(f"CertInstall=0\n")
         f.write(f"ProfileLast=Default\n\n")
+        f.write(f"[Charts]\n")
+        f.write(f"MaxBars=1000\n")
+        f.write(f"SaveDeleted=0\n")
+        f.write(f"PrintAllOrders=0\n\n")
+        f.write(f"[StartUp]\n")
+        f.write(f"Minimised=1\n")
+
+    # Tune terminal.ini for sound off and news off to conserve CPU
+    terminal_ini = ini_file_dir / 'terminal.ini'
+    try:
+        terminal_ini.write_text("[Common]\nNewsEnable=0\nSoundEnable=0\n[Charts]\nMaxBars=1000\n", encoding='utf-16')
+    except Exception:
+        pass
 
     # 5. Launch Terminal with the config
     logger.info(f"Launching MT5 terminal for account {login} with config and EA attached...")
@@ -331,8 +357,68 @@ def launch_mt5_and_attach_ea(account):
     
     proc = subprocess.Popen(launch_cmd, cwd=str(terminal_path))
     account['process'] = proc
+    account['instance_dir'] = str(terminal_path)
+    account['server'] = server
     
     return True
+
+def kill_account_terminal(login):
+    """Gracefully or forcefully terminates terminal process matching startup_{login}.ini"""
+    for proc in psutil.process_iter(['name', 'cmdline']):
+        try:
+            if proc.info['name'] and 'terminal' in proc.info['name'].lower():
+                if proc.info['cmdline'] and f"startup_{login}.ini" in ' '.join(proc.info['cmdline']):
+                    proc.kill()
+                    logger.info(f"Terminated MT5 terminal process for {login}")
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+
+def check_terminal_logs_for_diagnostics(acc):
+    """Sniffs the MT5 instance logs for instant connection, broker, or auth diagnostic feedback."""
+    instance_dir = acc.get('instance_dir')
+    if not instance_dir:
+        return None
+    
+    logs_dir = Path(instance_dir) / 'logs'
+    if not logs_dir.exists():
+        return None
+    
+    log_files = sorted(logs_dir.glob('*.log'), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not log_files:
+        return None
+    
+    target_log = log_files[0]
+    try:
+        content = ''
+        try:
+            content = target_log.read_text(encoding='utf-16-le', errors='ignore')
+        except Exception:
+            content = target_log.read_text(encoding='utf-8', errors='ignore')
+        
+        lines = content.splitlines()[-50:]
+        for line in reversed(lines):
+            # Check authorization failure
+            if 'authorization' in line.lower() and 'failed' in line.lower():
+                if 'invalid account' in line.lower():
+                    return 'FAILED', f"Broker rejected login: Invalid account number for server '{acc.get('server')}'"
+                if 'incorrect password' in line.lower() or 'invalid password' in line.lower():
+                    return 'FAILED', f"Broker rejected login: Incorrect trading password for server '{acc.get('server')}'"
+                return 'FAILED', f"Broker authorization failed: {line.strip()}"
+            
+            # Check connection failure
+            if 'connect failed' in line.lower() or 'no connection' in line.lower():
+                if '0 access points found' in line.lower():
+                    return 'FAILED', f"Broker connection failed: Server '{acc.get('server')}' not reachable. Check server name."
+                return 'FAILED', f"Broker network error: Unable to connect to {acc.get('server')}"
+            
+            # Check web request permission error
+            if 'webrequest to' in line.lower() and 'not allowed' in line.lower():
+                return 'FAILED', "WebRequest URL not whitelisted in common.ini"
+                
+    except Exception as e:
+        logger.debug(f"Error checking terminal logs for {acc.get('login')}: {e}")
+        
+    return None
 
 stop_event = threading.Event()
 active_terminals = {}
@@ -401,9 +487,12 @@ def poll_db_worker():
                         pass
                 
                 if account['is_active']:
-                    # Allow FAILED terminals to be retried by the intelligent watchdog
-                    # instead of ignoring them forever. The watchdog will kill any zombie processes.
-                    
+                    # Prevent continuous infinite retry loop for FAILED accounts.
+                    # FAILED accounts are retried when the user edits credentials, clicks Retry in UI,
+                    # or sends a START/RESTART command from the Admin Panel.
+                    if account['connectionStatus'] == 'FAILED' and not is_stale:
+                        continue
+
                     # Prevent double-provisioning
                     if account['connectionStatus'] == 'PROVISIONING' and login not in active_terminals:
                         continue
@@ -411,14 +500,7 @@ def poll_db_worker():
                     if login not in active_terminals or is_stale:
                         if is_stale:
                             logger.info(f"Intelligent Watchdog: Account {login} is ONLINE but heartbeat is stale. Terminating for safe recovery.")
-                            # Kill process if running
-                            for proc in psutil.process_iter(['name', 'cmdline']):
-                                try:
-                                    if proc.info['name'] and 'terminal' in proc.info['name'].lower():
-                                        if proc.info['cmdline'] and f"startup_{login}.ini" in ' '.join(proc.info['cmdline']):
-                                            proc.kill()
-                                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                                    pass
+                            kill_account_terminal(login)
                             if login in active_terminals:
                                 del active_terminals[login]
                         
@@ -479,35 +561,31 @@ def poll_db_worker():
                 else:
                     if login in active_terminals:
                         logger.info(f"Account {login} is no longer active. Terminal will be stopped.")
-                        for proc in psutil.process_iter(['name', 'cmdline']):
-                            try:
-                                if proc.info['name'] and 'terminal' in proc.info['name'].lower():
-                                    if proc.info['cmdline'] and f"startup_{login}.ini" in ' '.join(proc.info['cmdline']):
-                                        proc.kill()
-                                        logger.info(f"Killed MT5 terminal for {login}")
-                            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                                pass
+                        kill_account_terminal(login)
                         del active_terminals[login]
                         execute_query('UPDATE "Mt5Account" SET "connectionStatus" = %s WHERE id = %s', ('OFFLINE', account['id']))
                         
-            # Check for provisioning timeouts (120s without ONLINE status)
+            # Fast log diagnostic sniffer & timeout check for active terminals
             current_time = time.time()
             for login, acc in list(active_terminals.items()):
+                # 1. Instant terminal log sniffer (checks for broker auth/connect rejection in sub-seconds)
+                diag = check_terminal_logs_for_diagnostics(acc)
+                if diag:
+                    diag_status, diag_msg = diag
+                    logger.error(f"[LOG DIAGNOSTIC] Account {login} failed fast: {diag_msg}")
+                    execute_query('UPDATE "Mt5Account" SET "connectionStatus" = %s, "provisioningError" = %s WHERE id = %s', (diag_status, diag_msg, acc['id']))
+                    kill_account_terminal(login)
+                    del active_terminals[login]
+                    continue
+
+                # 2. Check for provisioning timeouts (120s without ONLINE status)
                 if acc.get('launch_time') and (current_time - acc['launch_time']) > 120:
-                    # check actual status from DB
                     for row in rows:
                         if str(row.get('login')) == login:
                             if row.get('connectionStatus') == 'PROVISIONING':
                                 logger.error(f"Timeout: EA {login} never sent heartbeat after 120s. Killing process.")
-                                execute_query('UPDATE "Mt5Account" SET "connectionStatus" = %s, "provisioningError" = %s WHERE id = %s', ('FAILED', 'EA initialization timeout (no heartbeat)', acc['id']))
-                                
-                                for proc in psutil.process_iter(['name', 'cmdline']):
-                                    try:
-                                        if proc.info['name'] and 'terminal' in proc.info['name'].lower():
-                                            if proc.info['cmdline'] and f"startup_{login}.ini" in ' '.join(proc.info['cmdline']):
-                                                proc.kill()
-                                    except (psutil.NoSuchProcess, psutil.AccessDenied):
-                                        pass
+                                execute_query('UPDATE "Mt5Account" SET "connectionStatus" = %s, "provisioningError" = %s WHERE id = %s', ('FAILED', 'EA initialization timeout (no heartbeat from broker/chart)', acc['id']))
+                                kill_account_terminal(login)
                                 del active_terminals[login]
                             break
             
@@ -516,14 +594,7 @@ def poll_db_worker():
             for login in list(active_terminals.keys()):
                 if login not in fetched_logins:
                     logger.info(f"Account {login} was deleted. Killing terminal.")
-                    for proc in psutil.process_iter(['name', 'cmdline']):
-                        try:
-                            if proc.info['name'] and 'terminal' in proc.info['name'].lower():
-                                if proc.info['cmdline'] and f"startup_{login}.ini" in ' '.join(proc.info['cmdline']):
-                                    proc.kill()
-                                    logger.info(f"Killed MT5 terminal for {login}")
-                        except (psutil.NoSuchProcess, psutil.AccessDenied):
-                            pass
+                    kill_account_terminal(login)
                     del active_terminals[login]
                         
         except Exception as e:
@@ -649,24 +720,83 @@ def force_webrequest_permission():
                 logger.warning(f"Could not patch {common_ini_path}: {e}")
 
 
+def command_worker():
+    """Background thread that listens for Admin Panel commands (START, RESTART, STOP, SYNC)."""
+    if not DATABASE_URL:
+        return
+        
+    logger.info("Admin Command Listener active. Monitoring database queue for remote commands...")
+    while not stop_event.is_set():
+        try:
+            rows = execute_query(
+                'SELECT id, "lastCommand", "commandStatus" FROM "VpsEnvironment" WHERE "commandStatus" = %s AND "lastCommand" IS NOT NULL LIMIT 1',
+                ('PENDING',),
+                fetch=True
+            )
+            if rows:
+                for row in rows:
+                    env_id = row['id']
+                    cmd = (row['lastCommand'] or '').upper()
+                    logger.info(f"[ADMIN COMMAND] Received '{cmd}' from Admin Panel!")
+                    
+                    if cmd in ['START', 'SYNC']:
+                        execute_query(
+                            'UPDATE "VpsEnvironment" SET "commandStatus" = %s, "commandMessage" = %s, "lastHeartbeatAt" = now() WHERE id = %s',
+                            ('EXECUTED', f'Synchronized terminals successfully at {datetime.datetime.now().strftime("%H:%M:%S")}', env_id)
+                        )
+                        logger.info("Triggered instant fleet synchronization.")
+                        
+                    elif cmd == 'RESTART':
+                        execute_query(
+                            'UPDATE "VpsEnvironment" SET "commandStatus" = %s, "commandMessage" = %s WHERE id = %s',
+                            ('EXECUTING', 'Restarting MT5 terminal fleet...', env_id)
+                        )
+                        kill_existing_terminals()
+                        active_terminals.clear()
+                        force_webrequest_permission()
+                        execute_query(
+                            'UPDATE "VpsEnvironment" SET "commandStatus" = %s, "commandMessage" = %s, "lastHeartbeatAt" = now() WHERE id = %s',
+                            ('EXECUTED', 'Fleet cold-restarted successfully', env_id)
+                        )
+                        logger.info("Fleet cold restart complete.")
+                        
+                    elif cmd == 'STOP':
+                        logger.info("Executing STOP command: Terminating all MT5 terminals...")
+                        kill_existing_terminals()
+                        active_terminals.clear()
+                        execute_query(
+                            'UPDATE "VpsEnvironment" SET "commandStatus" = %s, "commandMessage" = %s, "lastHeartbeatAt" = now() WHERE id = %s',
+                            ('EXECUTED', 'All MT5 terminals safely stopped', env_id)
+                        )
+        except Exception as e:
+            logger.error(f"Error in command worker: {e}")
+            
+        time.sleep(3)
+
+
 if __name__ == '__main__':
     logger.info('Starting VPS MT5 manager')
     kill_existing_terminals()
     force_webrequest_permission()
+    
     poll_thread = threading.Thread(target=poll_db_worker, daemon=True)
     poll_thread.start()
     
     telemetry_thread = threading.Thread(target=telemetry_worker, daemon=True)
     telemetry_thread.start()
     
+    command_thread = threading.Thread(target=command_worker, daemon=True)
+    command_thread.start()
+    
     keep_alive_thread = threading.Thread(target=keep_alive_worker, daemon=True)
     keep_alive_thread.start()
     
-    # Keep the main thread alive so Docker container stays up
+    # Keep the main thread alive
     try:
         while True:
             time.sleep(60)
     except KeyboardInterrupt:
         logger.info('Shutting down manager')
+        stop_event.set()
         mt5.shutdown()
 

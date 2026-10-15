@@ -101,6 +101,36 @@ export function AdminBotStatus({ initialData }: { initialData?: BotStatusData })
           <div className="pt-1 border-t border-border/40 text-[10px] text-muted-foreground text-right">
             Last seen: {vps.secondsAgo < 60 ? `${vps.secondsAgo}s ago` : `${Math.round(vps.secondsAgo / 60)}m ago`}
           </div>
+
+          <div className="pt-2 border-t border-border/40 flex items-center gap-1.5">
+            <button
+              onClick={async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                try {
+                  const cmd = isOnline ? 'RESTART' : 'START';
+                  const res = await fetch('/api/admin/bot-command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command: cmd }),
+                  });
+                  if (res.ok) {
+                    const statusRes = await fetch('/api/admin/bot-status');
+                    if (statusRes.ok) setData(await statusRes.json());
+                  }
+                } catch (err) {
+                  console.error(err);
+                }
+              }}
+              className={`w-full py-1 px-2 rounded-lg text-[11px] font-bold text-center tracking-wide transition-all ${
+                isOnline
+                  ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/20'
+                  : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm'
+              }`}
+            >
+              {isOnline ? 'Restart Fleet' : 'Start Bot Now'}
+            </button>
+          </div>
         </div>
       )}
     </div>

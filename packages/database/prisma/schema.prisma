@@ -336,6 +336,10 @@ model VpsEnvironment {
   diskPercent     Float    @default(0)
   activeTerminals Int      @default(0)
   lastHeartbeatAt DateTime @default(now())
+  lastCommand     String?
+  commandAt       DateTime?
+  commandStatus   String?
+  commandMessage  String?
 }
 
 model AccountSnapshot {

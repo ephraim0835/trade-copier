@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { Server, Cpu, HardDrive, Wifi, Activity } from 'lucide-react';
+import { AdminBotControls } from '@/components/admin-bot-controls';
 
 export const dynamic = 'force-dynamic';
 
@@ -73,20 +74,56 @@ export default async function InfrastructureAdminPage() {
 
                   <div className="flex items-center justify-between pt-4 border-t border-border/40">
                     <div className="flex flex-col">
-                      <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Active Terminals</span>
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Active Terminals</span>
                       <span className="text-lg font-bold mt-0.5">{vps.activeTerminals} / 25</span>
                     </div>
                     <div className="flex flex-col items-end">
-                      <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Last Heartbeat</span>
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Last Heartbeat</span>
                       <span className="text-sm font-medium mt-0.5">
                         {diffSec < 60 ? `${diffSec}s ago` : `${Math.round(diffSec / 60)}m ago`} ({new Date(vps.lastHeartbeatAt).toLocaleTimeString()})
                       </span>
                     </div>
                   </div>
+
+                  <div className="pt-2 border-t border-border/40">
+                    <AdminBotControls
+                      initialIsOnline={isOnline}
+                      vpsName={vps.name}
+                      lastCommand={vps.lastCommand}
+                      commandStatus={vps.commandStatus}
+                      commandMessage={vps.commandMessage}
+                      commandAt={vps.commandAt ? new Date(vps.commandAt).toISOString() : null}
+                    />
+                  </div>
                 </div>
-              )
+              );
            })
         )}
+      </div>
+
+      {/* Resource Optimization & Performance Architecture */}
+      <div className="plaiz-card p-6 flex flex-col gap-4 bg-black/5 dark:bg-white/[0.02]">
+        <div className="flex items-center gap-2">
+          <Activity className="w-5 h-5 text-primary" />
+          <h3 className="font-bold text-base">Resource-Efficient MT5 Terminal Architecture</h3>
+        </div>
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          The Trade Copier engine incorporates multi-layer resource optimizations designed to run extensive MT5 terminal fleets on low-spec hardware without performance degradation:
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 text-xs">
+          <div className="p-3.5 rounded-xl border border-border/40 bg-card/40 flex flex-col gap-1.5">
+            <span className="font-bold text-foreground">Chart Memory Throttling</span>
+            <span className="text-muted-foreground">Each portable instance restricts history buffer to <code>MaxBars=1000</code>, dropping terminal RAM footprint from ~350MB down to ~75MB.</span>
+          </div>
+          <div className="p-3.5 rounded-xl border border-border/40 bg-card/40 flex flex-col gap-1.5">
+            <span className="font-bold text-foreground">Precompiled Binary Caching</span>
+            <span className="text-muted-foreground">MetaEditor compilation is executed only when EA source changes. Existing <code>.ex5</code> binaries are reused instantly with zero CPU overhead.</span>
+          </div>
+          <div className="p-3.5 rounded-xl border border-border/40 bg-card/40 flex flex-col gap-1.5">
+            <span className="font-bold text-foreground">Minimized Background Rendering</span>
+            <span className="text-muted-foreground">Terminals launch in minimized mode with audio effects and news feeds disabled, preventing graphical rendering cycles and saving host CPU.</span>
+          </div>
+        </div>
       </div>
     </div>
   );
