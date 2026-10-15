@@ -69,6 +69,9 @@ describe('AccountsService', () => {
     expect(mockPrisma.mt5Account.update).toHaveBeenCalledWith({
       where: { id: 'acc-1' },
       data: {
+        isActive: true,
+        connectionStatus: 'ONLINE',
+        lastHeartbeatAt: expect.any(Date),
         balance: 10000,
         equity: 10500,
         margin: undefined,

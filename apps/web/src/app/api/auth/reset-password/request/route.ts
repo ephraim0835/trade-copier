@@ -21,8 +21,8 @@ export async function POST() {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Generate a secure 6-digit code
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    // Generate a secure 6-digit code using CSPRNG
+    const code = crypto.randomInt(100000, 1000000).toString();
     
     // Hash the code before saving it (using simple SHA-256 for the token, not argon2 because it's short-lived and we compare securely)
     // Actually, since it's just a 6 digit code for password reset, we can just save it directly or hash it.

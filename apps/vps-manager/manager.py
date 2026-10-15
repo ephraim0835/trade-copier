@@ -15,7 +15,9 @@ import requests
 import MetaTrader5 as mt5
 from dotenv import load_dotenv
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from supabase import create_client, Client
+import psycopg2
+import psycopg2.extras
+import datetime
 import shutil
 
 # Configure logging first
@@ -32,8 +34,7 @@ if ENCRYPTION_KEY_HEX and len(ENCRYPTION_KEY_HEX) == 64:
 else:
     logger.warning("ENCRYPTION_KEY not found or invalid. Passwords will not be decrypted securely.")
 
-SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
-SUPABASE_URL = os.getenv('SUPABASE_URL')
+DATABASE_URL = os.getenv('DATABASE_URL')
 MAX_VPS_CPU_PERCENT = int(os.getenv('MAX_VPS_CPU_PERCENT', '85'))
 MAX_VPS_RAM_PERCENT = int(os.getenv('MAX_VPS_RAM_PERCENT', '85'))
 
@@ -58,6 +59,52 @@ def decrypt_password(encrypted_str):
         logger.error(f"Failed to decrypt password: {e}")
         return encrypted_str
 
+def get_broker_symbol(account):
+    broker = (account.get('broker') or '').lower()
+    server = (account.get('server') or '').lower()
+    
+    # Deriv synthetic servers use Volatility 75 Index
+    if 'deriv' in broker:
+        if 'synthetic' in server or 'server' in server:
+            return 'Volatility 75 Index'
+        return 'EURUSD'
+        
+    # JustMarkets standard accounts use '.s' suffix
+    if 'just' in broker:
+        if 'pro' in server or 'raw' in server:
+            return 'EURUSD'
+        return 'EURUSD.s'
+        
+    # Exness standard accounts use 'm' suffix
+    if 'exness' in broker:
+        if 'pro' in server or 'zero' in server or 'raw' in server:
+            return 'EURUSD'
+        return 'EURUSDm'
+        
+    # XM micro accounts use 'micro' suffix
+    if 'xm' in broker:
+        if 'micro' in server:
+            return 'EURUSDmicro'
+        return 'EURUSD'
+
+    # Common ECN / Raw / Pro / Cent suffixes across prop firms & brokers
+    if 'ecn' in server or 'ecn' in broker:
+        return 'EURUSD.ecn'
+    if 'raw' in server or 'raw' in broker:
+        return 'EURUSD.raw'
+    if 'zero' in server or 'zero' in broker:
+        return 'EURUSD.zero'
+    if 'pro' in server or 'pro' in broker:
+        return 'EURUSD.pro'
+    if 'cent' in server or 'cent' in broker or 'micro' in server:
+        return 'EURUSDc'
+    if '_i' in server or 'institutional' in broker:
+        return 'EURUSD_i'
+        
+    # Standard default for all other brokers (FTMO, IC Markets, FundedNext, The5ers, etc.)
+    return 'EURUSD'
+
+
 def launch_mt5_and_attach_ea(account):
     login = account['login']
     password = account.get('password')
@@ -73,6 +120,19 @@ def launch_mt5_and_attach_ea(account):
         logger.warning(f"Skipping MT5 initialization for account {login} because it is not numeric.")
         return False
 
+    def get_latest_mt5_data_dir():
+        terminals_dir = Path(os.environ.get('APPDATA', 'C:\\Users\\Plaiz\\AppData\\Roaming')) / 'MetaQuotes' / 'Terminal'
+        if not terminals_dir.exists():
+            return None
+        
+        # Find the most recently modified directory (which corresponds to the active terminal)
+        # Exclude 'Common' and 'Community' folders. Also ensure it's a fully initialized terminal with an MQL5/Include folder.
+        dirs = [d for d in terminals_dir.iterdir() if d.is_dir() and d.name not in ['Common', 'Community'] and (d / 'MQL5' / 'Include').exists()]
+        if not dirs:
+            return None
+            
+        return max(dirs, key=lambda d: d.stat().st_mtime)
+
     def get_terminal_path_for_account(account):
         # Dynamically provision a completely independent portable MT5 instance for this account
         account_id = account['id']
@@ -87,13 +147,30 @@ def launch_mt5_and_attach_ea(account):
             try:
                 shutil.copytree(base_install, instance_dir)
                 # Seed the portable instance with the Master account's data directory so it has the MQL5 standard libraries
-                master_data = Path(os.environ.get('APPDATA', 'C:\\Users\\Plaiz\\AppData\\Roaming')) / 'MetaQuotes' / 'Terminal' / 'D0E8209F77C8CF37AD8BF550E51FF075'
-                if master_data.exists():
+                master_data = get_latest_mt5_data_dir()
+                if master_data and master_data.exists():
                     shutil.copytree(master_data, instance_dir, dirs_exist_ok=True)
             except Exception as e:
                 logger.error(f"Failed to copy MT5 instance: {e}")
                 return None, None
                 
+        # Always ensure the latest master servers.dat (with all broker definitions) is synced into this instance
+        config_dir = instance_dir / 'config'
+        config_dir.mkdir(parents=True, exist_ok=True)
+        master_servers_candidates = [
+            Path(__file__).parent / 'servers.dat',
+            Path("C:/Program Files/MetaTrader 5/Config/servers.dat"),
+        ]
+        master_data = get_latest_mt5_data_dir()
+        if master_data and (master_data / 'config' / 'servers.dat').exists():
+            master_servers_candidates.insert(0, master_data / 'config' / 'servers.dat')
+
+        for cand in master_servers_candidates:
+            if cand.exists() and cand.stat().st_size > 100000:
+                shutil.copy2(cand, config_dir / 'servers.dat')
+                logger.info(f"Synced master servers.dat ({cand.stat().st_size:,} bytes) into {instance_dir.name}")
+                break
+
         # For portable instances, the terminal path AND data path are the exact same directory
         return instance_dir, instance_dir
 
@@ -106,8 +183,7 @@ def launch_mt5_and_attach_ea(account):
     # Store the assigned data path on the account
     account['data_path'] = str(data_path)
 
-    # 2. Auto-compile EA using MetaEditor
-    # Copy EA and dependencies into the terminal's MQL5/Experts folder to avoid MetaEditor /out: path space bugs
+    # 2. Auto-compile EA using MetaEditor (with pre-compiled .ex5 fallback)
     source_ea = Path(__file__).parent.parent / 'ea' / ea_file
     source_json = Path(__file__).parent.parent / 'ea' / 'MqlJson.mqh'
     source_wininet = Path(__file__).parent.parent / 'ea' / 'WinInet.mqh'
@@ -120,7 +196,15 @@ def launch_mt5_and_attach_ea(account):
     target_wininet = experts_dir / 'WinInet.mqh'
     compiled_ea = experts_dir / f"{ea_base}.ex5"
     
+    # First seed with pre-compiled .ex5 if available as guaranteed fallback
+    for fallback_loc in [Path(__file__).parent / f"{ea_base}.ex5", Path(__file__).parent.parent / 'ea' / f"{ea_base}.ex5"]:
+        if fallback_loc.exists():
+            shutil.copy2(fallback_loc, compiled_ea)
+            break
+
     metaeditor = terminal_path / 'metaeditor64.exe'
+    if not metaeditor.exists():
+        metaeditor = Path("C:/Program Files/MetaTrader 5/metaeditor64.exe")
     
     if source_ea.exists():
         # Copy source and dependencies
@@ -130,19 +214,21 @@ def launch_mt5_and_attach_ea(account):
         if source_wininet.exists():
             shutil.copy2(source_wininet, target_wininet)
             
-        # Compile directly in the target directory without using /out:
-        compile_cmd = [str(metaeditor), f"/compile:{target_ea}", f"/inc:{data_path / 'MQL5'}"]
+        # Compile directly in the target directory using portable mode
+        compile_cmd = [str(metaeditor), '/portable', f'/compile:MQL5\\Experts\\{ea_file}', '/log']
         logger.info(f"Compiling EA {ea_file} with cmd: {' '.join(compile_cmd)}")
-        result = subprocess.run(compile_cmd, capture_output=True, text=True)
+        result = subprocess.run(compile_cmd, cwd=str(terminal_path), capture_output=True, text=True)
         
         if not compiled_ea.exists():
-            logger.error(f"Failed to compile {ea_file}. Stdout: {result.stdout}, Stderr: {result.stderr}")
+            logger.error(f"Failed to compile {ea_file} and no precompiled fallback found. Stdout: {result.stdout}, Stderr: {result.stderr}")
             return False
         else:
-            logger.info(f"Compiled successfully to {compiled_ea}")
+            logger.info(f"EA binary ready at {compiled_ea}")
     else:
-        logger.error(f"Source EA {source_ea} not found")
-        return False
+        if not compiled_ea.exists():
+            logger.error(f"Source EA {source_ea} not found and no compiled binary exists.")
+            return False
+        logger.info(f"Using precompiled binary at {compiled_ea}")
         
     # 3. Create .set file for EA inputs
     # MQL5\Presets is the standard location for MT5 EA presets
@@ -165,15 +251,24 @@ def launch_mt5_and_attach_ea(account):
 
     files_dir = data_path / 'MQL5' / 'Files'
     files_dir.mkdir(parents=True, exist_ok=True)
-    with open(files_dir / "ea_config.txt", 'w') as f:
+    with open(files_dir / "ea_config.txt", 'w', newline='\n') as f:
         f.write(f"API_URL={api_url}\n")
         f.write(f"EA_TOKEN={account.get('ea_token', '')}\n")
         if account.get('role') == 'SUB':
             f.write(f"SUB_ACCOUNT_ID={account.get('id', '')}\n")
 
-    # Use the user's manually saved default.tpl from the Master account's roaming folder and copy it into the Default profile!
-    # This ensures we get a perfectly formatted chart template.
-    tpl_file_path = Path(os.environ.get('APPDATA', 'C:\\Users\\Plaiz\\AppData\\Roaming')) / 'MetaQuotes' / 'Terminal' / 'D0E8209F77C8CF37AD8BF550E51FF075' / 'MQL5' / 'Profiles' / 'Templates' / 'default.tpl'
+    # Use default.tpl from roaming folder or fallback to bundled default.tpl
+    master_data_dir = get_latest_mt5_data_dir()
+    tpl_candidates = []
+    if master_data_dir:
+        tpl_candidates.append(master_data_dir / 'MQL5' / 'Profiles' / 'Templates' / 'default.tpl')
+    tpl_candidates.append(Path(__file__).parent / 'default.tpl')
+    
+    tpl_file_path = None
+    for cand in tpl_candidates:
+        if cand.exists():
+            tpl_file_path = cand
+            break
     
     profile_dir = data_path / 'MQL5' / 'Profiles' / 'Charts' / 'Default'
     if profile_dir.exists():
@@ -184,7 +279,7 @@ def launch_mt5_and_attach_ea(account):
         f.write("chart01\n")
         
     chr_file_path = profile_dir / "chart01.chr"
-    if tpl_file_path.exists():
+    if tpl_file_path and tpl_file_path.exists():
         # Read the template, dynamically replace the EA name so it matches MasterCopier or SubCopier
         content = tpl_file_path.read_text(encoding='utf-16', errors='ignore')
         if not '<chart>' in content:
@@ -193,9 +288,20 @@ def launch_mt5_and_attach_ea(account):
         content = content.replace("name=MasterCopier", f"name={ea_base}")
         content = content.replace("path=Experts\\MasterCopier.ex5", f"path=Experts\\{ea_base}.ex5")
         
+        target_symbol = get_broker_symbol(account)
+        import re
+        content = re.sub(r'symbol=[^\r\n]+', f'symbol={target_symbol}', content)
+            
+        ea_token = account.get('ea_token', '')
+        if 'EA_TOKEN=' in content:
+            content = re.sub(r'EA_TOKEN=.*', f'EA_TOKEN={ea_token}', content)
+        if 'API_URL=' in content:
+            content = re.sub(r'API_URL=.*', f'API_URL={api_url}', content)
+            
         chr_file_path.write_text(content, encoding='utf-8')
+        logger.info(f"Seeded chart01.chr for {account.get('broker')} with symbol={target_symbol}")
     else:
-        logger.error(f"FATAL: {tpl_file_path} does not exist! Cannot seed chart01.chr!")
+        logger.error(f"FATAL: No default.tpl found in candidates! Cannot seed chart01.chr!")
         
     # 4. Create startup.ini file
     ini_file_dir = data_path / 'config'
@@ -208,6 +314,8 @@ def launch_mt5_and_attach_ea(account):
         f.write(f"Login={login}\n")
         f.write(f"Password={password}\n")
         f.write(f"Server={server}\n")
+        f.write(f"AutoConfiguration=true\n")
+        f.write(f"EnableNews=false\n")
         f.write(f"CertInstall=0\n")
         f.write(f"ProfileLast=Default\n\n")
 
@@ -218,6 +326,9 @@ def launch_mt5_and_attach_ea(account):
     # We MUST use /portable to ensure it uses the current folder as its data path
     launch_cmd = [str(terminal_exe), "/portable", f"/config:config\\{ini_file_name}"]
     logger.info(f"Command: {launch_cmd}")
+    
+    force_webrequest_permission()
+    
     proc = subprocess.Popen(launch_cmd, cwd=str(terminal_path))
     account['process'] = proc
     
@@ -227,21 +338,38 @@ stop_event = threading.Event()
 active_terminals = {}
 
 # Worker thread that continuously polls the DB for inactive accounts
+
+def execute_query(query, params=None, fetch=False):
+    if not DATABASE_URL:
+        logger.error("Missing DATABASE_URL in .env!")
+        return None
+    try:
+        with psycopg2.connect(DATABASE_URL) as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+                cur.execute(query, params)
+                if fetch:
+                    return cur.fetchall()
+                conn.commit()
+                return True
+    except Exception as e:
+        logger.error(f"Database error: {e}")
+        return None
+
 def poll_db_worker():
     """Background thread that polls the DB for active accounts and launches MT5 terminals."""
-    if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
-        logger.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env!")
+    if not DATABASE_URL:
+        logger.error("Missing DATABASE_URL in .env!")
         time.sleep(10)
         return
-        
-    supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
     while not stop_event.is_set():
         try:
-            # Fetch active accounts using the Supabase REST API (immune to all connection pooler issues)
-            response = supabase.table('Mt5Account').select('id,login,password,broker,server,isActive,role,connectionStatus,lastHeartbeatAt').execute()
+            rows = execute_query('SELECT id, login, password, broker, server, "isActive", role, "connectionStatus", "lastHeartbeatAt" FROM "Mt5Account"', fetch=True)
+            if rows is None:
+                time.sleep(10)
+                continue
             
-            for row in response.data:
+            for row in rows:
                 account = {
                     'id': row.get('id'),
                     'login': str(row.get('login')),
@@ -260,20 +388,22 @@ def poll_db_worker():
                 # Check stale heartbeat for intelligent watchdog
                 is_stale = False
                 if account['connectionStatus'] == 'ONLINE' and account['lastHeartbeatAt']:
-                    # parse ISO datetime from Supabase (e.g. 2026-09-03T12:00:00.000Z or similar)
                     try:
-                        hb_str = account['lastHeartbeatAt'].replace('Z', '+00:00')
-                        hb_time = datetime.fromisoformat(hb_str)
-                        if (datetime.utcnow().astimezone() - hb_time).total_seconds() > 180:
+                        hb_time = account['lastHeartbeatAt']
+                        if isinstance(hb_time, str):
+                            hb_str = hb_time.replace('Z', '+00:00')
+                            hb_time = datetime.datetime.fromisoformat(hb_str)
+                        if hb_time.tzinfo is None:
+                            hb_time = hb_time.replace(tzinfo=datetime.timezone.utc)
+                        if (datetime.datetime.now(datetime.timezone.utc) - hb_time).total_seconds() > 180:
                             is_stale = True
                     except Exception:
                         pass
                 
                 if account['is_active']:
-                    # Prevent endless restart loops for FAILED terminals
-                    if account['connectionStatus'] == 'FAILED' and login not in active_terminals:
-                        continue
-                        
+                    # Allow FAILED terminals to be retried by the intelligent watchdog
+                    # instead of ignoring them forever. The watchdog will kill any zombie processes.
+                    
                     # Prevent double-provisioning
                     if account['connectionStatus'] == 'PROVISIONING' and login not in active_terminals:
                         continue
@@ -293,14 +423,14 @@ def poll_db_worker():
                                 del active_terminals[login]
                         
                         # Pre-flight check: CPU / RAM limits
-                        if psutil.virtual_memory().percent > 95:
+                        if psutil.virtual_memory().percent > 98:
                             logger.warning(f"Capacity limit reached (CPU: {psutil.cpu_percent()}%, RAM: {psutil.virtual_memory().percent}%). Cannot provision {account['login']}.")
-                            supabase.table('Mt5Account').update({'connectionStatus': 'FAILED', 'provisioningError': 'VPS Capacity Limit Exceeded'}).eq('id', account['id']).execute()
+                            execute_query('UPDATE "Mt5Account" SET "connectionStatus" = %s, "provisioningError" = %s WHERE id = %s', ('FAILED', 'VPS Capacity Limit Exceeded', account['id']))
                             continue
                             
                         logger.info(f"New active account detected (or recovering): {login}. Fetching EA token and launching MT5...")
                         
-                        supabase.table('Mt5Account').update({'connectionStatus': 'PROVISIONING', 'provisioningError': None}).eq('id', account['id']).execute()
+                        execute_query('UPDATE "Mt5Account" SET "connectionStatus" = %s, "provisioningError" = NULL WHERE id = %s', ('PROVISIONING', account['id']))
                         
                         # Fetch EA token only when launching. 
                         # We will block launch and retry infinitely with bounded backoff if the API is offline.
@@ -333,7 +463,7 @@ def poll_db_worker():
                                     
                                     if attempt >= 5:
                                         logger.error(f"Max retries reached for EA token {login}. Marking failed.")
-                                        supabase.table('Mt5Account').update({'connectionStatus': 'FAILED', 'provisioningError': 'Failed to fetch EA token'}).eq('id', account['id']).execute()
+                                        execute_query('UPDATE "Mt5Account" SET "connectionStatus" = %s, "provisioningError" = %s WHERE id = %s', ('FAILED', 'Failed to fetch EA token', account['id']))
                                         break
                                         
                                     time.sleep(sleep_time)
@@ -358,18 +488,18 @@ def poll_db_worker():
                             except (psutil.NoSuchProcess, psutil.AccessDenied):
                                 pass
                         del active_terminals[login]
-                        supabase.table('Mt5Account').update({'connectionStatus': 'OFFLINE'}).eq('id', account['id']).execute()
+                        execute_query('UPDATE "Mt5Account" SET "connectionStatus" = %s WHERE id = %s', ('OFFLINE', account['id']))
                         
-            # Check for provisioning timeouts (60s without ONLINE status)
+            # Check for provisioning timeouts (120s without ONLINE status)
             current_time = time.time()
             for login, acc in list(active_terminals.items()):
-                if acc.get('launch_time') and (current_time - acc['launch_time']) > 60:
+                if acc.get('launch_time') and (current_time - acc['launch_time']) > 120:
                     # check actual status from DB
-                    for row in response.data:
+                    for row in rows:
                         if str(row.get('login')) == login:
                             if row.get('connectionStatus') == 'PROVISIONING':
-                                logger.error(f"Timeout: EA {login} never sent heartbeat after 60s. Killing process.")
-                                supabase.table('Mt5Account').update({'connectionStatus': 'FAILED', 'provisioningError': 'EA initialization timeout (no heartbeat)'}).eq('id', acc['id']).execute()
+                                logger.error(f"Timeout: EA {login} never sent heartbeat after 120s. Killing process.")
+                                execute_query('UPDATE "Mt5Account" SET "connectionStatus" = %s, "provisioningError" = %s WHERE id = %s', ('FAILED', 'EA initialization timeout (no heartbeat)', acc['id']))
                                 
                                 for proc in psutil.process_iter(['name', 'cmdline']):
                                     try:
@@ -382,7 +512,7 @@ def poll_db_worker():
                             break
             
             # Detect deleted accounts
-            fetched_logins = set(str(row.get('login')) for row in response.data)
+            fetched_logins = set(str(row.get('login')) for row in rows)
             for login in list(active_terminals.keys()):
                 if login not in fetched_logins:
                     logger.info(f"Account {login} was deleted. Killing terminal.")
@@ -403,12 +533,10 @@ def poll_db_worker():
         time.sleep(10)
 
 def telemetry_worker():
-    if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
-        logger.error("Missing SUPABASE credentials for telemetry")
+    if not DATABASE_URL:
+        logger.error("Missing DATABASE credentials for telemetry")
         return
         
-    supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
-    
     while True:
         try:
             cpu = psutil.cpu_percent(interval=1)
@@ -424,16 +552,17 @@ def telemetry_worker():
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
             
-            supabase.table('VpsEnvironment').upsert({
-                'id': str(uuid.uuid4()),
-                'name': 'vps-main-1',
-                'status': 'HEALTHY',
-                'cpuPercent': cpu,
-                'ramPercent': ram,
-                'diskPercent': disk,
-                'activeTerminals': terminals,
-                'lastHeartbeatAt': 'now()'
-            }, on_conflict='name').execute()
+            execute_query("""
+                INSERT INTO "VpsEnvironment" (id, name, status, "cpuPercent", "ramPercent", "diskPercent", "activeTerminals", "lastHeartbeatAt")
+                VALUES (%s, %s, %s, %s, %s, %s, %s, now())
+                ON CONFLICT (name) DO UPDATE SET 
+                    status = EXCLUDED.status,
+                    "cpuPercent" = EXCLUDED."cpuPercent",
+                    "ramPercent" = EXCLUDED."ramPercent",
+                    "diskPercent" = EXCLUDED."diskPercent",
+                    "activeTerminals" = EXCLUDED."activeTerminals",
+                    "lastHeartbeatAt" = now()
+            """, (str(uuid.uuid4()), 'vps-main-1', 'HEALTHY', cpu, ram, disk, terminals))
             
         except Exception as e:
             logger.error(f'Telemetry failed: {e}')
@@ -454,7 +583,7 @@ def keep_alive_worker():
     while True:
         try:
             logger.info(f"Sending keep-alive ping to {ping_url} to prevent Render from sleeping...")
-            response = requests.get(ping_url, timeout=10)
+            response = requests.get(ping_url, timeout=60)
             if response.status_code == 200:
                 logger.info(f"Keep-alive ping successful: {response.text}")
             else:

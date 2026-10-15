@@ -7,9 +7,20 @@ export async function POST(req: NextRequest) {
     const secretHash = process.env.FLW_WEBHOOK_HASH;
     const signature = req.headers.get("verif-hash");
 
-    if (secretHash && signature !== secretHash) {
-      // If a webhook hash is configured, require it
-      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    if (process.env.NODE_ENV === 'production' && !secretHash) {
+      console.error("FLW_WEBHOOK_HASH must be configured in production");
+      return NextResponse.json({ error: "Webhook not configured" }, { status: 500 });
+    }
+
+    if (secretHash) {
+      if (!signature) {
+        return NextResponse.json({ error: "Missing signature" }, { status: 401 });
+      }
+      const hashBuf = Buffer.from(secretHash);
+      const sigBuf = Buffer.from(signature);
+      if (hashBuf.length !== sigBuf.length || !crypto.timingSafeEqual(hashBuf, sigBuf)) {
+        return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+      }
     }
 
     const payload = await req.json();

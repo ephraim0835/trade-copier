@@ -25,9 +25,15 @@ void LoadConfig()
         while(!FileIsEnding(handle))
         {
             string line = FileReadString(handle);
+            StringTrimLeft(line);
+            StringTrimRight(line);
             string result[];
             if(StringSplit(line, StringGetCharacter("=",0), result) >= 2)
             {
+                StringTrimLeft(result[0]);
+                StringTrimRight(result[0]);
+                StringTrimLeft(result[1]);
+                StringTrimRight(result[1]);
                 if(result[0] == "API_URL") API_URL = result[1];
                 if(result[0] == "EA_TOKEN") EA_TOKEN = result[1];
                 if(result[0] == "SUB_ACCOUNT_ID") SUB_ACCOUNT_ID = result[1];
@@ -83,6 +89,7 @@ int OnInit()
      
    EventSetMillisecondTimer(TIMER_INTERVAL_MS);
    PrintFormat("SubCopier v2.0 initialized. SubAccount: %s, Polling: %d ms, History: %d items", SUB_ACCOUNT_ID, TIMER_INTERVAL_MS, ArraySize(ProcessedCommands));
+   SendTelemetry();
    return(INIT_SUCCEEDED);
   }
 

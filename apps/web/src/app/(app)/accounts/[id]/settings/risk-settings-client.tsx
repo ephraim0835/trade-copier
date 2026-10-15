@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Save, Loader2 } from 'lucide-react';
+import { Save, Loader2, Info } from 'lucide-react';
 
 type RiskSettingsProps = {
   accountId: string;
@@ -125,6 +125,17 @@ export function RiskSettingsClient({ accountId, initialSettings }: RiskSettingsP
               className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
             />
             <p className="text-xs text-muted-foreground">Max allowed excess volume % when rounding MT5 lots.</p>
+          </div>
+        </div>
+
+        {/* Gentle Execution & Slippage Advisory */}
+        <div className="mt-5 p-4 rounded-xl bg-secondary/40 border border-border/60 flex items-start gap-3">
+          <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <h4 className="text-xs font-semibold text-foreground">Trade Synchronization & Execution Advisory</h4>
+            <p className="text-[12px] text-muted-foreground leading-relaxed">
+              Our low-latency engine routes trades instantaneously within milliseconds. However, multi-broker copy trading operates on live market liquidity where sudden volatility spikes, economic news releases, and inter-broker spread differences can occasionally introduce slight price slippage or entry variations. Your configured risk limits and rounding tolerances continuously protect your capital.
+            </p>
           </div>
         </div>
       </div>

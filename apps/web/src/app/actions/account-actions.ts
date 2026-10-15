@@ -47,7 +47,7 @@ export async function createMt5Account(data: {
         broker: data.broker,
         server: data.server,
         role: data.role,
-        isActive: false, // Starts offline until EA connects
+        isActive: true, // Auto-start the terminal upon creation
         isDemo: data.isDemo ?? true, // Default to demo for safety if not specified
       }
     });
@@ -82,7 +82,8 @@ export async function createMt5Account(data: {
     revalidatePath('/risk');
     revalidatePath('/accounts');
 
-    return { success: true, account };
+    const { password, ...safeAccount } = account;
+    return { success: true, account: safeAccount };
   } catch (error: any) {
     console.error('Error creating MT5 Account:', error);
     return { success: false, error: error.message };
@@ -188,3 +189,51 @@ export async function toggleAccountActive(accountId: string, isActive: boolean) 
     return { success: false, error: error.message };
   }
 }
+
+/**
+ * Poll live connection & provisioning status for an MT5 account.
+ */
+export async function getAccountConnectionStatus(accountId: string) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      select: { id: true }
+    });
+
+    if (!user) {
+      return { success: false, error: 'User not found' };
+    }
+
+    const account = await prisma.mt5Account.findFirst({
+      where: { id: accountId, userId: user.id },
+      select: {
+        id: true,
+        login: true,
+        broker: true,
+        server: true,
+        role: true,
+        connectionStatus: true,
+        provisioningError: true,
+        balance: true,
+        equity: true,
+        currency: true,
+        lastHeartbeatAt: true,
+        isActive: true,
+      }
+    });
+
+    if (!account) {
+      return { success: false, error: 'Account not found' };
+    }
+
+    return { success: true, account };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+

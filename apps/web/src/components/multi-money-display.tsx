@@ -8,7 +8,7 @@ interface MultiMoneyDisplayProps {
   className?: string;
   colored?: boolean;
   showSign?: boolean;
-  liveType?: 'balance' | 'floatingPl';
+  liveType?: 'balance' | 'equity' | 'floatingPl';
 }
 
 export function MultiMoneyDisplay({ balances, className = '', colored = false, showSign = false, liveType }: MultiMoneyDisplayProps) {
@@ -32,9 +32,17 @@ export function MultiMoneyDisplay({ balances, className = '', colored = false, s
         
         return prev.map(b => {
           if (b.id === payload.accountId) {
+            let nextAmount = b.amount;
+            if (liveType === 'equity') {
+              nextAmount = payload.equity ?? (payload.balance !== undefined ? payload.balance + (payload.floatingPl || 0) : b.amount);
+            } else if (liveType === 'balance') {
+              if (payload.balance !== undefined) nextAmount = payload.balance;
+            } else if (liveType === 'floatingPl') {
+              if (payload.floatingPl !== undefined) nextAmount = payload.floatingPl;
+            }
             return {
               ...b,
-              amount: liveType === 'balance' ? payload.balance : payload.floatingPl
+              amount: nextAmount
             };
           }
           return b;

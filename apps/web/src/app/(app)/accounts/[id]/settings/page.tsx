@@ -50,11 +50,11 @@ export default async function AccountSettingsPage({ params }: { params: Promise<
         </div>
       </div>
 
-      <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-4 flex gap-3">
-        <ShieldAlert className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
-        <div className="text-sm text-destructive">
-          <p className="font-semibold">Live Execution Warning</p>
-          <p className="opacity-90">Changes to Risk Controls apply immediately to all new incoming signals. Existing open positions will not be modified by these settings.</p>
+      <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex gap-3">
+        <ShieldAlert className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+        <div className="text-sm">
+          <p className="font-semibold text-foreground">Real-time Parameter Application</p>
+          <p className="text-muted-foreground text-xs mt-0.5">Updated safety parameters apply dynamically to subsequent incoming signals. Existing open positions remain governed by their initial entry rules.</p>
         </div>
       </div>
 

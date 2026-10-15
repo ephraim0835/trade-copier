@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { AccountsController } from '../controllers/accounts.controller';
 import { AccountsService } from '../services/accounts.service';
 import { PrismaService } from '../../../database/prisma.service';
@@ -30,9 +31,16 @@ describe('AccountsController (Authorization)', () => {
         {
           provide: EaAuthService,
           useValue: {},
-        }
+        },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn().mockReturnValue('false'),
+          },
+        },
       ],
     }).compile();
+
 
     controller = module.get<AccountsController>(AccountsController);
     prismaService = module.get<PrismaService>(PrismaService);

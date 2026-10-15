@@ -84,7 +84,7 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
             <span className="text-muted-foreground">Balance</span>
             <span className="font-bold num-tabular text-foreground">
               {account.balance != null
-                ? <MoneyDisplay amount={account.balance} sourceCurrency={account.currency || 'USD'} />
+                ? <MoneyDisplay amount={account.balance} sourceCurrency={account.currency || 'USD'} accountId={account.id} liveType="balance" />
                 : 'N/A'}
             </span>
           </div>
@@ -92,13 +92,16 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
             <span className="text-muted-foreground">Equity</span>
             <div className="flex gap-2 items-center">
               <span className="font-bold num-tabular text-foreground">
-                {account.equity != null
-                  ? <MoneyDisplay amount={account.equity} sourceCurrency={account.currency || 'USD'} />
-                  : (account.balance != null ? <MoneyDisplay amount={account.balance} sourceCurrency={account.currency || 'USD'} /> : 'N/A')}
+                <MoneyDisplay 
+                  amount={account.equity ?? ((account.balance || 0) + (account.floatingPl || 0))} 
+                  sourceCurrency={account.currency || 'USD'} 
+                  accountId={account.id} 
+                  liveType="equity" 
+                />
               </span>
               {account.floatingPl != null ? (
                 <span className={`text-[11px] font-semibold ${account.floatingPl > 0 ? 'text-emerald-500' : account.floatingPl < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
-                  ({account.floatingPl > 0 ? '+' : ''}{account.floatingPl.toFixed(2)})
+                  (<MoneyDisplay amount={account.floatingPl} sourceCurrency={account.currency || 'USD'} accountId={account.id} liveType="floatingPl" />)
                 </span>
               ) : null}
             </div>

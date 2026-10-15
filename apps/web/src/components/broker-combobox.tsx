@@ -56,11 +56,27 @@ const COMMON_BROKERS = [
   { broker: 'FTMO S.R.O.', servers: ['FTMO-Demo', 'FTMO-Server', 'FTMO-Server2', 'FTMO-Server3'] },
   { broker: 'Funding Pips', servers: ['FundingPips-Demo', 'FundingPips-Live', 'FundingPips-Server'] },
   { broker: 'FundedNext', servers: ['FundedNext-Demo', 'FundedNext-Server', 'FundedNext-Server2'] },
-  { broker: 'Eightcap Pty Ltd', servers: ['Eightcap-Demo', 'Eightcap-Live', 'Eightcap-Live 2', 'Eightcap-Live 3'] },
+  { broker: 'The5ers', servers: ['The5ers-MT5', 'The5ers-Live', 'The5ers-Demo'] },
+  { broker: 'Goat Funded Trader', servers: ['GoatFundedTrader-Server', 'GoatFundedTrader-Demo'] },
+  { broker: 'FXIFY', servers: ['FXIFY-Live', 'FXIFY-Demo'] },
   { broker: 'Alpha Capital Group', servers: ['AlphaCapital-Demo', 'AlphaCapital-Live'] },
   { broker: 'The Funded Trader', servers: ['TheFundedTrader-Demo', 'TheFundedTrader-Live'] },
   { broker: 'MyFundedFX', servers: ['MyFundedFX-Demo', 'MyFundedFX-Live'] },
   { broker: 'E8 Funding', servers: ['E8Funding-Demo', 'E8Funding-Live'] },
+  { broker: 'Blue Guardian', servers: ['BlueGuardian-Server', 'BlueGuardian-Demo'] },
+  { broker: 'TopTier Trader', servers: ['TopTierTrader-Server', 'TopTierTrader-Demo'] },
+  { broker: 'MyFlashFunding', servers: ['MyFlashFunding-Server', 'MyFlashFunding-Demo'] },
+  { broker: 'Funded Engineer', servers: ['FundedEngineer-Server', 'FundedEngineer-Demo'] },
+  { broker: 'Maven Trading', servers: ['MavenTrading-Server', 'MavenTrading-Demo'] },
+  { broker: 'City Traders Imperium', servers: ['CTI-Server', 'CTI-Demo'] },
+  { broker: 'Lark Funding', servers: ['LarkFunding-Server', 'LarkFunding-Demo'] },
+  { broker: 'Instant Funding', servers: ['InstantFunding-Server', 'InstantFunding-Demo'] },
+  { broker: 'Apex Trader Funding', servers: ['Apex-Server', 'Apex-Demo'] },
+  { broker: 'Bulenox', servers: ['Bulenox-Live', 'Bulenox-Demo'] },
+  { broker: 'FunderPro', servers: ['FunderPro-Live', 'FunderPro-Demo'] },
+  { broker: 'Smart Prop Trader', servers: ['SmartPropTrader-Server', 'SmartPropTrader-Demo'] },
+  { broker: 'Funded Trading Plus', servers: ['FundedTradingPlus-Server', 'FundedTradingPlus-Demo'] },
+  { broker: 'Eightcap Pty Ltd', servers: ['Eightcap-Demo', 'Eightcap-Live', 'Eightcap-Live 2', 'Eightcap-Live 3'] },
   { broker: 'True Forex Funds', servers: ['TrueForexFunds-Demo', 'TrueForexFunds-Live'] },
   { broker: 'SurgeTrader', servers: ['SurgeTrader-Demo', 'SurgeTrader-Live'] },
   { broker: 'Fidelcrest', servers: ['Fidelcrest-Demo', 'Fidelcrest-Live'] },
@@ -70,6 +86,10 @@ const COMMON_BROKERS = [
   { broker: 'Infinity Forex Funds', servers: ['InfinityForex-Demo', 'InfinityForex-Live'] },
   { broker: 'Quantec', servers: ['Quantec-Demo', 'Quantec-Live'] },
   { broker: 'The Trading Pit', servers: ['TheTradingPit-Demo', 'TheTradingPit-Live'] },
+  { broker: 'PU Prime', servers: ['PUPrime-Live', 'PUPrime-Live 2', 'PUPrime-Demo'] },
+  { broker: 'Hantec Markets', servers: ['Hantec-Live', 'Hantec-Demo'] },
+  { broker: 'Key to Markets', servers: ['KeyToMarkets-Live', 'KeyToMarkets-Demo'] },
+  { broker: 'Swissquote Bank', servers: ['Swissquote-Live', 'Swissquote-Demo'] },
   
   // Base MetaQuotes
   { broker: 'MetaQuotes Software Corp.', servers: ['MetaQuotes-Demo'] }
@@ -100,17 +120,25 @@ export function BrokerCombobox() {
 
   const filteredBrokers = COMMON_BROKERS.filter(b => b.broker.toLowerCase().includes(brokerValue.toLowerCase()));
   
-  const selectedBrokerObj = COMMON_BROKERS.find(b => b.broker === brokerValue) || 
-                            COMMON_BROKERS.find(b => b.broker.toLowerCase().includes(brokerValue.toLowerCase()));
+  const selectedBrokerObj = COMMON_BROKERS.find(b => b.broker.toLowerCase() === brokerValue.trim().toLowerCase());
                             
   const filteredServers = selectedBrokerObj 
     ? selectedBrokerObj.servers.filter(s => s.toLowerCase().includes(serverValue.toLowerCase()))
     : [];
 
+  const isCustomBroker = brokerValue.trim().length > 0 && !selectedBrokerObj;
+
   return (
     <>
       <div className="flex flex-col gap-1.5" ref={brokerRef}>
-        <label className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold px-1">Broker</label>
+        <div className="flex items-center justify-between px-1">
+          <label className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold">Broker or Prop Firm</label>
+          {isCustomBroker && (
+            <span className="text-[10px] bg-primary/10 text-primary font-medium px-2 py-0.5 rounded-full">
+              Custom Broker Supported
+            </span>
+          )}
+        </div>
         <div className="relative">
           <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
             <Server className="w-4 h-4 text-muted-foreground" />
@@ -122,20 +150,19 @@ export function BrokerCombobox() {
             value={brokerValue}
             onChange={(e) => setBrokerValue(e.target.value)}
             onFocus={() => setBrokerFocused(true)}
-            placeholder="e.g. MetaQuotes Software Corp." 
+            placeholder="Search or enter any broker / prop firm..." 
             autoComplete="off"
             className="w-full bg-black/5 dark:bg-white/5 border border-border/30 rounded-2xl py-3 pl-11 pr-4 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 ring-primary/20 transition-all"
           />
-          {brokerFocused && filteredBrokers.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-2 p-1 bg-card/90 backdrop-blur-xl border border-border/50 rounded-xl shadow-xl z-50 max-h-48 overflow-y-auto custom-scrollbar">
+          {brokerFocused && (
+            <div className="absolute top-full left-0 right-0 mt-2 p-1 bg-card/95 backdrop-blur-xl border border-border/50 rounded-xl shadow-xl z-50 max-h-56 overflow-y-auto custom-scrollbar">
               {filteredBrokers.map(b => (
                 <div 
                   key={b.broker} 
-                  className="px-3 py-2.5 text-sm hover:bg-black/5 dark:hover:bg-white/10 rounded-lg cursor-pointer transition-colors"
+                  className="px-3 py-2.5 text-sm hover:bg-black/5 dark:hover:bg-white/10 rounded-lg cursor-pointer transition-colors flex items-center justify-between"
                   onClick={() => {
                     setBrokerValue(b.broker);
                     setBrokerFocused(false);
-                    // auto-select server if there's only one
                     if (b.servers.length === 1) {
                       setServerValue(b.servers[0]);
                     } else {
@@ -143,16 +170,29 @@ export function BrokerCombobox() {
                     }
                   }}
                 >
-                  {b.broker}
+                  <span>{b.broker}</span>
+                  <span className="text-[10px] text-muted-foreground/70 uppercase font-mono">{b.servers.length} servers</span>
                 </div>
               ))}
+              {isCustomBroker && (
+                <div 
+                  className="px-3 py-2.5 text-sm font-medium text-primary hover:bg-primary/10 rounded-lg cursor-pointer transition-colors border-t border-border/30 mt-1 flex items-center justify-between"
+                  onClick={() => setBrokerFocused(false)}
+                >
+                  <span>Use custom: &ldquo;{brokerValue}&rdquo;</span>
+                  <span className="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded">All Brokers Allowed</span>
+                </div>
+              )}
             </div>
           )}
         </div>
       </div>
 
       <div className="flex flex-col gap-1.5" ref={serverRef}>
-        <label className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold px-1">Server</label>
+        <div className="flex items-center justify-between px-1">
+          <label className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold">MT5 Server or Host</label>
+          <span className="text-[10px] text-muted-foreground/80 font-mono">e.g. ServerName or IP:Port</span>
+        </div>
         <div className="relative">
           <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
             <Server className="w-4 h-4 text-muted-foreground" />
@@ -164,16 +204,16 @@ export function BrokerCombobox() {
             value={serverValue}
             onChange={(e) => setServerValue(e.target.value)}
             onFocus={() => setServerFocused(true)}
-            placeholder="e.g. MetaQuotes-Demo" 
+            placeholder={selectedBrokerObj ? selectedBrokerObj.servers[0] : "e.g. MyBroker-Live or 185.12.34.56:443"} 
             autoComplete="off"
-            className="w-full bg-black/5 dark:bg-white/5 border border-border/30 rounded-2xl py-3 pl-11 pr-4 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 ring-primary/20 transition-all"
+            className="w-full bg-black/5 dark:bg-white/5 border border-border/30 rounded-2xl py-3 pl-11 pr-4 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 ring-primary/20 transition-all font-mono"
           />
           {serverFocused && filteredServers.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-2 p-1 bg-card/90 backdrop-blur-xl border border-border/50 rounded-xl shadow-xl z-50 max-h-48 overflow-y-auto custom-scrollbar">
+            <div className="absolute top-full left-0 right-0 mt-2 p-1 bg-card/95 backdrop-blur-xl border border-border/50 rounded-xl shadow-xl z-50 max-h-48 overflow-y-auto custom-scrollbar">
               {filteredServers.map(s => (
                 <div 
                   key={s} 
-                  className="px-3 py-2.5 text-sm hover:bg-black/5 dark:hover:bg-white/10 rounded-lg cursor-pointer transition-colors"
+                  className="px-3 py-2.5 text-sm hover:bg-black/5 dark:hover:bg-white/10 rounded-lg cursor-pointer transition-colors font-mono"
                   onClick={() => {
                     setServerValue(s);
                     setServerFocused(false);
@@ -186,11 +226,12 @@ export function BrokerCombobox() {
           )}
         </div>
         <p className="text-[11px] text-muted-foreground/80 mt-0.5 px-2 font-medium">
-          If your broker or server isn't in the suggestions, just type its exact name and we'll search for it. Please make sure you type everything correctly.
+          Any MT5 broker or prop firm in the world is supported. Enter the exact server name from your broker welcome email, or direct IP/hostname.
         </p>
       </div>
     </>
   );
 }
+
 
 

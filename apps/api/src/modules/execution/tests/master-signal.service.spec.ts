@@ -1,10 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { MasterSignalService } from '../services/master-signal.service';
 import { RiskEngineService } from '../../risk-engine/services/risk-engine.service';
 import { PrismaService } from '../../../database/prisma.service';
 import { HotDispatchService } from '../services/hot-dispatch.service';
 import { AsyncPersistenceService } from '../services/async-persistence.service';
 import { CommandType, CommandStatus, CopyState, OrderType } from '@prisma/client';
+
 
 describe('MasterSignalService - Hot Path Suite', () => {
   let service: MasterSignalService;
@@ -59,8 +61,15 @@ describe('MasterSignalService - Hot Path Suite', () => {
             enqueueTask: jest.fn(),
           },
         },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn().mockReturnValue('false'),
+          },
+        },
       ],
     }).compile();
+
 
     service = module.get<MasterSignalService>(MasterSignalService);
     riskEngine = module.get<RiskEngineService>(RiskEngineService);

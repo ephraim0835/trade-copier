@@ -127,6 +127,12 @@ export default async function DashboardOverview() {
     currency: a.currency || 'USD'
   }));
 
+  const totalEquityArray = accounts.map((a: any) => ({
+    id: a.id,
+    amount: a.equity != null ? a.equity : ((a.balance || 0) + (a.floatingPl || 0)),
+    currency: a.currency || 'USD'
+  }));
+
   const todaysTotalPlArray = [
     ...todayDeals.map((deal: any) => ({
       amount: deal.profit + deal.commission + deal.swap,
@@ -231,20 +237,23 @@ export default async function DashboardOverview() {
               <div className="hidden dark:block absolute -bottom-32 -left-32 w-80 h-80 bg-primary/10 rounded-full blur-[80px] pointer-events-none"></div>
 
               <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 sm:gap-8 flex-wrap lg:flex-nowrap">
-                {/* Total Balance (Sum of master + all subs) */}
+                {/* Total Equity & Vault Balance (Sum of master + all subs) */}
                 <div className="flex flex-col z-10 min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-2 sm:mb-3">
-                    <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-                      <div className="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
+                    <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
                     </div>
-                    <span className="text-[11px] text-muted-foreground uppercase tracking-[0.2em] font-semibold">Total Vault Balance</span>
+                    <span className="text-[11px] text-muted-foreground uppercase tracking-[0.2em] font-semibold">Live Portfolio Equity</span>
                   </div>
                   <MultiMoneyDisplay 
-                    balances={totalBalanceArray}
-                    liveType="balance"
+                    balances={totalEquityArray}
+                    liveType="equity"
                     className="text-[36px] sm:text-[44px] md:text-[48px] font-bold tracking-tighter leading-none num-tabular text-foreground break-words block"
                   />
-                  <div className="mt-3 sm:mt-4 flex items-center gap-2">
+                  <div className="mt-3 sm:mt-4 flex items-center gap-2 flex-wrap">
+                    <span className="px-2.5 py-1 bg-black/5 dark:bg-white/5 border border-border/50 rounded-md text-[10px] text-muted-foreground font-semibold flex items-center gap-1.5">
+                      VAULT BALANCE: <MultiMoneyDisplay balances={totalBalanceArray} liveType="balance" className="font-semibold text-foreground" />
+                    </span>
                     <span className="px-2.5 py-1 bg-black/5 dark:bg-white/5 border border-border/50 rounded-md text-[10px] text-muted-foreground font-semibold">
                       {accounts.length} CONNECTED ACCOUNTS
                     </span>
@@ -310,7 +319,12 @@ export default async function DashboardOverview() {
                   <div className="flex flex-col">
                     <span className="text-[10px] text-muted-foreground uppercase tracking-[0.1em] mb-1">Equity</span>
                     <span className="text-[15px] font-semibold text-foreground num-tabular">
-                      {masterAccount.equity != null ? <MoneyDisplay amount={masterAccount.equity} sourceCurrency={masterAccount.currency || 'USD'} accountId={masterAccount.id} /> : 'N/A'}
+                      <MoneyDisplay 
+                        amount={masterAccount.equity != null ? masterAccount.equity : ((masterAccount.balance || 0) + (masterAccount.floatingPl || 0))} 
+                        sourceCurrency={masterAccount.currency || 'USD'} 
+                        accountId={masterAccount.id} 
+                        liveType="equity"
+                      />
                     </span>
                   </div>
                   <div className="flex flex-col">
@@ -477,6 +491,17 @@ export default async function DashboardOverview() {
                     <span className="text-[10px] text-muted-foreground uppercase tracking-[0.1em] mb-0.5">Balance</span>
                     <span className="text-[13px] font-semibold text-foreground num-tabular">
                       {sub.balance != null ? <MoneyDisplay amount={sub.balance} sourceCurrency={sub.currency || 'USD'} accountId={sub.id} liveType="balance" /> : 'N/A'}
+                    </span>
+                  </div>
+                  <div className="flex flex-col items-center">
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-[0.1em] mb-0.5">Equity</span>
+                    <span className="text-[13px] font-semibold text-foreground num-tabular">
+                      <MoneyDisplay 
+                        amount={sub.equity != null ? sub.equity : ((sub.balance || 0) + (sub.floatingPl || 0))} 
+                        sourceCurrency={sub.currency || 'USD'} 
+                        accountId={sub.id} 
+                        liveType="equity" 
+                      />
                     </span>
                   </div>
                   <div className="flex flex-col items-end">

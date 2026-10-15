@@ -40,3 +40,12 @@ packages/database/.env
 
 apps/web/.env
 apps/api/.env
+apps/api/data/*.jsonl
+*.log
+check_*.py
+test_*.py
+fix_*.py
+reset_*.py
+rewrite.py
+get_brokers.py
+status.py

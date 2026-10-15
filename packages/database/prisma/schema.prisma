@@ -10,20 +10,22 @@ datasource db {
 }
 
 model User {
-  id                  String        @id @default(uuid())
-  email               String        @unique
+  id                  String             @id @default(uuid())
+  email               String             @unique
   password            String
-  role                Role          @default(USER)
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
+  role                Role               @default(USER)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
   name                String?
-  emailVerified       Boolean       @default(false)
+  emailVerified       Boolean            @default(false)
   verificationToken   String?
   resetToken          String?
   resetTokenExpiresAt DateTime?
   accounts            Mt5Account[]
   subscription        Subscription?
+  notifications       UserNotification[]
 }
+
 
 model Mt5Account {
   id                  String                @id @default(uuid())
@@ -273,18 +275,57 @@ model ExecutionCommand {
 }
 
 model Subscription {
-  id                    String             @id @default(uuid())
-  userId                String             @unique
-  status                SubscriptionStatus @default(TRIAL)
-  planId                String?
-  stripeCustomerId      String?
-  flutterwaveCustomerId String?
-  flutterwaveTxRef      String?
-  currentPeriodEnd      DateTime?
-  createdAt             DateTime           @default(now())
-  updatedAt             DateTime           @updatedAt
-  user                  User               @relation(fields: [userId], references: [id])
+  id                                 String             @id @default(uuid())
+  userId                             String             @unique
+  status                             SubscriptionStatus @default(TRIAL)
+  planId                             String?
+  stripeCustomerId                   String?
+  flutterwaveCustomerId              String?
+  flutterwaveTxRef                   String?
+  currentPeriodEnd                   DateTime?
+  discountCodeId                     String?
+  discountCode                       DiscountCode?      @relation(fields: [discountCodeId], references: [id])
+  lifetimeDiscountScheduledRemovalAt DateTime?
+  lifetimeDiscountNoticeSentAt       DateTime?
+  createdAt                          DateTime           @default(now())
+  updatedAt                          DateTime           @updatedAt
+  user                               User               @relation(fields: [userId], references: [id])
 }
+
+enum DiscountDuration {
+  FIRST_MONTH
+  LIFETIME
+}
+
+model DiscountCode {
+  id            String           @id @default(uuid())
+  code          String           @unique
+  percentage    Float
+  duration      DiscountDuration @default(FIRST_MONTH)
+  validUntil    DateTime?
+  maxUses       Int?
+  usedCount     Int              @default(0)
+  isActive      Boolean          @default(true)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  subscriptions Subscription[]
+}
+
+model UserNotification {
+  id           String    @id @default(uuid())
+  userId       String
+  title        String
+  message      String
+  type         String    @default("INFO")
+  read         Boolean   @default(false)
+  actionUrl    String?
+  scheduledFor DateTime?
+  createdAt    DateTime  @default(now())
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
 
 model VpsEnvironment {
   id              String   @id @default(uuid())

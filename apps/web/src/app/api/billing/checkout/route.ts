@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { planId } = body;
+    const { planId, discountCode } = body;
 
     let amount = 0;
     let planName = "";
@@ -25,6 +25,30 @@ export async function POST(req: NextRequest) {
       planName = "Pro Plan";
     } else {
       return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
+    }
+
+    let appliedDiscount: any = null;
+    if (discountCode) {
+      const cleanCode = String(discountCode).trim().toUpperCase();
+      const codeRecord = await prisma.discountCode.findUnique({
+        where: { code: cleanCode }
+      });
+
+      if (!codeRecord || !codeRecord.isActive) {
+        return NextResponse.json({ error: "Invalid or inactive discount code" }, { status: 400 });
+      }
+
+      if (codeRecord.validUntil && new Date() > codeRecord.validUntil) {
+        return NextResponse.json({ error: "Discount code has expired" }, { status: 400 });
+      }
+
+      if (codeRecord.maxUses !== null && codeRecord.usedCount >= codeRecord.maxUses) {
+        return NextResponse.json({ error: "Discount code usage limit reached" }, { status: 400 });
+      }
+
+      appliedDiscount = codeRecord;
+      const discountMultiplier = (100 - codeRecord.percentage) / 100;
+      amount = Math.max(1, Math.round(amount * discountMultiplier * 100) / 100);
     }
 
     // Lookup user in the database
@@ -85,14 +109,23 @@ export async function POST(req: NextRequest) {
         update: {
           flutterwaveTxRef: tx_ref,
           planId: planId,
+          ...(appliedDiscount ? { discountCodeId: appliedDiscount.id } : {})
         },
         create: {
           userId: user.id,
           flutterwaveTxRef: tx_ref,
           planId: planId,
-          status: "TRIAL"
+          status: "TRIAL",
+          ...(appliedDiscount ? { discountCodeId: appliedDiscount.id } : {})
         }
       });
+
+      if (appliedDiscount) {
+        await prisma.discountCode.update({
+          where: { id: appliedDiscount.id },
+          data: { usedCount: { increment: 1 } }
+        });
+      }
 
       return NextResponse.json({ link: data.data.link });
     } else {
