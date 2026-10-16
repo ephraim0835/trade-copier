@@ -13,6 +13,7 @@ import { authOptions } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { PrismaClient } from '@trade-copier/database';
 import { AutoRefresh } from '@/components/auto-refresh';
+import { formatUserFriendlyError } from '@/lib/error-formatter';
 
 export const dynamic = 'force-dynamic';
 
@@ -229,10 +230,10 @@ export default async function DashboardOverview() {
               <span className="font-bold text-foreground block text-sm">
                 {failedAccounts.length === 1 ? 'MT5 Connection Issue Detected' : `${failedAccounts.length} MT5 Accounts Have Connection Issues`}
               </span>
-              <div className="flex flex-col gap-1 mt-1 text-destructive font-mono text-[11px]">
+              <div className="flex flex-col gap-1.5 mt-1.5 text-destructive font-medium text-[11px]">
                 {failedAccounts.map((fa: any) => (
-                  <p key={fa.id}>
-                    Account <strong>{fa.login}</strong>: {fa.provisioningError || 'Broker rejected credentials. Please check password or server.'}
+                  <p key={fa.id} className="leading-relaxed">
+                    Account <strong className="font-mono text-foreground font-semibold">{fa.login}</strong>: {formatUserFriendlyError(fa.provisioningError || 'Broker rejected credentials. Please check password or server.')}
                   </p>
                 ))}
               </div>

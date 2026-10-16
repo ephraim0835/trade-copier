@@ -427,7 +427,7 @@ def check_terminal_logs_for_diagnostics(acc):
                             return 'FAILED', f"Trading Disabled: The broker has disabled trading privileges on account '{login_id}'."
                         if 'no connection' in line_lower:
                             return 'FAILED', f"Connection Failed: Unable to establish a network link to broker server '{server_name}'."
-                        return 'FAILED', f"Broker Authorization Failed: {line.strip()}"
+                        return 'FAILED', f"Broker Authorization Failed: The broker rejected login credentials for account '{login_id}' on server '{server_name}'."
                     
                     # Server & Connection Failures
                     if 'connect failed' in line_lower or 'no connection' in line_lower or 'server not responding' in line_lower:
@@ -461,7 +461,7 @@ def check_terminal_logs_for_diagnostics(acc):
                     if 'webrequest failed with code 401' in line_lower or 'unauthorized' in line_lower:
                         return 'FAILED', "EA Authentication Failed: Invalid or expired EA authorization token (HTTP 401)."
                     if 'initialization failed' in line_lower or 'expert removed' in line_lower:
-                        return 'FAILED', f"EA Execution Error: {line.strip()}"
+                        return 'FAILED', "Terminal Startup Interrupted: The Trade Copier expert was removed or stopped by the terminal. Please try again."
             except Exception as e:
                 logger.debug(f"Error checking MQL5 logs for {login_id}: {e}")
                 
@@ -560,7 +560,7 @@ def poll_db_worker():
                         # Pre-flight check: CPU / RAM limits
                         if psutil.virtual_memory().percent > 98:
                             logger.warning(f"Capacity limit reached (CPU: {psutil.cpu_percent()}%, RAM: {psutil.virtual_memory().percent}%). Cannot provision {account['login']}.")
-                            execute_query('UPDATE "Mt5Account" SET "connectionStatus" = %s, "provisioningError" = %s WHERE id = %s', ('FAILED', 'VPS Capacity Limit Exceeded', account['id']))
+                            execute_query('UPDATE "Mt5Account" SET "connectionStatus" = %s, "provisioningError" = %s WHERE id = %s', ('FAILED', 'The trading server is temporarily busy. Please wait a moment and try again.', account['id']))
                             continue
                             
                         logger.info(f"New active account detected (or recovering): {login}. Fetching EA token and launching MT5...")
@@ -598,7 +598,7 @@ def poll_db_worker():
                                     
                                     if attempt >= 5:
                                         logger.error(f"Max retries reached for EA token {login}. Marking failed.")
-                                        execute_query('UPDATE "Mt5Account" SET "connectionStatus" = %s, "provisioningError" = %s WHERE id = %s', ('FAILED', 'Failed to fetch EA token', account['id']))
+                                        execute_query('UPDATE "Mt5Account" SET "connectionStatus" = %s, "provisioningError" = %s WHERE id = %s', ('FAILED', 'Failed to authorize terminal session with the server. Please try reconnecting.', account['id']))
                                         break
                                         
                                     time.sleep(sleep_time)
@@ -701,7 +701,7 @@ def poll_db_worker():
                             if str(row.get('login')) == login:
                                 if row.get('connectionStatus') == 'PROVISIONING':
                                     logger.error(f"Timeout: EA {login} never sent heartbeat after 120s. Killing process.")
-                                    execute_query('UPDATE "Mt5Account" SET "connectionStatus" = %s, "provisioningError" = %s WHERE id = %s', ('FAILED', 'EA initialization timeout (no heartbeat from broker/chart)', acc['id']))
+                                    execute_query('UPDATE "Mt5Account" SET "connectionStatus" = %s, "provisioningError" = %s WHERE id = %s', ('FAILED', 'Connection timed out waiting for the broker chart to respond. Please check your MT5 login credentials and server name.', acc['id']))
                                     kill_account_terminal(login)
                                     del active_terminals[login]
                                 break

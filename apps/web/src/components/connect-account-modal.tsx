@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { createMt5Account, getAccountConnectionStatus } from '@/app/actions/account-actions';
 import { useRouter } from 'next/navigation';
 import { BrokerCombobox } from './broker-combobox';
+import { formatUserFriendlyError, getFriendlyErrorDetails } from '@/lib/error-formatter';
 
 interface ConnectAccountModalProps {
   isOpen: boolean;
@@ -85,7 +86,7 @@ export function ConnectAccountModal({ isOpen, onClose, defaultRole = 'SUB' }: Co
           } else if (acc.connectionStatus === 'FAILED') {
             if (pollTimerRef.current) clearInterval(pollTimerRef.current);
             if (elapsedTimerRef.current) clearInterval(elapsedTimerRef.current);
-            setErrorMessage(acc.provisioningError || 'Broker or MT5 server rejected the connection credentials.');
+            setErrorMessage(formatUserFriendlyError(acc.provisioningError || 'Broker or MT5 server rejected the connection credentials.'));
             setStep('ERROR');
           }
         }
@@ -120,7 +121,7 @@ export function ConnectAccountModal({ isOpen, onClose, defaultRole = 'SUB' }: Co
       setStep('CONNECTING');
       startPolling(res.account.id);
     } else {
-      setErrorMessage(res.error || 'Failed to register account');
+      setErrorMessage(formatUserFriendlyError(res.error || 'Failed to register account'));
       setStep('ERROR');
     }
   };
@@ -277,9 +278,9 @@ export function ConnectAccountModal({ isOpen, onClose, defaultRole = 'SUB' }: Co
             </div>
 
             {errorMessage && (
-              <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm text-center flex items-center gap-2 justify-center">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{errorMessage}</span>
+              <div className="p-3.5 rounded-2xl bg-destructive/10 border border-destructive/20 text-destructive text-xs font-medium text-left flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{formatUserFriendlyError(errorMessage)}</span>
               </div>
             )}
 
@@ -429,46 +430,56 @@ export function ConnectAccountModal({ isOpen, onClose, defaultRole = 'SUB' }: Co
         )}
 
         {/* STEP 4: ERROR SCREEN */}
-        {step === 'ERROR' && (
-          <div className="p-8 flex flex-col items-center gap-6 text-center animate-in zoom-in-95 duration-200">
-            <div className="w-16 h-16 rounded-full bg-destructive/15 border border-destructive/30 flex items-center justify-center text-destructive shadow-lg shadow-destructive/20">
-              <AlertCircle className="w-8 h-8" />
-            </div>
+        {step === 'ERROR' && (() => {
+          const details = getFriendlyErrorDetails(errorMessage);
+          return (
+            <div className="p-8 flex flex-col items-center gap-6 text-center animate-in zoom-in-95 duration-200">
+              <div className="w-16 h-16 rounded-full bg-destructive/15 border border-destructive/30 flex items-center justify-center text-destructive shadow-lg shadow-destructive/20">
+                <AlertCircle className="w-8 h-8" />
+              </div>
 
-            <div className="flex flex-col gap-1.5">
-              <h3 className="font-bold text-xl text-foreground">Could Not Connect to MT5</h3>
-              <p className="text-xs text-muted-foreground">
-                The terminal failed to authenticate on the broker network.
-              </p>
-            </div>
+              <div className="flex flex-col gap-1.5">
+                <h3 className="font-bold text-xl text-foreground">{details.title}</h3>
+                <p className="text-xs text-muted-foreground">
+                  The terminal could not establish an active session with your broker.
+                </p>
+              </div>
 
-            <div className="w-full bg-destructive/10 border border-destructive/20 rounded-2xl p-4 text-left text-xs text-destructive flex flex-col gap-1.5">
-              <span className="font-semibold uppercase text-[10px] tracking-widest text-destructive/80">Reason Reported:</span>
-              <p className="text-xs leading-relaxed font-mono">
-                {errorMessage || 'Invalid credentials or MT5 server not responding. Please verify your login, password, and server name.'}
-              </p>
-            </div>
+              <div className="w-full bg-destructive/10 border border-destructive/20 rounded-2xl p-4 text-left flex flex-col gap-2">
+                <div className="flex items-start gap-2.5">
+                  <span className="font-semibold uppercase text-[10px] tracking-widest text-destructive/80 shrink-0 mt-0.5">Notice:</span>
+                  <p className="text-xs text-destructive font-medium leading-relaxed">
+                    {details.message}
+                  </p>
+                </div>
+                {details.suggestion && (
+                  <div className="pt-2 border-t border-destructive/15 text-[11px] text-muted-foreground leading-relaxed">
+                    <strong className="text-foreground/80 font-semibold">Suggested Fix:</strong> {details.suggestion}
+                  </div>
+                )}
+              </div>
 
-            <div className="flex flex-col gap-2 w-full">
-              <button 
-                type="button"
-                onClick={handleTryAgain}
-                className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors"
-              >
-                <RefreshCw className="w-4 h-4" />
-                <span>Edit Credentials & Try Again</span>
-              </button>
+              <div className="flex flex-col gap-2 w-full">
+                <button 
+                  type="button"
+                  onClick={handleTryAgain}
+                  className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  <span>Edit Credentials & Try Again</span>
+                </button>
 
-              <button 
-                type="button"
-                onClick={handleDone}
-                className="w-full py-3 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Cancel & Close
-              </button>
+                <button 
+                  type="button"
+                  onClick={handleDone}
+                  className="w-full py-3 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Cancel & Close
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
       </div>
     </div>

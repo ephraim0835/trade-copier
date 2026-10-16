@@ -2,6 +2,7 @@ import { Server, Users, ArrowRightLeft, ShieldAlert, AlertCircle, CheckCircle2 }
 import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
 import { AdminLiveOverview } from '@/components/admin-live-overview';
+import { formatUserFriendlyError } from '@/lib/error-formatter';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,7 +57,7 @@ export default async function AdminOverviewPage() {
         type: 'PROVISIONING_ERROR',
         severity: 'error',
         title: 'Broker Authorization Issue',
-        message: acc.provisioningError,
+        message: formatUserFriendlyError(acc.provisioningError),
         account: acc.login,
         createdAt: acc.updatedAt,
       }))

@@ -7,6 +7,7 @@ import { MoneyDisplay } from '@/components/money-display';
 import { ProtectedAction } from '@/components/protected-action';
 import { toggleAccountActive, deleteAccount, retryAccountConnection } from '@/app/actions/account-actions';
 import { useRouter } from 'next/navigation';
+import { getFriendlyErrorDetails } from '@/lib/error-formatter';
 
 interface SubAccountCardProps {
   account: {
@@ -102,34 +103,42 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
         </div>
 
         {/* Detailed Connection Error Banner */}
-        {isFailed && (
-          <div className="mb-4 p-3.5 rounded-xl bg-destructive/10 border border-destructive/20 flex flex-col gap-2.5 text-xs text-left animate-in fade-in duration-200">
-            <div className="flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
-              <div className="flex-1 min-w-0">
-                <span className="font-bold text-destructive block">Broker Authentication Issue</span>
-                <p className="text-[11px] text-destructive/90 leading-relaxed font-mono mt-0.5 break-words">
-                  {account.provisioningError || 'Broker or MT5 server rejected credentials. Verify your login, password, and server.'}
-                </p>
-                {account.server && (
-                  <span className="text-[10px] text-muted-foreground block mt-1">
-                    Server: <strong>{account.server}</strong> &bull; Login ID: <strong>{account.login}</strong>
-                  </span>
-                )}
+        {isFailed && (() => {
+          const details = getFriendlyErrorDetails(account.provisioningError);
+          return (
+            <div className="mb-4 p-3.5 rounded-xl bg-destructive/10 border border-destructive/20 flex flex-col gap-2.5 text-xs text-left animate-in fade-in duration-200">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <span className="font-bold text-destructive block">{details.title}</span>
+                  <p className="text-[11px] text-destructive/90 leading-relaxed font-medium mt-0.5 break-words">
+                    {details.message}
+                  </p>
+                  {details.suggestion && (
+                    <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
+                      <strong className="text-foreground/70 font-semibold">Tip:</strong> {details.suggestion}
+                    </p>
+                  )}
+                  {account.server && (
+                    <span className="text-[10px] text-muted-foreground block mt-1">
+                      Server: <strong>{account.server}</strong> &bull; Login ID: <strong>{account.login}</strong>
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 pt-1 border-t border-destructive/15">
+                <button
+                  onClick={handleRetry}
+                  disabled={isPending}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90 text-[11px] font-semibold transition-all disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3 h-3 ${isPending ? 'animate-spin' : ''}`} />
+                  Retry Connection
+                </button>
               </div>
             </div>
-            <div className="flex items-center gap-2 pt-1 border-t border-destructive/15">
-              <button
-                onClick={handleRetry}
-                disabled={isPending}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90 text-[11px] font-semibold transition-all disabled:opacity-50"
-              >
-                <RefreshCw className={`w-3 h-3 ${isPending ? 'animate-spin' : ''}`} />
-                Retry Connection
-              </button>
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Provisioning Notice */}
         {isProvisioning && (

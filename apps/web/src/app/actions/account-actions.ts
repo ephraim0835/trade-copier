@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { encrypt } from '@/lib/encryption';
+import { formatUserFriendlyError } from '@/lib/error-formatter';
 
 export async function createMt5Account(data: {
   login: string;
@@ -132,7 +133,7 @@ export async function createMt5Account(data: {
     return { success: true, account: safeAccount };
   } catch (error: any) {
     console.error('Error creating MT5 Account:', error);
-    return { success: false, error: error.message };
+    return { success: false, error: formatUserFriendlyError(error) };
   }
 }
 
@@ -190,7 +191,7 @@ export async function deleteAccount(accountId: string) {
     return { success: true };
   } catch (error: any) {
     console.error('Error deleting account:', error);
-    return { success: false, error: error.message };
+    return { success: false, error: formatUserFriendlyError(error) };
   }
 }
 
@@ -232,7 +233,7 @@ export async function toggleAccountActive(accountId: string, isActive: boolean) 
     return { success: true };
   } catch (error: any) {
     console.error('Error toggling account active:', error);
-    return { success: false, error: error.message };
+    return { success: false, error: formatUserFriendlyError(error) };
   }
 }
 
@@ -277,9 +278,15 @@ export async function getAccountConnectionStatus(accountId: string) {
       return { success: false, error: 'Account not found' };
     }
 
-    return { success: true, account };
+    return {
+      success: true,
+      account: {
+        ...account,
+        provisioningError: account.provisioningError ? formatUserFriendlyError(account.provisioningError) : null,
+      }
+    };
   } catch (err: any) {
-    return { success: false, error: err.message };
+    return { success: false, error: formatUserFriendlyError(err) };
   }
 }
 
@@ -309,7 +316,7 @@ export async function retryAccountConnection(accountId: string) {
 
     return { success: true };
   } catch (err: any) {
-    return { success: false, error: err.message || 'Failed to retry connection' };
+    return { success: false, error: formatUserFriendlyError(err) };
   }
 }
 

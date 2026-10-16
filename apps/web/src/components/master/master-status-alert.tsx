@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
 import { retryAccountConnection } from '@/app/actions/account-actions';
 import { useRouter } from 'next/navigation';
+import { formatUserFriendlyError, getFriendlyErrorDetails } from '@/lib/error-formatter';
 
 interface MasterStatusAlertProps {
   accountId: string;
@@ -37,7 +38,7 @@ export function MasterStatusAlert({
         setFeedback('Retry initiated. Re-establishing MT5 link...');
         router.refresh();
       } else {
-        setFeedback(res.error || 'Failed to retry connection');
+        setFeedback(formatUserFriendlyError(res.error || 'Failed to retry connection'));
       }
     });
   }
@@ -56,6 +57,8 @@ export function MasterStatusAlert({
     );
   }
 
+  const details = getFriendlyErrorDetails(provisioningError);
+
   return (
     <div className="p-5 rounded-2xl bg-destructive/10 border border-destructive/25 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs animate-in fade-in">
       <div className="flex items-start gap-3">
@@ -63,14 +66,19 @@ export function MasterStatusAlert({
           <AlertCircle className="w-5 h-5" />
         </div>
         <div>
-          <h3 className="font-bold text-foreground text-sm">Master Connection Error Detected</h3>
-          <p className="text-xs text-destructive font-mono font-medium mt-1 leading-relaxed">
-            {provisioningError || 'Broker or MT5 server rejected credentials. Verify login, password, and server.'}
+          <h3 className="font-bold text-foreground text-sm">{details.title}</h3>
+          <p className="text-xs text-destructive font-medium mt-1 leading-relaxed">
+            {details.message}
           </p>
-          <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-1.5 font-mono">
-            <span>Server: <strong className="text-foreground">{server || 'Unknown'}</strong></span>
+          {details.suggestion && (
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              <strong className="text-foreground/75 font-semibold">Suggested Action:</strong> {details.suggestion}
+            </p>
+          )}
+          <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-1.5">
+            <span>Server: <strong className="text-foreground font-mono">{server || 'Unknown'}</strong></span>
             <span>&bull;</span>
-            <span>Login: <strong className="text-foreground">{login}</strong></span>
+            <span>Login: <strong className="text-foreground font-mono">{login}</strong></span>
           </div>
           {feedback && (
             <p className="text-[11px] text-primary mt-1 font-semibold animate-in fade-in">{feedback}</p>

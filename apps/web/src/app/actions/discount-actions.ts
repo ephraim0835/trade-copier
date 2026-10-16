@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
+import { formatUserFriendlyError } from '@/lib/error-formatter';
 
 async function requireAdmin() {
   const session = await getServerSession(authOptions);
@@ -36,7 +37,7 @@ export async function getDiscountCodes() {
 
     return { success: true, codes };
   } catch (err: any) {
-    return { success: false, error: err.message };
+    return { success: false, error: formatUserFriendlyError(err) };
   }
 }
 
@@ -81,7 +82,7 @@ export async function createDiscountCode(data: {
     revalidatePath('/admin/discounts');
     return { success: true, discount };
   } catch (err: any) {
-    return { success: false, error: err.message };
+    return { success: false, error: formatUserFriendlyError(err) };
   }
 }
 
@@ -97,7 +98,7 @@ export async function toggleDiscountCodeActive(id: string, isActive: boolean) {
     revalidatePath('/admin/discounts');
     return { success: true };
   } catch (err: any) {
-    return { success: false, error: err.message };
+    return { success: false, error: formatUserFriendlyError(err) };
   }
 }
 
@@ -112,7 +113,7 @@ export async function deleteDiscountCode(id: string) {
     revalidatePath('/admin/discounts');
     return { success: true };
   } catch (err: any) {
-    return { success: false, error: err.message };
+    return { success: false, error: formatUserFriendlyError(err) };
   }
 }
 
@@ -135,7 +136,7 @@ export async function getUsersWithDiscounts() {
 
     return { success: true, subscriptions };
   } catch (err: any) {
-    return { success: false, error: err.message };
+    return { success: false, error: formatUserFriendlyError(err) };
   }
 }
 
@@ -183,7 +184,7 @@ export async function scheduleLifetimeDiscountRemoval(subscriptionId: string) {
     revalidatePath('/admin/discounts');
     return { success: true, scheduledDate: removalDate };
   } catch (err: any) {
-    return { success: false, error: err.message };
+    return { success: false, error: formatUserFriendlyError(err) };
   }
 }
 
@@ -215,6 +216,6 @@ export async function cancelLifetimeDiscountRemoval(subscriptionId: string) {
     revalidatePath('/admin/discounts');
     return { success: true };
   } catch (err: any) {
-    return { success: false, error: err.message };
+    return { success: false, error: formatUserFriendlyError(err) };
   }
 }
