@@ -315,7 +315,9 @@ export function ConnectAccountModal({ isOpen, onClose, defaultRole = 'SUB' }: Co
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <h3 className="font-bold text-lg text-foreground">Linking MT5 Terminal</h3>
+              <h3 className="font-bold text-lg text-foreground">
+                {role === 'MASTER' ? 'Linking Master Terminal' : 'Linking Sub Account Terminal'}
+              </h3>
               <p className="text-xs text-muted-foreground">
                 Connecting to broker server: <span className="font-mono text-foreground font-medium">{serverVal || 'MT5 Server'}</span>
               </p>
@@ -352,7 +354,7 @@ export function ConnectAccountModal({ isOpen, onClose, defaultRole = 'SUB' }: Co
                   "font-medium",
                   elapsedSeconds > 8 ? "text-foreground" : "text-muted-foreground"
                 )}>
-                  Attaching Copier EA & establishing heartbeat
+                  {role === 'MASTER' ? 'Attaching MasterCopier EA & establishing heartbeat' : 'Attaching SubCopier EA & establishing heartbeat'}
                 </span>
               </div>
             </div>

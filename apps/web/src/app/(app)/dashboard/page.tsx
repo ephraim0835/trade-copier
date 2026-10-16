@@ -393,32 +393,54 @@ export default async function DashboardOverview() {
                 <Link href="/risk" className="text-[11px] text-primary hover:underline font-medium">Manage</Link>
               </div>
               <div className="flex flex-col gap-3">
-                {subAccounts.map((sub: any) => (
-                  <Link key={sub.id} href="/risk" className="group plaiz-card bg-secondary/30 p-4 rounded-[16px] flex flex-col sm:flex-row sm:items-center justify-between hover:bg-black/10 dark:hover:bg-white/5 border border-border/30 transition-all cursor-pointer gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isOnline(sub.eaTokens?.[0]) ? 'bg-success/10' : 'bg-black/5 dark:bg-white/5'}`}>
-                        <Users className={`w-4 h-4 ${isOnline(sub.eaTokens?.[0]) ? 'text-success' : 'text-muted-foreground'}`} />
+                {subAccounts.map((sub: any) => {
+                  const subOnline = (sub.isActive ?? false) && isOnline(sub);
+                  const subConnecting = sub.connectionStatus === 'PROVISIONING' || sub.connectionStatus === 'PENDING';
+                  const subFailed = sub.connectionStatus === 'FAILED' || !!sub.provisioningError;
+
+                  return (
+                    <Link key={sub.id} href="/risk" className="group plaiz-card bg-secondary/30 p-4 rounded-[16px] flex flex-col sm:flex-row sm:items-center justify-between hover:bg-black/10 dark:hover:bg-white/5 border border-border/30 transition-all cursor-pointer gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                          subOnline ? 'bg-emerald-500/10 text-emerald-500' : subConnecting ? 'bg-amber-500/10 text-amber-500' : 'bg-black/5 dark:bg-white/5 text-muted-foreground'
+                        }`}>
+                          <Users className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[13px] font-bold text-foreground leading-none">{sub.displayName || sub.login}</span>
+                            <div className={`plaiz-pill text-[9px] px-1.5 py-0.5 ${
+                              subOnline 
+                                ? 'plaiz-pill-success' 
+                                : subConnecting 
+                                ? 'bg-amber-500/10 text-amber-500 border-amber-500/25' 
+                                : subFailed 
+                                ? 'plaiz-pill-destructive' 
+                                : 'plaiz-pill-neutral'
+                            }`}>
+                              <Wifi className={`w-2.5 h-2.5 ${subConnecting ? 'animate-pulse' : ''}`} />
+                              {subOnline ? 'Connected' : subConnecting ? 'Connecting...' : subFailed ? 'Failed' : 'Offline'}
+                            </div>
+                          </div>
+                          <div className="text-[10px] text-muted-foreground mt-1">{sub.broker} &bull; {sub.server}</div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="text-[13px] font-bold text-foreground leading-none">{sub.login}</div>
-                        <div className="text-[10px] text-muted-foreground mt-1">{sub.broker}</div>
+                      
+                      <div className="flex items-center gap-6 sm:justify-end border-t sm:border-t-0 border-border/10 pt-3 sm:pt-0 mt-1 sm:mt-0">
+                        <div className="flex flex-col sm:text-right">
+                          <span className="text-[9px] text-muted-foreground uppercase tracking-widest mb-1">Balance</span>
+                          <span className="text-[13px] font-semibold text-foreground num-tabular"><MoneyDisplay amount={sub.balance || 0} sourceCurrency={sub.currency || 'USD'} accountId={sub.id} liveType="balance" /></span>
+                        </div>
+                        <div className="flex flex-col sm:text-right">
+                          <span className="text-[9px] text-muted-foreground uppercase tracking-widest mb-1">Live PnL</span>
+                          <span className={`text-[13px] font-semibold num-tabular ${(sub.floatingPl || 0) >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>
+                            {(sub.floatingPl || 0) >= 0 ? '+' : ''}<MoneyDisplay amount={sub.floatingPl || 0} sourceCurrency={sub.currency || 'USD'} accountId={sub.id} liveType="floatingPl" />
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-6 sm:justify-end border-t sm:border-t-0 border-border/10 pt-3 sm:pt-0 mt-1 sm:mt-0">
-                      <div className="flex flex-col sm:text-right">
-                        <span className="text-[9px] text-muted-foreground uppercase tracking-widest mb-1">Balance</span>
-                        <span className="text-[13px] font-semibold text-foreground num-tabular"><MoneyDisplay amount={sub.balance || 0} sourceCurrency={sub.currency || 'USD'} accountId={sub.id} liveType="balance" /></span>
-                      </div>
-                      <div className="flex flex-col sm:text-right">
-                        <span className="text-[9px] text-muted-foreground uppercase tracking-widest mb-1">Live PnL</span>
-                        <span className={`text-[13px] font-semibold num-tabular ${(sub.floatingPl || 0) >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>
-                          {(sub.floatingPl || 0) >= 0 ? '+' : ''}<MoneyDisplay amount={sub.floatingPl || 0} sourceCurrency={sub.currency || 'USD'} accountId={sub.id} liveType="floatingPl" />
-                        </span>
-                      </div>
-                    </div>
-                  </Link>
-                ))}
+                    </Link>
+                  );
+                })}
               </div>
             </section>
           )}
@@ -458,7 +480,7 @@ export default async function DashboardOverview() {
                 </div>
                 <div className="flex items-center justify-between p-3 rounded-xl bg-black/5 dark:bg-white/5 border border-border/30">
                   <span className="text-[13px] font-medium text-foreground">Daily Risk Limit</span>
-                  <span className="plaiz-plaiz-pill plaiz-pill-neutral">Not Configured</span>
+                  <span className="plaiz-pill plaiz-pill-neutral">Not Configured</span>
                 </div>
              </div>
           </section>
