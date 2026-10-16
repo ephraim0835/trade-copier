@@ -17,6 +17,22 @@ string EA_TOKEN = "";
 int TIMER_INTERVAL_MS = 50;           // Polling interval (benchmark: 25, 50, 100)
 int WEBREQUEST_TIMEOUT_MS = 2000;     // Failure timeout deadline (2000ms safety deadline for local hot path)
 
+void LogToFile(string msg)
+{
+    int handle = FileOpen("sub_debug.log", FILE_READ|FILE_WRITE|FILE_TXT|FILE_ANSI);
+    if(handle == INVALID_HANDLE)
+    {
+        handle = FileOpen("sub_debug.log", FILE_WRITE|FILE_TXT|FILE_ANSI);
+    }
+    if(handle != INVALID_HANDLE)
+    {
+        FileSeek(handle, 0, SEEK_END);
+        FileWriteString(handle, TimeToString(TimeLocal(), TIME_DATE|TIME_SECONDS) + " " + msg + "\r\n");
+        FileFlush(handle);
+        FileClose(handle);
+    }
+}
+
 void LoadConfig()
 {
     int handle = FileOpen("ea_config.txt", FILE_READ|FILE_TXT|FILE_ANSI);
@@ -88,8 +104,10 @@ int OnInit()
      }
      
    EventSetMillisecondTimer(TIMER_INTERVAL_MS);
+   LogToFile("SubCopier OnInit() started. SubAccount: " + SUB_ACCOUNT_ID);
    PrintFormat("SubCopier v2.0 initialized. SubAccount: %s, Polling: %d ms, History: %d items", SUB_ACCOUNT_ID, TIMER_INTERVAL_MS, ArraySize(ProcessedCommands));
    SendTelemetry();
+   LogToFile("SubCopier OnInit() completed");
    return(INIT_SUCCEEDED);
   }
 
@@ -107,15 +125,15 @@ void OnDeinit(const int reason)
 //+------------------------------------------------------------------+
 void OnTimer()
   {
-   // Only execute if algo trading active
-   if(!TerminalInfoInteger(TERMINAL_TRADE_ALLOWED)) return;
-   
    ulong nowUs = GetMicrosecondCount();
    if(nowUs - lastTelemetryAt > TELEMETRY_INTERVAL_US)
      {
       lastTelemetryAt = nowUs;
       SendTelemetry();
      }
+
+   // Only execute trades if algo trading active
+   if(!TerminalInfoInteger(TERMINAL_TRADE_ALLOWED)) return;
      
    PollCommands();
   }
@@ -572,10 +590,25 @@ void SendTelemetry()
    if (pos > 0) baseUrl = StringSubstr(baseUrl, 0, pos);
    
    int res = CWinInet::Post(baseUrl + "/accounts/telemetry", headers, post, result);
-   if (res == -1) {
-      Print("Telemetry failed! HTTP: -1, Error code: ", GetLastError());
-   } else if(res != 200 && res != 201)
+   if(res != 200 && res != 201)
      {
-      PrintFormat("Telemetry failed! HTTP: %d", res);
+      LogToFile(StringFormat("Telemetry via WinInet failed (%d), falling back to WebRequest...", res));
+      string webHeaders = "Content-Type: application/json\r\nAuthorization: Bearer " + EA_TOKEN + "\r\n";
+      string respHeaders = "";
+      char respData[];
+      res = WebRequest("POST", baseUrl + "/accounts/telemetry", webHeaders, 5000, post, respData, respHeaders);
+      if(res == 200 || res == 201)
+        {
+         LogToFile("Telemetry sent successfully via WebRequest");
+        }
+      else
+        {
+         LogToFile(StringFormat("Telemetry WebRequest failed! HTTP: %d, Err: %d", res, GetLastError()));
+         PrintFormat("Telemetry WebRequest failed! HTTP: %d, Err: %d", res, GetLastError());
+        }
+     }
+   else
+     {
+      LogToFile("Telemetry sent successfully via WinInet");
      }
   }

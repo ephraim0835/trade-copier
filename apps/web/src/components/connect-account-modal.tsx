@@ -82,7 +82,7 @@ export function ConnectAccountModal({ isOpen, onClose, defaultRole = 'SUB' }: Co
             setConnectedAccountData(acc);
             setStep('SUCCESS');
             router.refresh();
-          } else if (acc.connectionStatus === 'FAILED' || acc.provisioningError) {
+          } else if (acc.connectionStatus === 'FAILED') {
             if (pollTimerRef.current) clearInterval(pollTimerRef.current);
             if (elapsedTimerRef.current) clearInterval(elapsedTimerRef.current);
             setErrorMessage(acc.provisioningError || 'Broker or MT5 server rejected the connection credentials.');

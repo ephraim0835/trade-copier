@@ -197,7 +197,7 @@ def launch_mt5_and_attach_ea(account):
     compiled_ea = experts_dir / f"{ea_base}.ex5"
     
     # First seed with pre-compiled .ex5 if available as guaranteed fallback
-    for fallback_loc in [Path(__file__).parent / f"{ea_base}.ex5", Path(__file__).parent.parent / 'ea' / f"{ea_base}.ex5"]:
+    for fallback_loc in [Path(__file__).parent.parent / 'ea' / f"{ea_base}.ex5", Path(__file__).parent / f"{ea_base}.ex5"]:
         if fallback_loc.exists():
             shutil.copy2(fallback_loc, compiled_ea)
             break
@@ -270,12 +270,13 @@ def launch_mt5_and_attach_ea(account):
         if account.get('role') == 'SUB':
             f.write(f"SUB_ACCOUNT_ID={account.get('id', '')}\n")
 
-    # Use default.tpl from roaming folder or fallback to bundled default.tpl
+    # Use bundled default.tpl as primary template with verified MT5 window/expert structure
+    tpl_candidates = [
+        Path(__file__).parent / 'default.tpl',
+    ]
     master_data_dir = get_latest_mt5_data_dir()
-    tpl_candidates = []
     if master_data_dir:
         tpl_candidates.append(master_data_dir / 'MQL5' / 'Profiles' / 'Templates' / 'default.tpl')
-    tpl_candidates.append(Path(__file__).parent / 'default.tpl')
     
     tpl_file_path = None
     for cand in tpl_candidates:
@@ -283,18 +284,12 @@ def launch_mt5_and_attach_ea(account):
             tpl_file_path = cand
             break
     
-    profile_dir = data_path / 'MQL5' / 'Profiles' / 'Charts' / 'Default'
-    if profile_dir.exists():
-        shutil.rmtree(profile_dir, ignore_errors=True)
-    profile_dir.mkdir(parents=True, exist_ok=True)
-    
-    with open(profile_dir / "order.wnd", 'w') as f:
-        f.write("chart01\n")
-        
-    chr_file_path = profile_dir / "chart01.chr"
     if tpl_file_path and tpl_file_path.exists():
-        # Read the template, dynamically replace the EA name so it matches MasterCopier or SubCopier
-        content = tpl_file_path.read_text(encoding='utf-16', errors='ignore')
+        content = ''
+        try:
+            content = tpl_file_path.read_text(encoding='utf-16', errors='ignore')
+        except Exception:
+            pass
         if not '<chart>' in content:
             content = tpl_file_path.read_text(encoding='utf-8', errors='ignore')
             
@@ -311,8 +306,13 @@ def launch_mt5_and_attach_ea(account):
         if 'API_URL=' in content:
             content = re.sub(r'API_URL=.*', f'API_URL={api_url}', content)
             
-        chr_file_path.write_text(content, encoding='utf-8')
-        logger.info(f"Seeded chart01.chr for {account.get('broker')} with symbol={target_symbol}")
+        for base_prof in [data_path / 'MQL5' / 'Profiles' / 'Charts' / 'Default', data_path / 'Profiles' / 'Charts' / 'Default']:
+            base_prof.mkdir(parents=True, exist_ok=True)
+            with open(base_prof / "order.wnd", 'w', encoding='utf-8') as f:
+                f.write("chart01\n")
+            (base_prof / "chart01.chr").write_text(content, encoding='utf-8')
+
+        logger.info(f"Seeded chart01.chr for {account.get('broker')} with symbol={target_symbol} and EA={ea_base}")
     else:
         logger.error(f"FATAL: No default.tpl found in candidates! Cannot seed chart01.chr!")
         
@@ -336,7 +336,13 @@ def launch_mt5_and_attach_ea(account):
         f.write(f"SaveDeleted=0\n")
         f.write(f"PrintAllOrders=0\n\n")
         f.write(f"[StartUp]\n")
-        f.write(f"Minimised=1\n")
+        f.write(f"Minimised=1\n\n")
+        f.write(f"[Experts]\n")
+        f.write(f"AllowDllImport=1\n")
+        f.write(f"Enabled=1\n")
+        f.write(f"WebRequest=1\n")
+        f.write(f"AllowWebRequest=1\n")
+        f.write(f"WebRequestUrl1={base_api_root}\n")
 
     # Tune terminal.ini for sound off and news off to conserve CPU
     terminal_ini = ini_file_dir / 'terminal.ini'
@@ -355,6 +361,10 @@ def launch_mt5_and_attach_ea(account):
     
     force_webrequest_permission()
     
+    # Ensure any previous instance for this account is stopped first
+    kill_account_terminal(account)
+    time.sleep(1)
+
     proc = subprocess.Popen(launch_cmd, cwd=str(terminal_path))
     account['process'] = proc
     account['instance_dir'] = str(terminal_path)
@@ -362,14 +372,18 @@ def launch_mt5_and_attach_ea(account):
     
     return True
 
-def kill_account_terminal(login):
-    """Gracefully or forcefully terminates terminal process matching startup_{login}.ini"""
+def kill_account_terminal(account_or_login):
+    """Gracefully or forcefully terminates terminal process matching login or instance folder"""
+    login_str = str(account_or_login.get('login') if isinstance(account_or_login, dict) else account_or_login)
+    acc_id = str(account_or_login.get('id', '')) if isinstance(account_or_login, dict) else ''
+    
     for proc in psutil.process_iter(['name', 'cmdline']):
         try:
             if proc.info['name'] and 'terminal' in proc.info['name'].lower():
-                if proc.info['cmdline'] and f"startup_{login}.ini" in ' '.join(proc.info['cmdline']):
+                cmd = ' '.join(proc.info['cmdline'] or [])
+                if (f"startup_{login_str}.ini" in cmd) or (acc_id and acc_id in cmd):
                     proc.kill()
-                    logger.info(f"Terminated MT5 terminal process for {login}")
+                    logger.info(f"Terminated MT5 terminal process for {login_str}")
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             pass
 
@@ -604,7 +618,7 @@ def poll_db_worker():
                         del active_terminals[login]
                         execute_query('UPDATE "Mt5Account" SET "connectionStatus" = %s WHERE id = %s', ('OFFLINE', account['id']))
                         
-            # Fast log diagnostic sniffer & timeout check for active terminals
+            # Fast log diagnostic sniffer, telemetry bridge & timeout check for active terminals
             current_time = time.time()
             for login, acc in list(active_terminals.items()):
                 # 1. Instant terminal log sniffer (checks for broker auth/connect rejection in sub-seconds)
@@ -617,16 +631,80 @@ def poll_db_worker():
                     del active_terminals[login]
                     continue
 
-                # 2. Check for provisioning timeouts (120s without ONLINE status)
+                # 2. Realtime Telemetry Bridge via MT5 Python IPC
+                # Queries live broker status, balance, equity directly from running terminal
+                last_tel = acc.get('last_telemetry_time', 0)
+                if current_time - last_tel >= 5:
+                    acc['last_telemetry_time'] = current_time
+                    instance_dir = acc.get('instance_dir') or acc.get('data_path')
+                    if instance_dir:
+                        terminal_exe = str(Path(instance_dir) / 'terminal64.exe')
+                        try:
+                            init_kwargs = {
+                                "path": terminal_exe,
+                                "portable": True,
+                                "timeout": 8000
+                            }
+                            if acc.get('password') and acc.get('server'):
+                                try:
+                                    init_kwargs["login"] = int(login)
+                                    init_kwargs["password"] = acc.get('password')
+                                    init_kwargs["server"] = acc.get('server')
+                                except Exception:
+                                    pass
+
+                            if mt5.initialize(**init_kwargs):
+                                info = mt5.account_info()
+                                if info and str(info.login) == str(login):
+                                    telemetry_payload = {
+                                        "balance": float(info.balance),
+                                        "equity": float(info.equity),
+                                        "margin": float(info.margin),
+                                        "freeMargin": float(info.margin_free),
+                                        "floatingPl": float(info.profit),
+                                        "currency": str(info.currency)
+                                    }
+                                    
+                                    base_api = os.getenv('API_URL') or os.getenv('NEXT_PUBLIC_API_URL')
+                                    ea_token = acc.get('ea_token')
+                                    sent_api = False
+                                    if base_api and ea_token:
+                                        try:
+                                            t_res = requests.post(
+                                                f"{base_api}/accounts/telemetry",
+                                                headers={"Authorization": f"Bearer {ea_token}"},
+                                                json=telemetry_payload,
+                                                timeout=5
+                                            )
+                                            if t_res.status_code in (200, 201):
+                                                sent_api = True
+                                        except Exception as te:
+                                            logger.debug(f"Telemetry API post error for {login}: {te}")
+                                            
+                                    if not sent_api:
+                                        execute_query(
+                                            'UPDATE "Mt5Account" SET "connectionStatus" = %s, "isActive" = true, "lastHeartbeatAt" = %s, balance = %s, equity = %s, margin = %s, "freeMargin" = %s, "floatingPl" = %s, currency = %s, "provisioningError" = NULL WHERE id = %s',
+                                            ('ONLINE', datetime.datetime.now(), info.balance, info.equity, info.margin, info.margin_free, info.profit, info.currency, acc['id'])
+                                        )
+                                        
+                                    if acc.get('connectionStatus') != 'ONLINE':
+                                        logger.info(f"Account {login} verified ONLINE on broker! Balance: {info.balance} {info.currency}")
+                                        acc['connectionStatus'] = 'ONLINE'
+                                mt5.shutdown()
+                        except Exception as ie:
+                            logger.debug(f"MT5 IPC telemetry poll error for {login}: {ie}")
+
+                # 3. Check for provisioning timeouts (120s without ONLINE status)
                 if acc.get('launch_time') and (current_time - acc['launch_time']) > 120:
-                    for row in rows:
-                        if str(row.get('login')) == login:
-                            if row.get('connectionStatus') == 'PROVISIONING':
-                                logger.error(f"Timeout: EA {login} never sent heartbeat after 120s. Killing process.")
-                                execute_query('UPDATE "Mt5Account" SET "connectionStatus" = %s, "provisioningError" = %s WHERE id = %s', ('FAILED', 'EA initialization timeout (no heartbeat from broker/chart)', acc['id']))
-                                kill_account_terminal(login)
-                                del active_terminals[login]
-                            break
+                    if acc.get('connectionStatus') != 'ONLINE':
+                        for row in rows:
+                            if str(row.get('login')) == login:
+                                if row.get('connectionStatus') == 'PROVISIONING':
+                                    logger.error(f"Timeout: EA {login} never sent heartbeat after 120s. Killing process.")
+                                    execute_query('UPDATE "Mt5Account" SET "connectionStatus" = %s, "provisioningError" = %s WHERE id = %s', ('FAILED', 'EA initialization timeout (no heartbeat from broker/chart)', acc['id']))
+                                    kill_account_terminal(login)
+                                    del active_terminals[login]
+                                break
             
             # Detect deleted accounts
             fetched_logins = set(str(row.get('login')) for row in rows)
@@ -640,7 +718,7 @@ def poll_db_worker():
             logger.error(f"Supabase API polling error: {e}")
         
         # Sleep before next poll or wake immediately on admin command
-        sync_event.wait(timeout=10)
+        sync_event.wait(timeout=5)
         sync_event.clear()
 
 def telemetry_worker():
@@ -709,16 +787,16 @@ def kill_existing_terminals():
     """Aggressively terminate any running MT5 terminal64.exe processes to ensure a cold boot."""
     killed = 0
     for proc in psutil.process_iter(['pid', 'name']):
-        if proc.info['name'] == 'terminal64.exe':
+        name = (proc.info.get('name') or '').lower()
+        if 'terminal64' in name or 'terminal.exe' in name:
             try:
                 proc.kill()
                 killed += 1
             except Exception as e:
-                logger.warning(f"Failed to kill terminal64.exe (PID {proc.info['pid']}): {e}")
+                logger.warning(f"Failed to kill terminal process (PID {proc.info['pid']}): {e}")
     if killed > 0:
-        logger.info(f"Killed {killed} existing terminal64.exe processes to ensure a clean state.")
-        # Wait for MT5 to finish writing its shutdown config to disk before we patch it
-        time.sleep(4)
+        logger.info(f"Killed {killed} existing terminal processes to ensure a clean state.")
+        time.sleep(2)
 
 def force_webrequest_permission():
     """Write the WebRequest whitelist into common.ini BEFORE MT5 starts.
@@ -732,14 +810,21 @@ def force_webrequest_permission():
     parsed = urllib.parse.urlparse(base_api)
     base_api_root = f"{parsed.scheme}://{parsed.netloc}"
 
-    appdata = Path(r"C:\Users\Plaiz\MT5_Instances")
-    terminal_dir = appdata
-    if not terminal_dir.exists():
-        return
-    for child in terminal_dir.iterdir():
-        if child.is_dir() and (child / 'config').exists():
-            common_ini_path = child / 'config' / 'common.ini'
-            content = f"[Experts]\nEnabled=1\nAllowDllImport=1\nWebRequest=1\nAllowWebRequest=1\nWebRequestUrl1={base_api_root}\n\n[Common]\n"
+    dirs_to_check = [
+        Path(r"C:\Users\Plaiz\MT5_Instances"),
+        Path(os.environ.get('APPDATA', 'C:\\Users\\Plaiz\\AppData\\Roaming')) / 'MetaQuotes' / 'Terminal'
+    ]
+    for terminal_dir in dirs_to_check:
+        if not terminal_dir.exists():
+            continue
+        for child in terminal_dir.iterdir():
+            target_configs = []
+            if child.is_dir() and (child / 'config').exists():
+                target_configs.append(child / 'config' / 'common.ini')
+            elif child.is_dir() and child.name == 'Common':
+                target_configs.append(child / 'common.ini')
+            for common_ini_path in target_configs:
+                content = f"[Experts]\nEnabled=1\nAllowDllImport=1\nWebRequest=1\nAllowWebRequest=1\nWebRequestUrl1={base_api_root}\n\n[Common]\n"
             # Preserve Environment key if present
             if common_ini_path.exists():
                 try:

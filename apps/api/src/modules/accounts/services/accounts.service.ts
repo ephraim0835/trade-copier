@@ -51,6 +51,7 @@ export class AccountsService {
       data: {
         isActive: true,
         connectionStatus: 'ONLINE',
+        provisioningError: null,
         lastHeartbeatAt: new Date(),
         balance: dto.balance,
         equity: dto.equity,

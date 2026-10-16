@@ -97,12 +97,12 @@ public:
         
         int flags = INTERNET_FLAG_RELOAD | INTERNET_FLAG_NO_CACHE_WRITE;
         if(isHttps) {
-            flags |= INTERNET_FLAG_SECURE | INTERNET_FLAG_IGNORE_CERT_CN_INVALID | INTERNET_FLAG_IGNORE_CERT_DATE_INVALID | SECURITY_FLAG_IGNORE_UNKNOWN_CA;
+            flags |= INTERNET_FLAG_SECURE | INTERNET_FLAG_IGNORE_CERT_CN_INVALID | INTERNET_FLAG_IGNORE_CERT_DATE_INVALID;
         }
         
         long hRequest = HttpOpenRequestW(g_hConnect, method, path, "HTTP/1.1", NULL, 0, flags, 0);
         if(hRequest == 0) {
-            Print("HttpOpenRequestW failed");
+            Print("HttpOpenRequestW failed, GetLastError=", GetLastError());
             InternetCloseHandle(g_hConnect);
             g_hConnect = 0;
             return -1;
@@ -110,14 +110,15 @@ public:
         
         bool sendRes = false;
         if(ArraySize(postData) > 0) {
-            sendRes = HttpSendRequestW(hRequest, headers, StringLen(headers), postData, ArraySize(postData));
+            sendRes = HttpSendRequestW(hRequest, headers, -1, postData, ArraySize(postData));
         } else {
-            uchar dummy[];
-            sendRes = HttpSendRequestW(hRequest, headers, StringLen(headers), dummy, 0);
+            uchar dummy[1];
+            dummy[0] = 0;
+            sendRes = HttpSendRequestW(hRequest, headers, -1, dummy, 0);
         }
         
         if(!sendRes) {
-            Print("HttpSendRequestW failed");
+            Print("HttpSendRequestW failed, GetLastError=", GetLastError());
             InternetCloseHandle(hRequest);
             InternetCloseHandle(g_hConnect);
             g_hConnect = 0;

@@ -39,23 +39,60 @@ export async function createMt5Account(data: {
 
     const encryptedPassword = data.password ? encrypt(data.password) : undefined;
 
-    const account = await prisma.mt5Account.create({
-      data: {
-        userId: user.id,
+    // Check if account with same login, broker, server already exists
+    const existing = await prisma.mt5Account.findFirst({
+      where: {
         login: data.login,
-        password: encryptedPassword,
         broker: data.broker,
         server: data.server,
-        role: data.role,
-        isActive: true, // Auto-start the terminal upon creation
-        isDemo: data.isDemo ?? true, // Default to demo for safety if not specified
       }
     });
 
-    // If it's a sub-account, we should create default copy settings and subscribe it
-    if (data.role === 'SUB') {
-      await prisma.copySettings.create({
+    let account;
+    if (existing) {
+      if (existing.userId !== user.id && user.role !== 'ADMIN' && user.role !== 'OWNER') {
+        return {
+          success: false,
+          error: `Account ${data.login} on ${data.server} is already linked to another user account.`
+        };
+      }
+
+      // Re-link & update existing account
+      account = await prisma.mt5Account.update({
+        where: { id: existing.id },
         data: {
+          password: encryptedPassword !== undefined ? encryptedPassword : existing.password,
+          role: data.role,
+          isActive: true,
+          isDemo: data.isDemo ?? existing.isDemo,
+          connectionStatus: 'PENDING',
+          provisioningError: null,
+          updatedAt: new Date(),
+        }
+      });
+    } else {
+      account = await prisma.mt5Account.create({
+        data: {
+          userId: user.id,
+          login: data.login,
+          password: encryptedPassword,
+          broker: data.broker,
+          server: data.server,
+          role: data.role,
+          isActive: true, // Auto-start the terminal upon creation
+          isDemo: data.isDemo ?? true, // Default to demo for safety if not specified
+          connectionStatus: 'PENDING',
+          provisioningError: null,
+        }
+      });
+    }
+
+    // If it's a sub-account, ensure default copy settings and subscription exist
+    if (data.role === 'SUB') {
+      await prisma.copySettings.upsert({
+        where: { mt5AccountId: account.id },
+        update: {},
+        create: {
           mt5AccountId: account.id,
           riskPercentage: 1.0,
         }
@@ -66,9 +103,18 @@ export async function createMt5Account(data: {
         where: { role: 'MASTER', userId: user.id }
       });
       
-      if (firstMaster) {
-        await prisma.accountSubscription.create({
-          data: {
+      if (firstMaster && firstMaster.id !== account.id) {
+        await prisma.accountSubscription.upsert({
+          where: {
+            masterAccountId_subAccountId: {
+              masterAccountId: firstMaster.id,
+              subAccountId: account.id,
+            }
+          },
+          update: {
+            isActive: true,
+          },
+          create: {
             masterAccountId: firstMaster.id,
             subAccountId: account.id,
             isActive: true,

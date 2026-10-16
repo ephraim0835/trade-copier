@@ -14,6 +14,22 @@ string API_URL = "https://plaiz-markets-api.onrender.com/master/signal";
 string EA_TOKEN = "";
 int DISPATCH_INTERVAL_MS = 25; // 25ms high-speed dispatch loop
 
+void LogToFile(string msg)
+{
+    int handle = FileOpen("master_debug.log", FILE_READ|FILE_WRITE|FILE_TXT|FILE_ANSI);
+    if(handle == INVALID_HANDLE)
+    {
+        handle = FileOpen("master_debug.log", FILE_WRITE|FILE_TXT|FILE_ANSI);
+    }
+    if(handle != INVALID_HANDLE)
+    {
+        FileSeek(handle, 0, SEEK_END);
+        FileWriteString(handle, TimeToString(TimeLocal(), TIME_DATE|TIME_SECONDS) + " " + msg + "\r\n");
+        FileFlush(handle);
+        FileClose(handle);
+    }
+}
+
 void LoadConfig()
 {
     int handle = FileOpen("ea_config.txt", FILE_READ|FILE_TXT|FILE_ANSI);
@@ -69,7 +85,9 @@ int CacheCount = 0;
 //+------------------------------------------------------------------+
 int OnInit()
   {
+   LogToFile("MasterCopier OnInit() started");
    LoadConfig();
+   LogToFile("Config loaded. API_URL=" + API_URL + ", EA_TOKEN_LEN=" + IntegerToString(StringLen(EA_TOKEN)));
    InitCache();
    EventSetMillisecondTimer(DISPATCH_INTERVAL_MS);
 
@@ -87,6 +105,7 @@ int OnInit()
 
    PrintFormat("MasterCopier v2.0 initialized in DEMO safe mode. Dispatch: %d ms", DISPATCH_INTERVAL_MS);
    SendTelemetry();
+   LogToFile("MasterCopier OnInit() completed");
    return(INIT_SUCCEEDED);
   }
 
@@ -479,6 +498,13 @@ void OnTimer()
       
       // Timeout is reasonably bounded (e.g. 1000-2000ms internally in CWinInet)
       int res = CWinInet::Post(API_URL + endpoint, headers, post, result);
+      if(res != 200 && res != 201)
+        {
+         string webHeaders = "Content-Type: application/json\r\nAuthorization: Bearer " + EA_TOKEN + "\r\n";
+         string respHeaders = "";
+         char respData[];
+         res = WebRequest("POST", API_URL + endpoint, webHeaders, 3000, post, respData, respHeaders);
+        }
       if(res == 200 || res == 201)
         {
          Print("Dispatched event successfully to ", endpoint, ": ", payload);
@@ -542,10 +568,25 @@ void SendTelemetry()
    if (pos > 0) baseUrl = StringSubstr(baseUrl, 0, pos);
    
    int res = CWinInet::Post(baseUrl + "/accounts/telemetry", headers, post, result);
-   if (res == -1) {
-      Print("Telemetry failed! HTTP: -1, Error code: ", GetLastError());
-   } else if(res != 200 && res != 201)
+   if(res != 200 && res != 201)
      {
-      PrintFormat("Telemetry failed! HTTP: %d", res);
+      LogToFile(StringFormat("Telemetry via WinInet failed (%d), falling back to WebRequest...", res));
+      string webHeaders = "Content-Type: application/json\r\nAuthorization: Bearer " + EA_TOKEN + "\r\n";
+      string respHeaders = "";
+      char respData[];
+      res = WebRequest("POST", baseUrl + "/accounts/telemetry", webHeaders, 5000, post, respData, respHeaders);
+      if(res == 200 || res == 201)
+        {
+         LogToFile("Telemetry sent successfully via WebRequest");
+        }
+      else
+        {
+         LogToFile(StringFormat("Telemetry WebRequest failed! HTTP: %d, Err: %d", res, GetLastError()));
+         PrintFormat("Telemetry WebRequest failed! HTTP: %d, Err: %d", res, GetLastError());
+        }
+     }
+   else
+     {
+      LogToFile("Telemetry sent successfully via WinInet");
      }
   }
