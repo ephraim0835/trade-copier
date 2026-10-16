@@ -463,17 +463,21 @@ def execute_query(query, params=None, fetch=False):
     if not DATABASE_URL:
         logger.error("Missing DATABASE_URL in .env!")
         return None
-    try:
-        with psycopg2.connect(DATABASE_URL) as conn:
-            with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-                cur.execute(query, params)
-                if fetch:
-                    return cur.fetchall()
-                conn.commit()
-                return True
-    except Exception as e:
-        logger.error(f"Database error: {e}")
-        return None
+    for attempt in range(2):
+        try:
+            with psycopg2.connect(DATABASE_URL, connect_timeout=10) as conn:
+                with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+                    cur.execute(query, params)
+                    if fetch:
+                        return cur.fetchall()
+                    conn.commit()
+                    return True
+        except Exception as e:
+            if attempt == 0:
+                time.sleep(1)
+                continue
+            logger.error(f"Database error: {e}")
+            return None
 
 def poll_db_worker():
     """Background thread that polls the DB for active accounts and launches MT5 terminals."""
