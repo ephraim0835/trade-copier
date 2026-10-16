@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useTransition, useEffect } from 'react';
 import Link from 'next/link';
 import { Settings2, Activity, Trash2, Power, PowerOff, AlertCircle, RefreshCw, Loader2, CheckCircle2 } from 'lucide-react';
