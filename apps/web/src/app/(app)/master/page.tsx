@@ -33,10 +33,12 @@ export default async function MasterPage() {
     orderBy: { createdAt: 'desc' }
   }) : [];
 
-  // Consider online only if isActive AND telemetry arrived within the last 30 seconds
-  // (EA sends heartbeats every 5s, so 30s gives tolerance for network hiccups)
-  const lastSeen = masterAccount?.updatedAt ? new Date(masterAccount.updatedAt).getTime() : 0;
-  const masterOnline = (masterAccount?.isActive ?? false) && (Date.now() - lastSeen < 30_000);
+  // Consider online if isActive, connectionStatus === 'ONLINE', and heartbeat within last 180 seconds
+  const hbTime = masterAccount?.lastHeartbeatAt || masterAccount?.updatedAt;
+  const lastSeen = hbTime ? new Date(hbTime).getTime() : 0;
+  const masterOnline = (masterAccount?.isActive ?? false) && 
+    masterAccount?.connectionStatus === 'ONLINE' && 
+    (Date.now() - lastSeen < 180_000);
 
   return (
     <div className="flex-1 p-4 md:p-6 lg:p-12 flex flex-col gap-10 pb-32 overflow-y-auto custom-scrollbar relative">
@@ -69,7 +71,16 @@ export default async function MasterPage() {
                 <div className="flex flex-col gap-3">
                   <div className="flex items-center gap-2">
                     <div className="plaiz-pill plaiz-pill-neutral text-[10px] uppercase tracking-widest">{masterAccount.broker || 'Unknown'}</div>
-                    <div className={`plaiz-pill text-[10px] ${masterOnline ? 'plaiz-pill-success' : 'plaiz-pill-destructive'}`}><Wifi className="w-3 h-3" /> {masterOnline ? 'Connected' : 'Offline'}</div>
+                    <div className={`plaiz-pill text-[10px] ${
+                      masterOnline 
+                        ? 'plaiz-pill-success' 
+                        : masterAccount.connectionStatus === 'PROVISIONING'
+                        ? 'bg-amber-500/10 text-amber-500 border-amber-500/25'
+                        : 'plaiz-pill-destructive'
+                    }`}>
+                      <Wifi className={`w-3 h-3 ${masterAccount.connectionStatus === 'PROVISIONING' ? 'animate-pulse' : ''}`} />
+                      {masterOnline ? 'Connected' : masterAccount.connectionStatus === 'PROVISIONING' ? 'Connecting...' : 'Offline'}
+                    </div>
                   </div>
                   <h2 className="text-[36px] font-bold text-foreground tracking-tighter leading-none">{masterAccount.login}</h2>
                   <span className="text-[13px] text-muted-foreground font-mono">{masterAccount.server}</span>

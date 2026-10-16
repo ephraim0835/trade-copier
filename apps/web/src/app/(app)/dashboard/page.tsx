@@ -114,7 +114,7 @@ export default async function DashboardOverview() {
   
   const isOnline = (account: any) => {
     if (!account?.lastHeartbeatAt) return false;
-    return account.connectionStatus === 'ONLINE' && new Date().getTime() - new Date(account.lastHeartbeatAt).getTime() < 120_000;
+    return account.connectionStatus === 'ONLINE' && new Date().getTime() - new Date(account.lastHeartbeatAt).getTime() < 180_000;
   };
 
   const masterOnline = (masterAccount?.isActive ?? false) && isOnline(masterAccount);
@@ -328,8 +328,17 @@ export default async function DashboardOverview() {
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6 mb-8">
                   <div className="flex flex-col gap-3">
                     <div className="flex items-center gap-2">
-                      <div className="plaiz-plaiz-pill plaiz-pill-neutral text-[10px] uppercase tracking-widest">{masterAccount.broker || 'Unknown'}</div>
-                      <div className={`plaiz-pill text-[10px] ${masterOnline ? 'pill-success' : 'pill-destructive'}`}><Wifi className="w-3 h-3" /> {masterOnline ? 'Connected' : 'Offline'}</div>
+                      <div className="plaiz-pill plaiz-pill-neutral text-[10px] uppercase tracking-widest">{masterAccount.broker || 'Unknown'}</div>
+                      <div className={`plaiz-pill text-[10px] ${
+                        masterOnline 
+                          ? 'plaiz-pill-success' 
+                          : masterAccount.connectionStatus === 'PROVISIONING'
+                          ? 'bg-amber-500/10 text-amber-500 border-amber-500/25'
+                          : 'plaiz-pill-destructive'
+                      }`}>
+                        <Wifi className={`w-3 h-3 ${masterAccount.connectionStatus === 'PROVISIONING' ? 'animate-pulse' : ''}`} />
+                        {masterOnline ? 'Connected' : masterAccount.connectionStatus === 'PROVISIONING' ? 'Connecting...' : 'Offline'}
+                      </div>
                     </div>
                     <h4 className="text-[28px] font-bold text-foreground tracking-tighter leading-none group-hover:text-primary transition-colors">{masterAccount.login}</h4>
                   </div>

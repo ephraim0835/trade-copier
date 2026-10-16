@@ -376,12 +376,18 @@ def kill_account_terminal(account_or_login):
     """Gracefully or forcefully terminates terminal process matching login or instance folder"""
     login_str = str(account_or_login.get('login') if isinstance(account_or_login, dict) else account_or_login)
     acc_id = str(account_or_login.get('id', '')) if isinstance(account_or_login, dict) else ''
+    inst_dir = str(account_or_login.get('instance_dir', '')) if isinstance(account_or_login, dict) else ''
     
     for proc in psutil.process_iter(['name', 'cmdline']):
         try:
             if proc.info['name'] and 'terminal' in proc.info['name'].lower():
                 cmd = ' '.join(proc.info['cmdline'] or [])
-                if (f"startup_{login_str}.ini" in cmd) or (acc_id and acc_id in cmd):
+                if (
+                    (f"startup_{login_str}.ini" in cmd)
+                    or (acc_id and acc_id in cmd)
+                    or (inst_dir and Path(inst_dir).name in cmd)
+                    or (login_str and login_str in cmd)
+                ):
                     proc.kill()
                     logger.info(f"Terminated MT5 terminal process for {login_str}")
         except (psutil.NoSuchProcess, psutil.AccessDenied):
@@ -545,10 +551,6 @@ def poll_db_worker():
                     # or sends a START/RESTART command from the Admin Panel.
                     if account['connectionStatus'] == 'FAILED' and not is_stale:
                         continue
-
-                    # Prevent double-provisioning
-                    if account['connectionStatus'] == 'PROVISIONING' and login not in active_terminals:
-                        continue
                         
                     if login not in active_terminals or is_stale:
                         if is_stale:
@@ -643,7 +645,7 @@ def poll_db_worker():
                             init_kwargs = {
                                 "path": terminal_exe,
                                 "portable": True,
-                                "timeout": 8000
+                                "timeout": 30000
                             }
                             if acc.get('password') and acc.get('server'):
                                 try:
@@ -665,27 +667,25 @@ def poll_db_worker():
                                         "currency": str(info.currency)
                                     }
                                     
+                                    # 1. Update database directly with zero latency
+                                    execute_query(
+                                        'UPDATE "Mt5Account" SET "connectionStatus" = %s, "isActive" = true, "lastHeartbeatAt" = %s, balance = %s, equity = %s, margin = %s, "freeMargin" = %s, "floatingPl" = %s, currency = %s, "provisioningError" = NULL WHERE id = %s',
+                                        ('ONLINE', datetime.datetime.now(datetime.timezone.utc), info.balance, info.equity, info.margin, info.margin_free, info.profit, info.currency, acc['id'])
+                                    )
+                                    
+                                    # 2. Also notify the API for real-time WebSocket events if reachable
                                     base_api = os.getenv('API_URL') or os.getenv('NEXT_PUBLIC_API_URL')
                                     ea_token = acc.get('ea_token')
-                                    sent_api = False
                                     if base_api and ea_token:
                                         try:
-                                            t_res = requests.post(
+                                            requests.post(
                                                 f"{base_api}/accounts/telemetry",
                                                 headers={"Authorization": f"Bearer {ea_token}"},
                                                 json=telemetry_payload,
                                                 timeout=5
                                             )
-                                            if t_res.status_code in (200, 201):
-                                                sent_api = True
                                         except Exception as te:
                                             logger.debug(f"Telemetry API post error for {login}: {te}")
-                                            
-                                    if not sent_api:
-                                        execute_query(
-                                            'UPDATE "Mt5Account" SET "connectionStatus" = %s, "isActive" = true, "lastHeartbeatAt" = %s, balance = %s, equity = %s, margin = %s, "freeMargin" = %s, "floatingPl" = %s, currency = %s, "provisioningError" = NULL WHERE id = %s',
-                                            ('ONLINE', datetime.datetime.now(), info.balance, info.equity, info.margin, info.margin_free, info.profit, info.currency, acc['id'])
-                                        )
                                         
                                     if acc.get('connectionStatus') != 'ONLINE':
                                         logger.info(f"Account {login} verified ONLINE on broker! Balance: {info.balance} {info.currency}")
@@ -843,6 +843,23 @@ def force_webrequest_permission():
                 logger.info(f"Force-patched WebRequest permission in {common_ini_path}")
             except Exception as e:
                 logger.warning(f"Could not patch {common_ini_path}: {e}")
+
+    # Clean out any pending liveupdate files to prevent MT5 restart/update freezes
+    try:
+        appdata_terminal = Path(os.environ.get('APPDATA', 'C:\\Users\\Plaiz\\AppData\\Roaming')) / 'MetaQuotes' / 'Terminal'
+        if appdata_terminal.exists():
+            for lu in appdata_terminal.glob('*/liveupdate'):
+                if lu.is_dir():
+                    for f in lu.iterdir():
+                        try:
+                            if f.is_file():
+                                f.unlink()
+                            elif f.is_dir():
+                                shutil.rmtree(f, ignore_errors=True)
+                        except Exception:
+                            pass
+    except Exception:
+        pass
 
 
 def command_worker():
