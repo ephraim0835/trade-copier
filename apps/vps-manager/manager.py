@@ -379,45 +379,78 @@ def check_terminal_logs_for_diagnostics(acc):
     if not instance_dir:
         return None
     
+    server_name = acc.get('server') or 'broker server'
+    login_id = acc.get('login') or ''
+    
+    # 1. Inspect network and terminal logs
     logs_dir = Path(instance_dir) / 'logs'
-    if not logs_dir.exists():
-        return None
-    
-    log_files = sorted(logs_dir.glob('*.log'), key=lambda p: p.stat().st_mtime, reverse=True)
-    if not log_files:
-        return None
-    
-    target_log = log_files[0]
-    try:
-        content = ''
-        try:
-            content = target_log.read_text(encoding='utf-16-le', errors='ignore')
-        except Exception:
-            content = target_log.read_text(encoding='utf-8', errors='ignore')
-        
-        lines = content.splitlines()[-50:]
-        for line in reversed(lines):
-            # Check authorization failure
-            if 'authorization' in line.lower() and 'failed' in line.lower():
-                if 'invalid account' in line.lower():
-                    return 'FAILED', f"Broker rejected login: Invalid account number for server '{acc.get('server')}'"
-                if 'incorrect password' in line.lower() or 'invalid password' in line.lower():
-                    return 'FAILED', f"Broker rejected login: Incorrect trading password for server '{acc.get('server')}'"
-                return 'FAILED', f"Broker authorization failed: {line.strip()}"
-            
-            # Check connection failure
-            if 'connect failed' in line.lower() or 'no connection' in line.lower():
-                if '0 access points found' in line.lower():
-                    return 'FAILED', f"Broker connection failed: Server '{acc.get('server')}' not reachable. Check server name."
-                return 'FAILED', f"Broker network error: Unable to connect to {acc.get('server')}"
-            
-            # Check web request permission error
-            if 'webrequest to' in line.lower() and 'not allowed' in line.lower():
-                return 'FAILED', "WebRequest URL not whitelisted in common.ini"
+    if logs_dir.exists():
+        log_files = sorted(logs_dir.glob('*.log'), key=lambda p: p.stat().st_mtime, reverse=True)
+        if log_files:
+            target_log = log_files[0]
+            try:
+                content = ''
+                try:
+                    content = target_log.read_text(encoding='utf-16-le', errors='ignore')
+                except Exception:
+                    content = target_log.read_text(encoding='utf-8', errors='ignore')
                 
-    except Exception as e:
-        logger.debug(f"Error checking terminal logs for {acc.get('login')}: {e}")
-        
+                lines = content.splitlines()[-60:]
+                for line in reversed(lines):
+                    line_lower = line.lower()
+                    
+                    # Authorization Failures
+                    if 'authorization' in line_lower and 'failed' in line_lower:
+                        if 'invalid account' in line_lower:
+                            return 'FAILED', f"Invalid Account Number: Server '{server_name}' does not recognize account '{login_id}'. Please verify your MT5 account number."
+                        if 'incorrect password' in line_lower or 'invalid password' in line_lower:
+                            return 'FAILED', f"Incorrect Password: The password entered does not match account '{login_id}' on server '{server_name}'. Please verify your trading password."
+                        if 'investor' in line_lower:
+                            return 'FAILED', f"Investor Password Detected: You entered a read-only investor password. Trade Copier requires the Master/Trading password to copy trades."
+                        if 'disabled' in line_lower:
+                            return 'FAILED', f"Account Disabled: Account '{login_id}' is disabled or archived on server '{server_name}'."
+                        if 'trading disabled' in line_lower:
+                            return 'FAILED', f"Trading Disabled: The broker has disabled trading privileges on account '{login_id}'."
+                        if 'no connection' in line_lower:
+                            return 'FAILED', f"Connection Failed: Unable to establish a network link to broker server '{server_name}'."
+                        return 'FAILED', f"Broker Authorization Failed: {line.strip()}"
+                    
+                    # Server & Connection Failures
+                    if 'connect failed' in line_lower or 'no connection' in line_lower or 'server not responding' in line_lower:
+                        if '0 access points found' in line_lower or 'not found' in line_lower:
+                            return 'FAILED', f"Invalid Server Name: Broker server '{server_name}' is unreachable or does not exist. Please check the exact server name in your broker portal."
+                        return 'FAILED', f"Network Connection Failed: Cannot connect to '{server_name}'. Verify broker server status and name."
+
+                    # WebRequest Security Permissions
+                    if 'webrequest to' in line_lower and 'not allowed' in line_lower:
+                        return 'FAILED', "WebRequest Permission Denied: The API endpoint URL is not whitelisted in MT5 common.ini settings."
+                        
+            except Exception as e:
+                logger.debug(f"Error checking terminal network logs for {login_id}: {e}")
+
+    # 2. Inspect MQL5 Experts Logs (EA runtime errors)
+    mql_logs_dir = Path(instance_dir) / 'MQL5' / 'Logs'
+    if mql_logs_dir.exists():
+        mql_log_files = sorted(mql_logs_dir.glob('*.log'), key=lambda p: p.stat().st_mtime, reverse=True)
+        if mql_log_files:
+            target_mql_log = mql_log_files[0]
+            try:
+                content = ''
+                try:
+                    content = target_mql_log.read_text(encoding='utf-16-le', errors='ignore')
+                except Exception:
+                    content = target_mql_log.read_text(encoding='utf-8', errors='ignore')
+                
+                lines = content.splitlines()[-40:]
+                for line in reversed(lines):
+                    line_lower = line.lower()
+                    if 'webrequest failed with code 401' in line_lower or 'unauthorized' in line_lower:
+                        return 'FAILED', "EA Authentication Failed: Invalid or expired EA authorization token (HTTP 401)."
+                    if 'initialization failed' in line_lower or 'expert removed' in line_lower:
+                        return 'FAILED', f"EA Execution Error: {line.strip()}"
+            except Exception as e:
+                logger.debug(f"Error checking MQL5 logs for {login_id}: {e}")
+                
     return None
 
 stop_event = threading.Event()

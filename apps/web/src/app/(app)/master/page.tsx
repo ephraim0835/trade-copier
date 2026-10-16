@@ -2,6 +2,7 @@ import { ShieldCheck, Wifi, ArrowRightLeft, Clock } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { MoneyDisplay } from '@/components/money-display';
 import { MasterActions } from '@/components/master/master-actions';
+import { MasterStatusAlert } from '@/components/master/master-status-alert';
 import { getServerSession } from 'next-auth/next';
 import { redirect } from 'next/navigation';
 
@@ -55,6 +56,14 @@ export default async function MasterPage() {
       <div className="relative z-10 flex flex-col gap-10">
         {masterAccount ? (
           <>
+            <MasterStatusAlert
+              accountId={masterAccount.id}
+              login={masterAccount.login}
+              server={masterAccount.server}
+              connectionStatus={masterAccount.connectionStatus}
+              provisioningError={masterAccount.provisioningError}
+            />
+
             <section className="plaiz-card p-8 rounded-[24px]">
               <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6 mb-8">
                 <div className="flex flex-col gap-3">

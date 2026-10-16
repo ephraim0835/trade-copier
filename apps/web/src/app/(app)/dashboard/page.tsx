@@ -1,4 +1,4 @@
-import { ShieldAlert, ArrowUpRight, ArrowDownRight, Settings2, BarChart3, Wifi, Clock, ArrowRight, Users, Play, Home, Globe } from 'lucide-react';
+import { ShieldAlert, ArrowUpRight, ArrowDownRight, Settings2, BarChart3, Wifi, Clock, ArrowRight, Users, Play, Home, Globe, AlertCircle } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { PerformanceChart } from '@/components/dashboard/performance-chart';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -120,6 +120,7 @@ export default async function DashboardOverview() {
   
   const onlineSubs = subAccounts.filter((sub: any) => sub.isActive && isOnline(sub)).length;
   const allConnected = masterOnline && onlineSubs === subAccounts.length;
+  const failedAccounts = accounts.filter((a: any) => a.connectionStatus === 'FAILED' || !!a.provisioningError);
 
   const totalBalanceArray = accounts.map((a: any) => ({
     id: a.id,
@@ -218,6 +219,33 @@ export default async function DashboardOverview() {
           </div>
         </div>
       </header>
+
+      {/* Alert Banner for any Failed Accounts */}
+      {failedAccounts.length > 0 && (
+        <div className="relative z-20 mt-4 p-4 rounded-2xl bg-destructive/10 border border-destructive/25 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs animate-in fade-in">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold text-foreground block text-sm">
+                {failedAccounts.length === 1 ? 'MT5 Connection Issue Detected' : `${failedAccounts.length} MT5 Accounts Have Connection Issues`}
+              </span>
+              <div className="flex flex-col gap-1 mt-1 text-destructive font-mono text-[11px]">
+                {failedAccounts.map((fa: any) => (
+                  <p key={fa.id}>
+                    Account <strong>{fa.login}</strong>: {fa.provisioningError || 'Broker rejected credentials. Please check password or server.'}
+                  </p>
+                ))}
+              </div>
+            </div>
+          </div>
+          <Link
+            href="/accounts"
+            className="shrink-0 px-4 py-2 rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 text-xs font-semibold transition-all shadow-sm"
+          >
+            Resolve in Accounts &rarr;
+          </Link>
+        </div>
+      )}
 
       {/* MAIN COMPOSITION */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 lg:gap-12 relative z-10 mt-2">

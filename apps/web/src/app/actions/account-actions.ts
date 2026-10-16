@@ -237,3 +237,33 @@ export async function getAccountConnectionStatus(accountId: string) {
   }
 }
 
+export async function retryAccountConnection(accountId: string) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email }
+    });
+
+    if (!user) {
+      return { success: false, error: 'User not found' };
+    }
+
+    await prisma.mt5Account.update({
+      where: { id: accountId, userId: user.id },
+      data: {
+        connectionStatus: 'PENDING',
+        provisioningError: null,
+        updatedAt: new Date(),
+      }
+    });
+
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Failed to retry connection' };
+  }
+}
+
