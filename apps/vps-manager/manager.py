@@ -454,6 +454,7 @@ def check_terminal_logs_for_diagnostics(acc):
     return None
 
 stop_event = threading.Event()
+sync_event = threading.Event()
 active_terminals = {}
 
 # Worker thread that continuously polls the DB for inactive accounts
@@ -485,7 +486,8 @@ def poll_db_worker():
         try:
             rows = execute_query('SELECT id, login, password, broker, server, "isActive", role, "connectionStatus", "lastHeartbeatAt" FROM "Mt5Account"', fetch=True)
             if rows is None:
-                time.sleep(10)
+                sync_event.wait(timeout=10)
+                sync_event.clear()
                 continue
             
             for row in rows:
@@ -633,8 +635,9 @@ def poll_db_worker():
         except Exception as e:
             logger.error(f"Supabase API polling error: {e}")
         
-        # Sleep before next poll
-        time.sleep(10)
+        # Sleep before next poll or wake immediately on admin command
+        sync_event.wait(timeout=10)
+        sync_event.clear()
 
 def telemetry_worker():
     if not DATABASE_URL:
@@ -772,10 +775,24 @@ def command_worker():
                     cmd = (row['lastCommand'] or '').upper()
                     logger.info(f"[ADMIN COMMAND] Received '{cmd}' from Admin Panel!")
                     
-                    if cmd in ['START', 'SYNC']:
+                    if cmd == 'START':
+                        # Reset failed accounts so poll_db_worker can retry them fresh
+                        execute_query(
+                            'UPDATE "Mt5Account" SET "connectionStatus" = %s, "provisioningError" = NULL WHERE "isActive" = true AND "connectionStatus" = %s',
+                            ('PENDING', 'FAILED')
+                        )
+                        sync_event.set()
                         execute_query(
                             'UPDATE "VpsEnvironment" SET "commandStatus" = %s, "commandMessage" = %s, "lastHeartbeatAt" = now() WHERE id = %s',
-                            ('EXECUTED', f'Synchronized terminals successfully at {datetime.datetime.now().strftime("%H:%M:%S")}', env_id)
+                            ('EXECUTED', f'Bot engine awakened & fleet synchronized successfully at {datetime.datetime.now().strftime("%H:%M:%S")}', env_id)
+                        )
+                        logger.info("Bot engine awakened & instant fleet synchronization triggered.")
+                        
+                    elif cmd == 'SYNC':
+                        sync_event.set()
+                        execute_query(
+                            'UPDATE "VpsEnvironment" SET "commandStatus" = %s, "commandMessage" = %s, "lastHeartbeatAt" = now() WHERE id = %s',
+                            ('EXECUTED', f'Terminals synchronized with database at {datetime.datetime.now().strftime("%H:%M:%S")}', env_id)
                         )
                         logger.info("Triggered instant fleet synchronization.")
                         
@@ -788,8 +805,13 @@ def command_worker():
                         active_terminals.clear()
                         force_webrequest_permission()
                         execute_query(
+                            'UPDATE "Mt5Account" SET "connectionStatus" = %s, "provisioningError" = NULL WHERE "isActive" = true AND "connectionStatus" = %s',
+                            ('PENDING', 'FAILED')
+                        )
+                        sync_event.set()
+                        execute_query(
                             'UPDATE "VpsEnvironment" SET "commandStatus" = %s, "commandMessage" = %s, "lastHeartbeatAt" = now() WHERE id = %s',
-                            ('EXECUTED', 'Fleet cold-restarted successfully', env_id)
+                            ('EXECUTED', f'Fleet cold-restarted successfully at {datetime.datetime.now().strftime("%H:%M:%S")}', env_id)
                         )
                         logger.info("Fleet cold restart complete.")
                         
@@ -799,12 +821,12 @@ def command_worker():
                         active_terminals.clear()
                         execute_query(
                             'UPDATE "VpsEnvironment" SET "commandStatus" = %s, "commandMessage" = %s, "lastHeartbeatAt" = now() WHERE id = %s',
-                            ('EXECUTED', 'All MT5 terminals safely stopped', env_id)
+                            ('EXECUTED', f'All MT5 terminals safely stopped at {datetime.datetime.now().strftime("%H:%M:%S")}', env_id)
                         )
         except Exception as e:
             logger.error(f"Error in command worker: {e}")
             
-        time.sleep(3)
+        time.sleep(2)
 
 
 if __name__ == '__main__':
