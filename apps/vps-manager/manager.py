@@ -686,7 +686,7 @@ def keep_alive_worker():
     if not ping_url:
         logger.warning("KEEP_ALIVE_URL not set. Keep-alive worker will not run.")
         return
-    logger.info(f"Keep-alive worker started. Will ping {ping_url} every 10 minutes.")
+    logger.info(f"Keep-alive worker started. Will ping {ping_url} every 4 minutes to prevent Render dormancy.")
     
     # Wait a bit before the first ping
     time.sleep(10)
@@ -702,8 +702,8 @@ def keep_alive_worker():
         except Exception as e:
             logger.error(f"Keep-alive ping failed: {e}")
         
-        # Sleep for 10 minutes (600 seconds)
-        time.sleep(600)
+        # Sleep for 4 minutes (240 seconds) - safely below Render's 15-minute idle threshold
+        time.sleep(240)
 
 def kill_existing_terminals():
     """Aggressively terminate any running MT5 terminal64.exe processes to ensure a cold boot."""
