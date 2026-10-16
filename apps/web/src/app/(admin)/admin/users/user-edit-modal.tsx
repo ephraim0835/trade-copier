@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Shield, CreditCard, Trash2, X, Loader2 } from 'lucide-react';
 import { updateUserRole, grantInternalSubscription, revokeSubscription, deleteUser } from '@/app/actions/admin-actions';
+import { useRouter } from 'next/navigation';
 
 interface UserEditModalProps {
   user: any;
@@ -10,6 +11,7 @@ interface UserEditModalProps {
 }
 
 export function UserEditModal({ user, onClose }: UserEditModalProps) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,6 +20,8 @@ export function UserEditModal({ user, onClose }: UserEditModalProps) {
     setError(null);
     try {
       await action();
+      router.refresh();
+      onClose();
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -29,8 +33,8 @@ export function UserEditModal({ user, onClose }: UserEditModalProps) {
   const isAdmin = user.role === 'ADMIN' || user.role === 'OWNER';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-      <div className="w-full max-w-md bg-card border border-border/40 rounded-[20px] shadow-lg overflow-hidden flex flex-col relative">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-full max-w-md bg-card border border-border/40 rounded-[20px] shadow-2xl overflow-hidden flex flex-col relative animate-in zoom-in-95 duration-150">
         <div className="flex items-center justify-between p-6 border-b border-border/20">
           <h2 className="text-xl font-bold">Manage User</h2>
           <button onClick={onClose} disabled={loading} className="p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
@@ -95,7 +99,6 @@ export function UserEditModal({ user, onClose }: UserEditModalProps) {
                 if (confirm('Are you absolutely sure you want to delete this user? This action cannot be undone and will delete all their data.')) {
                   handleAction(async () => {
                     await deleteUser(user.id);
-                    onClose();
                   });
                 }
               }}

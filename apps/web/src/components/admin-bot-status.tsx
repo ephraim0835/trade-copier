@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Cpu, HardDrive } from 'lucide-react';
+import { Cpu, HardDrive, Loader2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 interface BotStatusData {
   isOnline: boolean;
@@ -20,8 +21,10 @@ interface BotStatusData {
 }
 
 export function AdminBotStatus({ initialData }: { initialData?: BotStatusData }) {
+  const router = useRouter();
   const [data, setData] = useState<BotStatusData | null>(initialData || null);
   const [hovered, setHovered] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -38,8 +41,8 @@ export function AdminBotStatus({ initialData }: { initialData?: BotStatusData })
       }
     }
 
-    // Poll every 12 seconds
-    const interval = setInterval(checkStatus, 12000);
+    // Poll every 8 seconds
+    const interval = setInterval(checkStatus, 8000);
     return () => {
       active = false;
       clearInterval(interval);
@@ -98,15 +101,17 @@ export function AdminBotStatus({ initialData }: { initialData?: BotStatusData })
             <span>MT5 Terminals</span>
             <span className="font-semibold text-foreground num-tabular">{vps.activeTerminals} active</span>
           </div>
-          <div className="pt-1 border-t border-border/40 text-[10px] text-muted-foreground text-right">
+          <div className="pt-1 border-t border-border/40 text-[10px] text-muted-foreground text-right font-mono">
             Last seen: {vps.secondsAgo < 60 ? `${vps.secondsAgo}s ago` : `${Math.round(vps.secondsAgo / 60)}m ago`}
           </div>
 
           <div className="pt-2 border-t border-border/40 flex items-center gap-1.5">
             <button
+              disabled={actionLoading}
               onClick={async (e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                setActionLoading(true);
                 try {
                   const cmd = isOnline ? 'RESTART' : 'START';
                   const res = await fetch('/api/admin/bot-command', {
@@ -117,18 +122,22 @@ export function AdminBotStatus({ initialData }: { initialData?: BotStatusData })
                   if (res.ok) {
                     const statusRes = await fetch('/api/admin/bot-status');
                     if (statusRes.ok) setData(await statusRes.json());
+                    router.refresh();
                   }
                 } catch (err) {
                   console.error(err);
+                } finally {
+                  setActionLoading(false);
                 }
               }}
-              className={`w-full py-1 px-2 rounded-lg text-[11px] font-bold text-center tracking-wide transition-all ${
+              className={`w-full py-1.5 px-2 rounded-lg text-[11px] font-bold text-center tracking-wide transition-all flex items-center justify-center gap-1.5 ${
                 isOnline
                   ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/20'
                   : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm'
               }`}
             >
-              {isOnline ? 'Restart Fleet' : 'Start Bot Now'}
+              {actionLoading && <Loader2 className="w-3 h-3 animate-spin" />}
+              {actionLoading ? 'Dispatching...' : isOnline ? 'Restart Fleet' : 'Start Bot Now'}
             </button>
           </div>
         </div>
