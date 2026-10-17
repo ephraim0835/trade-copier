@@ -1,10 +1,15 @@
-import { LineChart, Info, ShieldAlert } from 'lucide-react';
-import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { redirect } from 'next/navigation';
-import { PerformanceChart } from '@/components/dashboard/performance-chart';
+import { 
+  PerformanceClient, 
+  PerformanceAccount, 
+  PerformanceSnapshot, 
+  PerformanceTrade 
+} from './performance-client';
+
+export const dynamic = 'force-dynamic';
 
 export default async function PerformancePage() {
   const session = await getServerSession(authOptions);
@@ -16,75 +21,112 @@ export default async function PerformancePage() {
 
   if (!user) redirect('/login');
 
+  // 1. Fetch user accounts
+  const userAccounts = await prisma.mt5Account.findMany({
+    where: { userId: user.id },
+    orderBy: { role: 'asc' },
+  });
+
+  const masterAccountIds = userAccounts.filter(a => a.role === 'MASTER').map(a => a.id);
+  const subAccountIds = userAccounts.filter(a => a.role === 'SUB').map(a => a.id);
+  const accountLoginMap = new Map(userAccounts.map(a => [a.id, a.login]));
+
+  // 2. Fetch snapshots
   const snapshots = await prisma.accountSnapshot.findMany({
     where: { mt5Account: { userId: user.id } },
     orderBy: { timestamp: 'asc' },
+    take: 500,
   });
 
-  // Group snapshots by Date (hourly aggregation)
-  const groupedSnapshots = snapshots.reduce((acc: any, curr: any) => {
-    const date = new Date(curr.timestamp);
-    const hourKey = `${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()} ${date.getHours()}:00`;
-    
-    if (!acc[hourKey]) {
-      acc[hourKey] = {
-        date: date.toLocaleString('default', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
-        timestamp: date.getTime(),
-        value: 0
-      };
+  // 3. Fetch completed trade signals and copies
+  const rawSignals = (masterAccountIds.length > 0 || subAccountIds.length > 0) ? await prisma.tradeSignal.findMany({
+    where: {
+      OR: [
+        ...(masterAccountIds.length > 0 ? [{ masterAcctId: { in: masterAccountIds } }] : []),
+        ...(subAccountIds.length > 0 ? [{ copies: { some: { subAccountId: { in: subAccountIds } } } }] : [])
+      ]
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 100,
+    include: {
+      copies: {
+        where: {
+          subAccountId: { in: subAccountIds }
+        },
+        include: {
+          subAccount: true
+        }
+      }
     }
-    acc[hourKey].value += curr.equity || 0;
-    return acc;
-  }, {});
+  }) : [];
 
-  const chartData: any[] = Object.values(groupedSnapshots).sort((a: any, b: any) => a.timestamp - b.timestamp);
+  // Serialize accounts
+  const serializedAccounts: PerformanceAccount[] = userAccounts.map(a => ({
+    id: a.id,
+    login: a.login,
+    role: a.role,
+    broker: a.broker,
+    server: a.server,
+    balance: a.balance || 0,
+    equity: a.equity || a.balance || 0,
+    currency: a.currency || 'USD',
+  }));
+
+  // Serialize snapshots
+  const serializedSnapshots: PerformanceSnapshot[] = snapshots.map(s => ({
+    id: s.id,
+    mt5AccountId: s.mt5AccountId,
+    balance: s.balance,
+    equity: s.equity,
+    floatingPl: s.floatingPl,
+    timestamp: s.timestamp.toISOString(),
+  }));
+
+  // Build trade list from both master signals and sub copies
+  const trades: PerformanceTrade[] = [];
+
+  rawSignals.forEach(signal => {
+    // If user owns master account, add master trade record
+    if (masterAccountIds.includes(signal.masterAcctId)) {
+      trades.push({
+        id: `m_${signal.id}`,
+        ticket: signal.ticket.toString(),
+        symbol: signal.symbol,
+        type: signal.type,
+        volume: signal.volume,
+        priceOpen: signal.priceOpen,
+        closePrice: (signal as any).closePrice ?? null,
+        profit: (signal as any).profit ?? null,
+        createdAt: signal.createdAt.toISOString(),
+        masterLogin: accountLoginMap.get(signal.masterAcctId),
+        accountRole: 'MASTER',
+      });
+    }
+
+    // Add sub copy records
+    signal.copies.forEach(copy => {
+      trades.push({
+        id: `s_${copy.id}`,
+        ticket: copy.subPositionId?.toString() || copy.subOrderTicket?.toString() || signal.ticket.toString(),
+        symbol: signal.symbol,
+        type: signal.type,
+        volume: copy.executedVolume || copy.requestedVolume || 0,
+        priceOpen: signal.priceOpen,
+        closePrice: (copy as any).closePrice ?? (signal as any).closePrice ?? null,
+        profit: (copy as any).profit ?? null,
+        createdAt: signal.createdAt.toISOString(),
+        masterLogin: accountLoginMap.get(signal.masterAcctId),
+        subLogin: copy.subAccount?.login || accountLoginMap.get(copy.subAccountId),
+        accountRole: 'SUB',
+      });
+    });
+  });
 
   return (
-    <div className="flex-1 p-4 md:p-6 lg:p-12 flex flex-col gap-10 pb-32 overflow-y-auto custom-scrollbar relative">
-      <header className="relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <LineChart className="w-6 h-6 text-primary" />
-            Performance
-          </h1>
-          <p className="text-muted-foreground text-[13px] tracking-wide mt-2 max-w-xl">
-            Historical portfolio analytics, drawdown metrics, and growth trajectories.
-          </p>
-        </div>
-      </header>
-
-      <div className="relative z-10 flex-1 flex flex-col">
-        {chartData.length > 0 ? (
-          <section className="plaiz-card p-6 rounded-[24px] flex-1 flex flex-col min-h-[500px]">
-             <div className="flex items-center justify-between mb-6">
-               <h3 className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">Total Portfolio Equity</h3>
-             </div>
-             <div className="flex-1 -mx-4 -mb-4">
-               <PerformanceChart data={chartData} />
-             </div>
-          </section>
-        ) : (
-          <section className="plaiz-card p-8 md:p-16 rounded-[32px] flex-1 flex flex-col items-center justify-center text-center min-h-[500px]">
-            <div className="w-20 h-20 rounded-full bg-black/5 dark:bg-white/5 border border-border/20 flex items-center justify-center mb-6 shadow-sm">
-              <LineChart className="w-8 h-8 text-muted-foreground opacity-50" />
-            </div>
-            
-            <h2 className="text-[20px] font-bold text-foreground mb-3">Not enough data yet</h2>
-            <p className="text-[13px] text-muted-foreground max-w-md mx-auto leading-relaxed mb-8">
-              Performance analytics require historical trade data to generate accurate growth curves and drawdown metrics. Once your portfolio begins executing trades, this dashboard will automatically populate.
-            </p>
-            
-            <div className="flex flex-col sm:flex-row items-center gap-4">
-              <Link href="/" className="plaiz-btn plaiz-btn-secondary">
-                Return to Dashboard
-              </Link>
-              <Link href="/accounts" className="plaiz-btn plaiz-btn-primary">
-                Connect Accounts
-              </Link>
-            </div>
-          </section>
-        )}
-      </div>
-    </div>
+    <PerformanceClient 
+      accounts={serializedAccounts}
+      snapshots={serializedSnapshots}
+      trades={trades}
+    />
   );
 }

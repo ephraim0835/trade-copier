@@ -719,6 +719,22 @@ def poll_db_worker():
                                     except Exception as de:
                                         logger.debug(f"Deals sync error for {login}: {de}")
 
+                                    # 4. Record periodic AccountSnapshot if none exists in last 30 minutes
+                                    try:
+                                        execute_query(
+                                            '''
+                                            INSERT INTO "AccountSnapshot" (id, "mt5AccountId", balance, equity, "floatingPl", timestamp, "createdAt")
+                                            SELECT gen_random_uuid(), %s, %s, %s, %s, NOW(), NOW()
+                                            WHERE NOT EXISTS (
+                                                SELECT 1 FROM "AccountSnapshot"
+                                                WHERE "mt5AccountId" = %s AND timestamp > NOW() - INTERVAL '30 minutes'
+                                            )
+                                            ''',
+                                            (acc['id'], float(info.balance), float(info.equity), float(info.profit), acc['id'])
+                                        )
+                                    except Exception as se:
+                                        logger.debug(f"Snapshot insert error for {login}: {se}")
+
                                     if acc.get('connectionStatus') != 'ONLINE':
                                         logger.info(f"Account {login} verified ONLINE on broker! Balance: {info.balance} {info.currency}")
                                         acc['connectionStatus'] = 'ONLINE'
