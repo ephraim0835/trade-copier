@@ -9,9 +9,19 @@ interface MoneyDisplayProps {
   className?: string;
   accountId?: string;
   liveType?: 'balance' | 'equity' | 'floatingPl';
+  colored?: boolean;
+  showSign?: boolean;
 }
 
-export function MoneyDisplay({ amount, sourceCurrency = 'USD', className = '', accountId, liveType }: MoneyDisplayProps) {
+export function MoneyDisplay({
+  amount,
+  sourceCurrency = 'USD',
+  className = '',
+  accountId,
+  liveType,
+  colored = false,
+  showSign = false,
+}: MoneyDisplayProps) {
   const { formatMoney } = useCurrency();
   const [mounted, setMounted] = useState(false);
   const [localAmount, setLocalAmount] = useState(amount);
@@ -44,22 +54,49 @@ export function MoneyDisplay({ amount, sourceCurrency = 'USD', className = '', a
     setLocalAmount(amount);
   }, [amount]);
 
+  const roundedAmount = Math.round((localAmount || 0) * 100) / 100;
+  const isPositive = roundedAmount > 0;
+  const isNegative = roundedAmount < 0;
+
+  const colorClass = colored
+    ? isPositive
+      ? 'text-emerald-500'
+      : isNegative
+      ? 'text-red-500'
+      : 'text-muted-foreground'
+    : '';
+
+  const sign = showSign && isPositive ? '+' : '';
+
   // During SSR and initial hydration, we render a fallback or standard USD to prevent hydration mismatch
   if (!mounted) {
+    const roundedFallback = Math.round((amount || 0) * 100) / 100;
+    const fallbackPositive = roundedFallback > 0;
+    const fallbackNegative = roundedFallback < 0;
+    const fallbackColor = colored
+      ? fallbackPositive
+        ? 'text-emerald-500'
+        : fallbackNegative
+        ? 'text-red-500'
+        : 'text-muted-foreground'
+      : '';
+    const fallbackSign = showSign && fallbackPositive ? '+' : '';
+
     return (
-      <span className={className} suppressHydrationWarning>
+      <span className={`${fallbackColor} ${className}`.trim()} suppressHydrationWarning>
+        {fallbackSign}
         {new Intl.NumberFormat('en-US', {
           style: 'currency',
           currency: sourceCurrency,
           minimumFractionDigits: 2
-        }).format(localAmount)}
+        }).format(localAmount || 0)}
       </span>
     );
   }
 
   return (
-    <span className={className}>
-      {formatMoney(localAmount, sourceCurrency)}
+    <span className={`${colorClass} ${className}`.trim()}>
+      {sign}{formatMoney(localAmount || 0, sourceCurrency)}
     </span>
   );
 }

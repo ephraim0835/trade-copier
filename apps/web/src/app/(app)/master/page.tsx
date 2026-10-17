@@ -106,8 +106,15 @@ export default async function MasterPage() {
                 </div>
                 <div className="flex flex-col">
                   <span className="text-[10px] text-muted-foreground uppercase tracking-[0.1em] mb-1">Floating P/L</span>
-                  <span className={`text-[16px] font-semibold num-tabular ${(masterAccount.floatingPl || 0) >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>
-                    {(masterAccount.floatingPl || 0) >= 0 ? '+' : ''}<MoneyDisplay amount={masterAccount.floatingPl || 0} sourceCurrency={masterAccount.currency || 'USD'} />
+                  <span className="text-[16px] font-semibold num-tabular">
+                    <MoneyDisplay 
+                      amount={masterAccount.floatingPl || 0} 
+                      sourceCurrency={masterAccount.currency || 'USD'} 
+                      accountId={masterAccount.id}
+                      liveType="floatingPl"
+                      colored 
+                      showSign 
+                    />
                   </span>
                 </div>
                 <div className="flex flex-col">

@@ -367,8 +367,15 @@ export default async function DashboardOverview() {
                   </div>
                   <div className="flex flex-col">
                     <span className="text-[10px] text-muted-foreground uppercase tracking-[0.1em] mb-1">Floating P/L</span>
-                    <span className={`text-[15px] font-semibold num-tabular ${(masterAccount.floatingPl || 0) >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>
-                      {(masterAccount.floatingPl || 0) >= 0 ? '+' : ''}<MoneyDisplay amount={masterAccount.floatingPl || 0} sourceCurrency={masterAccount.currency || 'USD'} accountId={masterAccount.id} liveType="floatingPl" />
+                    <span className="text-[15px] font-semibold num-tabular">
+                      <MoneyDisplay 
+                        amount={masterAccount.floatingPl || 0} 
+                        sourceCurrency={masterAccount.currency || 'USD'} 
+                        accountId={masterAccount.id} 
+                        liveType="floatingPl" 
+                        colored 
+                        showSign 
+                      />
                     </span>
                   </div>
                 </div>
@@ -433,8 +440,15 @@ export default async function DashboardOverview() {
                         </div>
                         <div className="flex flex-col sm:text-right">
                           <span className="text-[9px] text-muted-foreground uppercase tracking-widest mb-1">Live PnL</span>
-                          <span className={`text-[13px] font-semibold num-tabular ${(sub.floatingPl || 0) >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>
-                            {(sub.floatingPl || 0) >= 0 ? '+' : ''}<MoneyDisplay amount={sub.floatingPl || 0} sourceCurrency={sub.currency || 'USD'} accountId={sub.id} liveType="floatingPl" />
+                          <span className="text-[13px] font-semibold num-tabular">
+                            <MoneyDisplay 
+                              amount={sub.floatingPl || 0} 
+                              sourceCurrency={sub.currency || 'USD'} 
+                              accountId={sub.id} 
+                              liveType="floatingPl" 
+                              colored 
+                              showSign 
+                            />
                           </span>
                         </div>
                       </div>
@@ -580,8 +594,15 @@ export default async function DashboardOverview() {
                   </div>
                   <div className="flex flex-col items-end">
                     <span className="text-[10px] text-muted-foreground uppercase tracking-[0.1em] mb-0.5">P/L</span>
-                    <span className={`text-[13px] font-semibold num-tabular ${sub.floatingPl && sub.floatingPl > 0 ? 'text-emerald-500' : sub.floatingPl && sub.floatingPl < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
-                      {sub.floatingPl && sub.floatingPl > 0 ? '+' : ''}{sub.floatingPl ? <MoneyDisplay amount={sub.floatingPl} sourceCurrency={sub.currency || 'USD'} accountId={sub.id} liveType="floatingPl" /> : '$0.00'}
+                    <span className="text-[13px] font-semibold num-tabular">
+                      <MoneyDisplay 
+                        amount={sub.floatingPl || 0} 
+                        sourceCurrency={sub.currency || 'USD'} 
+                        accountId={sub.id} 
+                        liveType="floatingPl" 
+                        colored 
+                        showSign 
+                      />
                     </span>
                   </div>
                 </div>

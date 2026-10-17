@@ -78,10 +78,11 @@ export function MultiMoneyDisplay({ balances, className = '', colored = false, s
   if (!mounted) {
     // SSR Fallback (just display something so it doesn't break hydration layout)
     const fallbackSum = localBalances.reduce((sum, b) => sum + b.amount, 0);
-    const colorClass = colored ? (fallbackSum >= 0 ? 'text-emerald-500' : 'text-destructive') : '';
-    const sign = showSign && fallbackSum >= 0 ? '+' : '';
+    const roundedFallback = Math.round(fallbackSum * 100) / 100;
+    const colorClass = colored ? (roundedFallback > 0 ? 'text-emerald-500' : roundedFallback < 0 ? 'text-red-500' : 'text-muted-foreground') : '';
+    const sign = showSign && roundedFallback > 0 ? '+' : '';
     return (
-      <span className={`${className} ${colorClass}`} suppressHydrationWarning>
+      <span className={`${colorClass} ${className}`.trim()} suppressHydrationWarning>
         {sign}{new Intl.NumberFormat('en-US', {
           style: 'currency',
           currency: 'USD',
@@ -98,11 +99,12 @@ export function MultiMoneyDisplay({ balances, className = '', colored = false, s
     minimumFractionDigits: currency === 'NGN' ? 0 : 2
   }).format(total);
 
-  const colorClass = colored ? (total >= 0 ? 'text-emerald-500' : 'text-destructive') : '';
-  const sign = showSign && total >= 0 ? '+' : '';
+  const roundedTotal = Math.round(total * 100) / 100;
+  const colorClass = colored ? (roundedTotal > 0 ? 'text-emerald-500' : roundedTotal < 0 ? 'text-red-500' : 'text-muted-foreground') : '';
+  const sign = showSign && roundedTotal > 0 ? '+' : '';
 
   return (
-    <span className={`${className} ${colorClass}`}>
+    <span className={`${colorClass} ${className}`.trim()}>
       {sign}{formatted}
     </span>
   );

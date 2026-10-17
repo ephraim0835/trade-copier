@@ -332,8 +332,15 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
                 />
               </span>
               {accountData.floatingPl != null ? (
-                <span className={`text-[11px] font-semibold ${accountData.floatingPl > 0 ? 'text-emerald-500' : accountData.floatingPl < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
-                  (<MoneyDisplay amount={accountData.floatingPl} sourceCurrency={accountData.currency || 'USD'} accountId={accountData.id} liveType="floatingPl" />)
+                <span className="text-[11px] font-semibold text-muted-foreground">
+                  (<MoneyDisplay 
+                    amount={accountData.floatingPl} 
+                    sourceCurrency={accountData.currency || 'USD'} 
+                    accountId={accountData.id} 
+                    liveType="floatingPl" 
+                    colored 
+                    showSign 
+                  />)
                 </span>
               ) : null}
             </div>
