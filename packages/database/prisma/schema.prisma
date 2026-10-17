@@ -121,6 +121,9 @@ model TradeSignal {
   time           DateTime
   createdAt      DateTime    @default(now())
   sequenceNumber Int?
+  closePrice     Float?
+  profit         Float?
+  isClosed       Boolean     @default(false)
   copies         TradeCopy[]
 }
 
@@ -139,6 +142,8 @@ model TradeCopy {
   executedVolume  Float?
   remainingVolume Float?
   requestedVolume Float?
+  closePrice      Float?
+  profit          Float?
   auditLogs       AuditLog[]
   commands        ExecutionCommand[]
   signal          TradeSignal        @relation(fields: [signalId], references: [id])

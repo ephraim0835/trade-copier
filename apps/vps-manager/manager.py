@@ -693,6 +693,32 @@ def poll_db_worker():
                                         except Exception as te:
                                             logger.debug(f"Telemetry API post error for {login}: {te}")
                                         
+                                    # 3. Synchronize closed deals and update TradeSignal / TradeCopy profit & close status
+                                    try:
+                                        deals_from = datetime.datetime.now() - datetime.timedelta(hours=24)
+                                        deals = mt5.history_deals_get(deals_from, datetime.datetime.now() + datetime.timedelta(hours=1))
+                                        if deals:
+                                            is_master = (acc.get('role') == 'MASTER')
+                                            for d in deals:
+                                                # entry == 1 is DEAL_ENTRY_OUT (exit deal)
+                                                if getattr(d, 'entry', 0) == 1 and getattr(d, 'position_id', 0) > 0:
+                                                    pos_id = int(d.position_id)
+                                                    d_profit = float(d.profit)
+                                                    d_price = float(d.price)
+                                                    d_vol = float(d.volume)
+                                                    if is_master:
+                                                        execute_query(
+                                                            'UPDATE "TradeSignal" SET profit = %s, "closePrice" = %s, "isClosed" = true WHERE ticket = %s AND ("isClosed" = false OR profit IS NULL)',
+                                                            (d_profit, d_price, pos_id)
+                                                        )
+                                                    else:
+                                                        execute_query(
+                                                            'UPDATE "TradeCopy" SET profit = %s, "closePrice" = %s, "closedVolume" = %s, "currentVolume" = 0, state = %s WHERE ("subPositionId" = %s OR "subOrderTicket" = %s) AND ("currentVolume" > 0 OR profit IS NULL)',
+                                                            (d_profit, d_price, d_vol, 'EXECUTED', pos_id, pos_id)
+                                                        )
+                                    except Exception as de:
+                                        logger.debug(f"Deals sync error for {login}: {de}")
+
                                     if acc.get('connectionStatus') != 'ONLINE':
                                         logger.info(f"Account {login} verified ONLINE on broker! Balance: {info.balance} {info.currency}")
                                         acc['connectionStatus'] = 'ONLINE'

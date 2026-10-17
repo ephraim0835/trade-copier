@@ -42,6 +42,8 @@ export interface SerializedCopy {
   requestedVolume?: number | null;
   currentVolume?: number | null;
   closedVolume: number;
+  profit?: number | null;
+  closePrice?: number | null;
   commands: SerializedCommand[];
 }
 
@@ -54,6 +56,9 @@ export interface SerializedTradeSignal {
   type: string;
   volume: number;
   priceOpen: number;
+  closePrice?: number | null;
+  profit?: number | null;
+  isClosed?: boolean;
   sl: number;
   tp: number;
   createdAt: string;
@@ -65,13 +70,16 @@ interface PositionsClientProps {
 }
 
 // Helper to determine the consolidated status of a copy
-function getCopyStatus(copy: SerializedCopy) {
+function getCopyStatus(copy: SerializedCopy, signalIsClosed?: boolean) {
   const hasCloseCommand = copy.commands?.some(c => 
     (c.type === 'CLOSE_ORDER' || c.type === 'CLOSE_PARTIAL') && 
     (c.status === 'EXECUTED' || !!c.executedAt || c.success === true)
   );
 
-  const isClosed = hasCloseCommand || 
+  const isClosed = signalIsClosed ||
+    hasCloseCommand || 
+    (copy.profit !== null && copy.profit !== undefined) ||
+    (copy.closePrice !== null && copy.closePrice !== undefined) ||
     (copy.closedVolume > 0 && (copy.currentVolume === 0 || copy.currentVolume === null || (copy.executedVolume && copy.closedVolume >= copy.executedVolume))) ||
     (copy.currentVolume !== null && copy.currentVolume !== undefined && copy.currentVolume <= 0);
 
@@ -134,29 +142,42 @@ function getCopyStatus(copy: SerializedCopy) {
   };
 }
 
-// Evaluate signal open/closed status based on its copies
+// Evaluate signal open/closed status and aggregate profit based on its copies
 function evaluateSignal(signal: SerializedTradeSignal) {
+  const isSignalMarkedClosed = signal.isClosed || (signal.profit !== null && signal.profit !== undefined) || (signal.closePrice !== null && signal.closePrice !== undefined);
+
   if (signal.copies.length === 0) {
     return {
-      isOpen: true,
-      isClosed: false,
-      statusLabel: 'Pending Mapping',
+      isOpen: !isSignalMarkedClosed,
+      isClosed: isSignalMarkedClosed,
+      statusLabel: isSignalMarkedClosed ? 'Closed' : 'Pending Mapping',
       activeCopiesCount: 0,
       totalCopiedVolume: 0,
+      totalProfit: signal.profit ?? null,
+      evaluatedCopies: [],
     };
   }
 
   const evaluatedCopies = signal.copies.map(c => ({
     copy: c,
-    status: getCopyStatus(c),
+    status: getCopyStatus(c, isSignalMarkedClosed),
   }));
 
   const openCopies = evaluatedCopies.filter(ec => ec.status.isOpen);
   const totalCopiedVolume = openCopies.reduce((sum, ec) => sum + (ec.copy.executedVolume || ec.copy.requestedVolume || 0), 0);
 
-  const isOpen = openCopies.length > 0;
-  const isAllClosed = evaluatedCopies.every(ec => ec.status.isClosed);
+  const isOpen = !isSignalMarkedClosed && openCopies.length > 0;
+  const isAllClosed = isSignalMarkedClosed || evaluatedCopies.every(ec => ec.status.isClosed);
   const isAllRejected = evaluatedCopies.every(ec => ec.status.statusKey === 'REJECTED');
+
+  // Sum up profit from copies, or fallback to master signal profit
+  const copiesProfits = signal.copies.filter(c => c.profit !== null && c.profit !== undefined);
+  let totalProfit: number | null = null;
+  if (copiesProfits.length > 0) {
+    totalProfit = Math.round(copiesProfits.reduce((sum, c) => sum + (c.profit || 0), 0) * 100) / 100;
+  } else if (signal.profit !== null && signal.profit !== undefined) {
+    totalProfit = Math.round(signal.profit * 100) / 100;
+  }
 
   let statusLabel = 'Active in Market';
   if (isAllClosed) statusLabel = 'Closed';
@@ -169,15 +190,12 @@ function evaluateSignal(signal: SerializedTradeSignal) {
     statusLabel,
     activeCopiesCount: openCopies.length,
     totalCopiedVolume: Math.round(totalCopiedVolume * 100) / 100,
+    totalProfit,
     evaluatedCopies,
   };
 }
 
 export function PositionsClient({ signals }: PositionsClientProps) {
-  const [activeTab, setActiveTab] = useState<'active' | 'closed' | 'all'>('active');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
-
   // Process signals with evaluation
   const processedSignals = useMemo(() => {
     return signals.map(signal => ({
@@ -189,6 +207,13 @@ export function PositionsClient({ signals }: PositionsClientProps) {
   // Overall KPI stats
   const activeSignals = useMemo(() => processedSignals.filter(s => s.eval.isOpen), [processedSignals]);
   const closedSignals = useMemo(() => processedSignals.filter(s => s.eval.isClosed), [processedSignals]);
+
+  // If no active signals, default to closed history tab so user immediately sees their trades
+  const [activeTab, setActiveTab] = useState<'active' | 'closed' | 'all'>(
+    activeSignals.length > 0 ? 'active' : 'closed'
+  );
+  const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
   // Count unique carrying sub-accounts currently holding open positions
   const activeCarryingAccounts = useMemo(() => {
@@ -207,6 +232,17 @@ export function PositionsClient({ signals }: PositionsClientProps) {
     const vol = activeSignals.reduce((sum, s) => sum + s.eval.totalCopiedVolume, 0);
     return Math.round(vol * 100) / 100;
   }, [activeSignals]);
+
+  // Total realized P/L across closed trades
+  const totalRealizedPnL = useMemo(() => {
+    let sum = 0;
+    closedSignals.forEach(s => {
+      if (s.eval.totalProfit !== null && s.eval.totalProfit !== undefined) {
+        sum += s.eval.totalProfit;
+      }
+    });
+    return Math.round(sum * 100) / 100;
+  }, [closedSignals]);
 
   // Filter based on active tab and search query
   const displayedSignals = useMemo(() => {
@@ -266,12 +302,14 @@ export function PositionsClient({ signals }: PositionsClientProps) {
           <div>
             <div className="text-2xl sm:text-3xl font-bold num-tabular text-foreground flex items-center gap-2">
               {activeSignals.length}
-              {activeSignals.length > 0 && (
+              {activeSignals.length > 0 ? (
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse inline-block"></span>
+              ) : (
+                <span className="text-xs font-normal text-muted-foreground">(Flat)</span>
               )}
             </div>
             <span className="text-[11px] text-muted-foreground mt-0.5 block">
-              {activeSignals.length === 1 ? '1 open position' : `${activeSignals.length} open positions`} in market
+              {activeSignals.length === 0 ? 'No open positions right now' : activeSignals.length === 1 ? '1 open position in market' : `${activeSignals.length} open positions`}
             </span>
           </div>
         </div>
@@ -289,23 +327,25 @@ export function PositionsClient({ signals }: PositionsClientProps) {
             <span className="text-[11px] text-muted-foreground mt-0.5 block truncate">
               {activeCarryingAccounts.length > 0 
                 ? activeCarryingAccounts.join(', ') 
-                : 'No accounts carrying open trades'}
+                : 'All accounts flat & ready'}
             </span>
           </div>
         </div>
 
-        {/* Total Fleet Copied Volume */}
+        {/* Total Realized Profit / Loss */}
         <div className="plaiz-card p-5 rounded-[20px] flex flex-col justify-between">
           <div className="flex items-center justify-between text-muted-foreground mb-3">
-            <span className="text-[10px] uppercase tracking-wider font-semibold">Fleet Open Volume</span>
-            <TrendingUp className="w-4 h-4 text-primary" />
+            <span className="text-[10px] uppercase tracking-wider font-semibold">Total Realized P/L</span>
+            <TrendingUp className={`w-4 h-4 ${totalRealizedPnL >= 0 ? 'text-emerald-500' : 'text-red-500'}`} />
           </div>
           <div>
-            <div className="text-2xl sm:text-3xl font-bold num-tabular text-foreground">
-              {totalActiveFleetVolume} <span className="text-xs text-muted-foreground font-normal">Lots</span>
+            <div className={`text-2xl sm:text-3xl font-bold num-tabular ${
+              totalRealizedPnL > 0 ? 'text-emerald-500' : totalRealizedPnL < 0 ? 'text-red-500' : 'text-muted-foreground'
+            }`}>
+              {totalRealizedPnL > 0 ? `+$${totalRealizedPnL.toFixed(2)}` : totalRealizedPnL < 0 ? `-$${Math.abs(totalRealizedPnL).toFixed(2)}` : '$0.00'}
             </div>
             <span className="text-[11px] text-muted-foreground mt-0.5 block">
-              Mirrored across active accounts
+              Calculated from {closedSignals.length} closed trade{closedSignals.length === 1 ? '' : 's'}
             </span>
           </div>
         </div>
@@ -441,7 +481,7 @@ export function PositionsClient({ signals }: PositionsClientProps) {
           </h3>
           <p className="text-xs text-muted-foreground max-w-md mt-1.5 leading-relaxed">
             {activeTab === 'active'
-              ? 'When a trade is placed on your Master terminal, it will instantly appear here showing the exact sub-accounts carrying it and their mirrored lot sizes.'
+              ? 'Your trading fleet is currently flat with zero open positions. When a trade is placed on your Master terminal, it will instantly appear here with its live carrying accounts.'
               : 'Execute a trade on your Master terminal to monitor execution and history.'}
           </p>
         </div>
@@ -454,6 +494,7 @@ export function PositionsClient({ signals }: PositionsClientProps) {
             const isBuy = signal.type.includes('BUY');
             const evalResult = signal.eval;
             const isOpen = evalResult.isOpen;
+            const totalProfit = evalResult.totalProfit;
 
             return (
               <div 
@@ -494,12 +535,29 @@ export function PositionsClient({ signals }: PositionsClientProps) {
                     </div>
                   </div>
 
-                  {/* Status Badge & Master Origin */}
+                  {/* Status Badge, Realized P/L & Master Origin */}
                   <div className="flex items-center gap-2 self-start sm:self-center">
                     <div className="text-right hidden sm:block mr-2">
                       <span className="text-[10px] text-muted-foreground uppercase tracking-wider block">Master Origin</span>
                       <span className="text-xs font-semibold text-foreground font-mono">{signal.masterLogin}</span>
                     </div>
+
+                    {/* Realized Profit Badge on Closed Trades */}
+                    {totalProfit !== null && totalProfit !== undefined && evalResult.isClosed && (
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-bold font-mono border ${
+                        totalProfit > 0 
+                          ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/25' 
+                          : totalProfit < 0 
+                          ? 'bg-red-500/10 text-red-500 border-red-500/25' 
+                          : 'bg-secondary text-muted-foreground border-border/40'
+                      }`}>
+                        {totalProfit > 0 
+                          ? `+$${totalProfit.toFixed(2)} P/L` 
+                          : totalProfit < 0 
+                          ? `-$${Math.abs(totalProfit).toFixed(2)} P/L` 
+                          : '$0.00 P/L'}
+                      </span>
+                    )}
 
                     <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
                       isOpen 
@@ -514,7 +572,7 @@ export function PositionsClient({ signals }: PositionsClientProps) {
                   </div>
                 </div>
 
-                {/* CARD BODY: CARRYING SUB-ACCOUNTS (THE CRITICAL SECTION) */}
+                {/* CARD BODY: CARRYING SUB-ACCOUNTS */}
                 <div className="py-4 border-b border-border/30">
                   <div className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-2.5 flex items-center gap-1.5">
                     <Layers className="w-3.5 h-3.5 text-primary" />
@@ -529,7 +587,7 @@ export function PositionsClient({ signals }: PositionsClientProps) {
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                       {signal.copies.map(copy => {
-                        const copyStatus = getCopyStatus(copy);
+                        const copyStatus = getCopyStatus(copy, signal.isClosed);
                         const StatusIcon = copyStatus.icon;
 
                         return (
@@ -565,6 +623,18 @@ export function PositionsClient({ signals }: PositionsClientProps) {
                                 </span>
                               </div>
 
+                              {/* Sub Account Realized Profit / Loss */}
+                              {copy.profit !== null && copy.profit !== undefined ? (
+                                <div className="text-center">
+                                  <span className="text-[10px] text-muted-foreground block">Sub P/L</span>
+                                  <span className={`font-bold font-mono text-xs ${
+                                    copy.profit > 0 ? 'text-emerald-500' : copy.profit < 0 ? 'text-red-500' : 'text-muted-foreground'
+                                  }`}>
+                                    {copy.profit > 0 ? `+$${copy.profit.toFixed(2)}` : copy.profit < 0 ? `-$${Math.abs(copy.profit).toFixed(2)}` : '$0.00'}
+                                  </span>
+                                </div>
+                              ) : null}
+
                               <div className="text-right">
                                 <span className="text-[10px] text-muted-foreground block">MT5 Ticket</span>
                                 <span className="font-mono text-xs text-muted-foreground">
@@ -579,15 +649,24 @@ export function PositionsClient({ signals }: PositionsClientProps) {
                   )}
                 </div>
 
-                {/* CARD FOOTER: PRICES & RISK PARAMETERS */}
+                {/* CARD FOOTER: PRICES, RISK PARAMETERS & PROFIT/LOSS */}
                 <div className="pt-3.5 flex flex-wrap items-center justify-between gap-4 text-xs">
-                  <div className="flex items-center gap-6">
+                  <div className="flex flex-wrap items-center gap-6">
                     <div>
                       <span className="text-[10px] text-muted-foreground uppercase tracking-wider block">Entry Price</span>
                       <span className="font-mono font-semibold text-foreground text-sm num-tabular">
                         {signal.priceOpen ? signal.priceOpen.toLocaleString('en-US', { minimumFractionDigits: 2 }) : 'N/A'}
                       </span>
                     </div>
+
+                    {signal.closePrice ? (
+                      <div>
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider block">Exit Price</span>
+                        <span className="font-mono font-semibold text-foreground text-sm num-tabular">
+                          {signal.closePrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    ) : null}
 
                     <div>
                       <span className="text-[10px] text-muted-foreground uppercase tracking-wider block">Stop Loss</span>
@@ -602,6 +681,22 @@ export function PositionsClient({ signals }: PositionsClientProps) {
                         {signal.tp ? signal.tp.toLocaleString('en-US', { minimumFractionDigits: 2 }) : 'None'}
                       </span>
                     </div>
+
+                    {/* Prominent Profit / Loss in Footer */}
+                    {totalProfit !== null && totalProfit !== undefined ? (
+                      <div className="px-3 py-1 rounded-xl bg-secondary/60 border border-border/40">
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider block">Realized P/L</span>
+                        <span className={`font-mono font-bold text-sm num-tabular ${
+                          totalProfit > 0 ? 'text-emerald-500' : totalProfit < 0 ? 'text-red-500' : 'text-muted-foreground'
+                        }`}>
+                          {totalProfit > 0 
+                            ? `+$${totalProfit.toFixed(2)}` 
+                            : totalProfit < 0 
+                            ? `-$${Math.abs(totalProfit).toFixed(2)}` 
+                            : '$0.00'}
+                        </span>
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="text-muted-foreground text-[11px] font-mono">
@@ -625,8 +720,8 @@ export function PositionsClient({ signals }: PositionsClientProps) {
                   <th className="px-4 py-3">Trade & Symbol</th>
                   <th className="px-4 py-3">Master Origin</th>
                   <th className="px-4 py-3">Carrying Sub-Accounts</th>
-                  <th className="px-4 py-3">Entry Price</th>
-                  <th className="px-4 py-3">Protection (SL / TP)</th>
+                  <th className="px-4 py-3">Entry / Exit</th>
+                  <th className="px-4 py-3">Profit / Loss</th>
                   <th className="px-4 py-3">Status</th>
                 </tr>
               </thead>
@@ -635,6 +730,7 @@ export function PositionsClient({ signals }: PositionsClientProps) {
                   const isBuy = signal.type.includes('BUY');
                   const evalResult = signal.eval;
                   const isOpen = evalResult.isOpen;
+                  const totalProfit = evalResult.totalProfit;
 
                   return (
                     <tr key={signal.id} className="hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
@@ -671,7 +767,6 @@ export function PositionsClient({ signals }: PositionsClientProps) {
                         ) : (
                           <div className="space-y-1.5">
                             {signal.copies.map(c => {
-                              const cs = getCopyStatus(c);
                               return (
                                 <div key={c.id} className="flex items-center gap-2 text-xs">
                                   <ArrowRight className="w-3 h-3 text-muted-foreground shrink-0" />
@@ -679,9 +774,13 @@ export function PositionsClient({ signals }: PositionsClientProps) {
                                   <span className="px-1.5 py-0.2 rounded bg-secondary text-[10px] font-mono font-medium">
                                     {c.executedVolume || c.requestedVolume || '0'} Lots
                                   </span>
-                                  <span className="text-[10px] text-muted-foreground font-mono">
-                                    #{c.subPositionId || c.subOrderTicket || 'Pending'}
-                                  </span>
+                                  {c.profit !== null && c.profit !== undefined ? (
+                                    <span className={`font-mono font-bold text-[11px] ${
+                                      c.profit > 0 ? 'text-emerald-500' : c.profit < 0 ? 'text-red-500' : 'text-muted-foreground'
+                                    }`}>
+                                      {c.profit > 0 ? `+$${c.profit.toFixed(2)}` : c.profit < 0 ? `-$${Math.abs(c.profit).toFixed(2)}` : '$0.00'}
+                                    </span>
+                                  ) : null}
                                 </div>
                               );
                             })}
@@ -689,19 +788,33 @@ export function PositionsClient({ signals }: PositionsClientProps) {
                         )}
                       </td>
 
-                      {/* Entry Price */}
-                      <td className="px-4 py-4 font-mono text-xs font-semibold text-foreground">
-                        {signal.priceOpen ? signal.priceOpen.toLocaleString('en-US', { minimumFractionDigits: 2 }) : 'N/A'}
+                      {/* Entry / Exit Price */}
+                      <td className="px-4 py-4 font-mono text-xs">
+                        <div className="font-semibold text-foreground">
+                          {signal.priceOpen ? signal.priceOpen.toLocaleString('en-US', { minimumFractionDigits: 2 }) : 'N/A'}
+                        </div>
+                        {signal.closePrice ? (
+                          <div className="text-[11px] text-muted-foreground">
+                            Exit: {signal.closePrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </div>
+                        ) : null}
                       </td>
 
-                      {/* SL / TP */}
+                      {/* Profit / Loss */}
                       <td className="px-4 py-4 font-mono text-xs">
-                        <div className={signal.sl ? 'text-red-500' : 'text-muted-foreground'}>
-                          SL: {signal.sl ? signal.sl.toLocaleString('en-US', { minimumFractionDigits: 2 }) : 'None'}
-                        </div>
-                        <div className={signal.tp ? 'text-emerald-500' : 'text-muted-foreground'}>
-                          TP: {signal.tp ? signal.tp.toLocaleString('en-US', { minimumFractionDigits: 2 }) : 'None'}
-                        </div>
+                        {totalProfit !== null && totalProfit !== undefined ? (
+                          <span className={`font-bold text-sm ${
+                            totalProfit > 0 ? 'text-emerald-500' : totalProfit < 0 ? 'text-red-500' : 'text-muted-foreground'
+                          }`}>
+                            {totalProfit > 0 
+                              ? `+$${totalProfit.toFixed(2)}` 
+                              : totalProfit < 0 
+                              ? `-$${Math.abs(totalProfit).toFixed(2)}` 
+                              : '$0.00'}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-xs italic">Live</span>
+                        )}
                       </td>
 
                       {/* Status */}

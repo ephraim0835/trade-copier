@@ -87,6 +87,8 @@ export default async function PositionsPage() {
         requestedVolume: copy.requestedVolume,
         currentVolume: copy.currentVolume,
         closedVolume: copy.closedVolume || 0,
+        profit: (copy as any).profit ?? null,
+        closePrice: (copy as any).closePrice ?? null,
         commands: serializedCommands,
       };
     });
@@ -100,6 +102,9 @@ export default async function PositionsPage() {
       type: signal.type,
       volume: signal.volume,
       priceOpen: signal.priceOpen,
+      closePrice: (signal as any).closePrice ?? null,
+      profit: (signal as any).profit ?? null,
+      isClosed: (signal as any).isClosed ?? false,
       sl: signal.sl || 0,
       tp: signal.tp || 0,
       createdAt: signal.createdAt.toISOString(),
