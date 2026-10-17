@@ -118,8 +118,12 @@ export default async function PositionsPage() {
     role: a.role,
     broker: a.broker,
     server: a.server,
+    balance: a.balance || 0,
+    equity: a.equity || a.balance || 0,
+    currency: a.currency || 'USD',
   }));
 
   return <PositionsClient signals={serializedSignals} accounts={serializedAccounts} />;
 }
+
 
