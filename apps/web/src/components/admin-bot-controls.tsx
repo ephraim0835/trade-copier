@@ -61,6 +61,15 @@ export function AdminBotControls({
             commandMessage: data.vps.commandMessage ?? prev.commandMessage,
             commandAt: data.vps.commandAt ?? prev.commandAt,
           }));
+
+          if (data.vps.commandStatus === 'EXECUTED') {
+            setFeedback((prev) => {
+              if (prev?.type === 'error' && prev.message.includes('Host Engine Unresponsive')) {
+                return null;
+              }
+              return prev;
+            });
+          }
         }
       } catch (err) {
         // Silently ignore background polling errors
@@ -102,10 +111,11 @@ export function AdminBotControls({
         });
       }
 
-      // Actively poll /api/admin/bot-status until host daemon acknowledges (up to 16 attempts x 1000ms = 16s)
-      const maxAttempts = 16;
+      // Actively poll /api/admin/bot-status until host daemon acknowledges (up to 45 attempts x 1000ms = 45s)
+      const maxAttempts = 45;
       let attempt = 0;
       let confirmed = false;
+      let wasExecuting = false;
 
       while (attempt < maxAttempts) {
         await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -140,6 +150,7 @@ export function AdminBotControls({
               });
               break;
             } else if (vps.commandStatus === 'EXECUTING') {
+              wasExecuting = true;
               setFeedback({
                 type: 'info',
                 message: `Host engine is executing '${cmd}'... (${vps.commandMessage || 'Please wait'})`,
@@ -152,11 +163,18 @@ export function AdminBotControls({
       }
 
       if (!confirmed) {
-        // Timed out: Host daemon was not running or did not process queue
-        setFeedback({
-          type: 'error',
-          message: `Host Engine Unresponsive: Signal '${cmd}' was queued in database, but host engine daemon did not acknowledge it within 15 seconds. Please ensure start_bot.bat is running on your host machine.`,
-        });
+        if (wasExecuting) {
+          setFeedback({
+            type: 'info',
+            message: `Signal '${cmd}' was acknowledged by host engine and is completing in the background. See the status bar below.`,
+          });
+        } else {
+          // Timed out: Host daemon was not running or did not process queue
+          setFeedback({
+            type: 'error',
+            message: `Host Engine Unresponsive: Signal '${cmd}' was queued in database, but host engine daemon did not acknowledge it within 45 seconds. Please ensure start_bot.bat is running on your host machine.`,
+          });
+        }
       }
 
       router.refresh();
