@@ -106,7 +106,6 @@ int OnInit()
    EventSetMillisecondTimer(TIMER_INTERVAL_MS);
    LogToFile("SubCopier OnInit() started. SubAccount: " + SUB_ACCOUNT_ID);
    PrintFormat("SubCopier v2.0 initialized. SubAccount: %s, Polling: %d ms, History: %d items", SUB_ACCOUNT_ID, TIMER_INTERVAL_MS, ArraySize(ProcessedCommands));
-   SendTelemetry();
    LogToFile("SubCopier OnInit() completed");
    return(INIT_SUCCEEDED);
   }
@@ -235,9 +234,39 @@ void ProcessCommand(string json, ulong subReceivedAt)
    string symbol = CMqlJson::GetString(json, "symbol");
    if(!SymbolSelect(symbol, true))
      {
-      ulong now = GetMicrosecondCount();
-      ReportResult(commandId, false, 0, "Symbol not found or disabled", 0, 0, subReceivedAt, subAcknowledgedAt, now, now);
-      return;
+      // Try broker suffix variations (.m, m, .s, or stripped base)
+      string baseSym = symbol;
+      int dotPos = StringFind(baseSym, ".");
+      if(dotPos > 0) baseSym = StringSubstr(baseSym, 0, dotPos);
+      else if(StringLen(baseSym) > 6 && StringSubstr(baseSym, StringLen(baseSym)-1, 1) == "m")
+         baseSym = StringSubstr(baseSym, 0, StringLen(baseSym)-1);
+
+      string candidates[6];
+      candidates[0] = symbol + ".m";
+      candidates[1] = symbol + "m";
+      candidates[2] = baseSym + ".m";
+      candidates[3] = baseSym + "m";
+      candidates[4] = baseSym;
+      candidates[5] = baseSym + ".s";
+
+      bool found = false;
+      for(int c = 0; c < 6; c++)
+        {
+         if(SymbolSelect(candidates[c], true))
+           {
+            PrintFormat("Mapped symbol '%s' -> '%s' on sub broker", symbol, candidates[c]);
+            symbol = candidates[c];
+            found = true;
+            break;
+           }
+        }
+
+      if(!found)
+        {
+         ulong now = GetMicrosecondCount();
+         ReportResult(commandId, false, 0, "Symbol not found or disabled: " + symbol, 0, 0, subReceivedAt, subAcknowledgedAt, now, now);
+         return;
+        }
      }
      
    // Extract parameters early to calculate volume if needed

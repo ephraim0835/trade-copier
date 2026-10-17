@@ -69,11 +69,11 @@ def get_broker_symbol(account):
             return 'Volatility 75 Index'
         return 'EURUSD'
         
-    # JustMarkets standard accounts use '.s' suffix
+    # JustMarkets standard accounts use '.m' suffix
     if 'just' in broker:
         if 'pro' in server or 'raw' in server:
             return 'EURUSD'
-        return 'EURUSD.s'
+        return 'EURUSD.m'
         
     # Exness standard accounts use 'm' suffix
     if 'exness' in broker:
@@ -419,6 +419,10 @@ def check_terminal_logs_for_diagnostics(acc):
                 for line in reversed(lines):
                     line_lower = line.lower()
                     
+                    # Ignore non-broker community, cloud, or MQL5 service logs
+                    if 'community' in line_lower or 'mql5.com' in line_lower or 'cloud server' in line_lower:
+                        continue
+
                     # Authorization Failures
                     if 'authorization' in line_lower and 'failed' in line_lower:
                         if 'invalid account' in line_lower:
@@ -530,20 +534,22 @@ def poll_db_worker():
                 
                 login = account['login']
                 
-                # Check stale heartbeat for intelligent watchdog
+                # Check stale heartbeat for intelligent watchdog with launch grace period
                 is_stale = False
-                if account['connectionStatus'] == 'ONLINE' and account['lastHeartbeatAt']:
-                    try:
-                        hb_time = account['lastHeartbeatAt']
-                        if isinstance(hb_time, str):
-                            hb_str = hb_time.replace('Z', '+00:00')
-                            hb_time = datetime.datetime.fromisoformat(hb_str)
-                        if hb_time.tzinfo is None:
-                            hb_time = hb_time.replace(tzinfo=datetime.timezone.utc)
-                        if (datetime.datetime.now(datetime.timezone.utc) - hb_time).total_seconds() > 180:
-                            is_stale = True
-                    except Exception:
-                        pass
+                launch_time = active_terminals.get(login, {}).get('launch_time', 0)
+                if (time.time() - launch_time) > 300:
+                    if account['connectionStatus'] == 'ONLINE' and account['lastHeartbeatAt']:
+                        try:
+                            hb_time = account['lastHeartbeatAt']
+                            if isinstance(hb_time, str):
+                                hb_str = hb_time.replace('Z', '+00:00')
+                                hb_time = datetime.datetime.fromisoformat(hb_str)
+                            if hb_time.tzinfo is None:
+                                hb_time = hb_time.replace(tzinfo=datetime.timezone.utc)
+                            if (datetime.datetime.now(datetime.timezone.utc) - hb_time).total_seconds() > 180:
+                                is_stale = True
+                        except Exception:
+                            pass
                 
                 if account['is_active']:
                     # Prevent continuous infinite retry loop for FAILED accounts.

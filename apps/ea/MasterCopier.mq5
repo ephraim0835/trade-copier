@@ -104,7 +104,6 @@ int OnInit()
      }
 
    PrintFormat("MasterCopier v2.0 initialized in DEMO safe mode. Dispatch: %d ms", DISPATCH_INTERVAL_MS);
-   SendTelemetry();
    LogToFile("MasterCopier OnInit() completed");
    return(INIT_SUCCEEDED);
   }
