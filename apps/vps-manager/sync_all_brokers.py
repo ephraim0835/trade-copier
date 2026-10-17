@@ -25,6 +25,7 @@ BROKER_SEARCH_QUERIES = [
     "Kwakol Markets",
     "LiteFinance",
     "InstaFintech",
+    "Headway",
     "Infinox",
     # Global & ECN
     "IC Markets",

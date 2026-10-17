@@ -16,6 +16,8 @@ const COMMON_BROKERS = [
   { broker: 'Kwakol Markets', servers: ['Kwakol-Demo', 'Kwakol-Live', 'Kwakol-Live 2'] },
   { broker: 'LiteFinance Global LLC', servers: ['LiteFinance-Classic.com', 'LiteFinance-ECN.com', 'LiteFinance-Demo.com'] },
   { broker: 'InstaFintech Group', servers: ['InstaForex-Demo.com', 'InstaForex-USA.com', 'InstaForex-Europe.com'] },
+  { broker: 'Headway', servers: ['Headway-Real', 'Headway-Real 2', 'Headway-Demo', 'Headway-Live'] },
+  { broker: 'Headway (Jarocel Pty Ltd)', servers: ['Headway-Real', 'Headway-Real 2', 'Headway-Demo', 'Headway-Live'] },
   { broker: 'Infinox Capital Ltd', servers: ['Infinox-MT5 Live', 'Infinox-MT5 Demo'] },
 
   // Global & ECN Brokers
