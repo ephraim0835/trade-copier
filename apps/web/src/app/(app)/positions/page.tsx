@@ -112,5 +112,14 @@ export default async function PositionsPage() {
     };
   });
 
-  return <PositionsClient signals={serializedSignals} />;
+  const serializedAccounts = userAccounts.map(a => ({
+    id: a.id,
+    login: a.login,
+    role: a.role,
+    broker: a.broker,
+    server: a.server,
+  }));
+
+  return <PositionsClient signals={serializedSignals} accounts={serializedAccounts} />;
 }
+

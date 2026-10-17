@@ -12,7 +12,10 @@ import {
   List,
   Activity,
   ArrowRightLeft,
-  X
+  X,
+  Crown,
+  Zap,
+  Filter
 } from 'lucide-react';
 
 export interface SerializedCommand {
@@ -61,8 +64,17 @@ export interface SerializedTradeSignal {
   copies: SerializedCopy[];
 }
 
+export interface UserAccountSummary {
+  id: string;
+  login: string;
+  role: string;
+  broker?: string | null;
+  server?: string | null;
+}
+
 interface PositionsClientProps {
   signals: SerializedTradeSignal[];
+  accounts?: UserAccountSummary[];
 }
 
 // Evaluate signal open/closed status and aggregate profit
@@ -78,7 +90,8 @@ function evaluateSignal(signal: SerializedTradeSignal) {
       statusLabel: isSignalMarkedClosed ? 'Closed' : 'Pending',
       activeCopiesCount: 0,
       totalCopiedVolume: 0,
-      totalProfit: signal.profit ?? null,
+      subProfit: null,
+      masterProfit: signal.profit ?? null,
     };
   }
 
@@ -93,14 +106,14 @@ function evaluateSignal(signal: SerializedTradeSignal) {
   const isClosed = isSignalMarkedClosed || isClosedByCopy;
   const isOpen = !isClosed;
 
-  // Sum realized profit across copies or fall back to master signal profit
+  // Realized profit on Sub accounts
   const copiesWithProfit = signal.copies.filter(c => c.profit !== null && c.profit !== undefined);
-  let totalProfit: number | null = null;
+  let subProfit: number | null = null;
   if (copiesWithProfit.length > 0) {
-    totalProfit = Math.round(copiesWithProfit.reduce((sum, c) => sum + (c.profit || 0), 0) * 100) / 100;
-  } else if (signal.profit !== null && signal.profit !== undefined) {
-    totalProfit = Math.round(signal.profit * 100) / 100;
+    subProfit = Math.round(copiesWithProfit.reduce((sum, c) => sum + (c.profit || 0), 0) * 100) / 100;
   }
+
+  const masterProfit = signal.profit !== null && signal.profit !== undefined ? Math.round(signal.profit * 100) / 100 : null;
 
   const totalCopiedVolume = signal.copies.reduce((sum, c) => sum + (c.executedVolume || c.requestedVolume || 0), 0);
 
@@ -110,11 +123,12 @@ function evaluateSignal(signal: SerializedTradeSignal) {
     statusLabel: isClosed ? 'Closed' : 'Active',
     activeCopiesCount: isOpen ? signal.copies.length : 0,
     totalCopiedVolume: Math.round(totalCopiedVolume * 100) / 100,
-    totalProfit,
+    subProfit,
+    masterProfit,
   };
 }
 
-export function PositionsClient({ signals }: PositionsClientProps) {
+export function PositionsClient({ signals, accounts = [] }: PositionsClientProps) {
   // Process signals with evaluation
   const processedSignals = useMemo(() => {
     return signals.map(signal => ({
@@ -126,10 +140,13 @@ export function PositionsClient({ signals }: PositionsClientProps) {
   const activeSignals = useMemo(() => processedSignals.filter(s => s.eval.isOpen), [processedSignals]);
   const closedSignals = useMemo(() => processedSignals.filter(s => s.eval.isClosed), [processedSignals]);
 
-  // Default to closed tab if no active positions, so user immediately sees their records
+  // Tab: Active / Closed / All
   const [activeTab, setActiveTab] = useState<'active' | 'closed' | 'all'>(
     activeSignals.length > 0 ? 'active' : 'closed'
   );
+  
+  // Account filter: 'all' | 'master' | 'sub' | specific account login
+  const [accountFilter, setAccountFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
@@ -150,20 +167,36 @@ export function PositionsClient({ signals }: PositionsClientProps) {
   const totalRealizedPnL = useMemo(() => {
     let sum = 0;
     closedSignals.forEach(s => {
-      if (s.eval.totalProfit !== null && s.eval.totalProfit !== undefined) {
-        sum += s.eval.totalProfit;
+      // If user filtered by master, calculate master P/L, otherwise calculate sub/fleet P/L
+      if (accountFilter === 'master' || (accounts.find(a => a.login === accountFilter)?.role === 'MASTER')) {
+        if (s.eval.masterProfit !== null) sum += s.eval.masterProfit;
+      } else {
+        if (s.eval.subProfit !== null) sum += s.eval.subProfit;
+        else if (s.eval.masterProfit !== null) sum += s.eval.masterProfit;
       }
     });
     return Math.round(sum * 100) / 100;
-  }, [closedSignals]);
+  }, [closedSignals, accountFilter, accounts]);
 
-  // Filter based on active tab and search query
+  // Filter based on active tab, account filter, and search query
   const displayedSignals = useMemo(() => {
     let list = processedSignals;
     if (activeTab === 'active') {
       list = activeSignals;
     } else if (activeTab === 'closed') {
       list = closedSignals;
+    }
+
+    // Filter by account role or login
+    if (accountFilter === 'master') {
+      list = list.filter(s => !!s.masterLogin);
+    } else if (accountFilter === 'sub') {
+      list = list.filter(s => s.copies.length > 0);
+    } else if (accountFilter !== 'all') {
+      list = list.filter(s => 
+        s.masterLogin === accountFilter || 
+        s.copies.some(c => c.subAccountLogin === accountFilter)
+      );
     }
 
     if (!searchQuery.trim()) return list;
@@ -181,7 +214,7 @@ export function PositionsClient({ signals }: PositionsClientProps) {
       );
       return matchSymbol || matchType || matchTicket || matchMaster || matchSub;
     });
-  }, [processedSignals, activeSignals, closedSignals, activeTab, searchQuery]);
+  }, [processedSignals, activeSignals, closedSignals, activeTab, accountFilter, searchQuery]);
 
   return (
     <div className="flex-1 p-4 md:p-6 lg:p-8 space-y-6 overflow-y-auto custom-scrollbar max-w-7xl mx-auto w-full">
@@ -193,7 +226,7 @@ export function PositionsClient({ signals }: PositionsClientProps) {
             Live Positions & Fleet Copier
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-            Real-time tracking of master trades and fleet copy execution.
+            Real-time tracking of master trades and connected fleet copy executions.
           </p>
         </div>
 
@@ -278,66 +311,105 @@ export function PositionsClient({ signals }: PositionsClientProps) {
         </div>
       </div>
 
-      {/* FILTER TABS & SEARCH CONTROLS */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1">
-        {/* Segmented Control Tabs */}
-        <div className="flex items-center p-1 bg-secondary/50 border border-border/40 rounded-xl self-start">
-          <button
-            onClick={() => setActiveTab('active')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 flex items-center gap-1.5 ${
-              activeTab === 'active'
-                ? 'bg-foreground text-background shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <span>Active Positions</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-              activeTab === 'active' 
-                ? 'bg-background/20 text-background font-bold' 
-                : 'bg-secondary text-muted-foreground'
-            }`}>
-              {activeSignals.length}
-            </span>
-          </button>
+      {/* FILTER TABS, ACCOUNT SELECTOR & SEARCH CONTROLS */}
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 pt-1">
+        {/* Left Controls: Status Tabs & Account Origin Filter */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Status Tabs */}
+          <div className="flex items-center p-1 bg-secondary/50 border border-border/40 rounded-xl">
+            <button
+              onClick={() => setActiveTab('active')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 flex items-center gap-1.5 ${
+                activeTab === 'active'
+                  ? 'bg-foreground text-background shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <span>Active</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                activeTab === 'active' 
+                  ? 'bg-background/20 text-background font-bold' 
+                  : 'bg-secondary text-muted-foreground'
+              }`}>
+                {activeSignals.length}
+              </span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('closed')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 flex items-center gap-1.5 ${
-              activeTab === 'closed'
-                ? 'bg-foreground text-background shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <span>Closed History</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-              activeTab === 'closed' 
-                ? 'bg-background/20 text-background font-bold' 
-                : 'bg-secondary text-muted-foreground'
-            }`}>
-              {closedSignals.length}
-            </span>
-          </button>
+            <button
+              onClick={() => setActiveTab('closed')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 flex items-center gap-1.5 ${
+                activeTab === 'closed'
+                  ? 'bg-foreground text-background shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <span>Closed</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                activeTab === 'closed' 
+                  ? 'bg-background/20 text-background font-bold' 
+                  : 'bg-secondary text-muted-foreground'
+              }`}>
+                {closedSignals.length}
+              </span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('all')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 flex items-center gap-1.5 ${
-              activeTab === 'all'
-                ? 'bg-foreground text-background shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <span>All</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-              activeTab === 'all' 
-                ? 'bg-background/20 text-background font-bold' 
-                : 'bg-secondary text-muted-foreground'
-            }`}>
-              {processedSignals.length}
-            </span>
-          </button>
+            <button
+              onClick={() => setActiveTab('all')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 flex items-center gap-1.5 ${
+                activeTab === 'all'
+                  ? 'bg-foreground text-background shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <span>All</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                activeTab === 'all' 
+                  ? 'bg-background/20 text-background font-bold' 
+                  : 'bg-secondary text-muted-foreground'
+              }`}>
+                {processedSignals.length}
+              </span>
+            </button>
+          </div>
+
+          {/* Account Origin Filter Pills */}
+          <div className="flex items-center p-1 bg-secondary/50 border border-border/40 rounded-xl">
+            <button
+              onClick={() => setAccountFilter('all')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                accountFilter === 'all'
+                  ? 'bg-foreground text-background shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              All Trades
+            </button>
+            <button
+              onClick={() => setAccountFilter('master')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
+                accountFilter === 'master'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Crown className="w-3 h-3 text-amber-400" />
+              <span>Master Origin</span>
+            </button>
+            <button
+              onClick={() => setAccountFilter('sub')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
+                accountFilter === 'sub'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Zap className="w-3 h-3 text-emerald-300" />
+              <span>Sub Copied</span>
+            </button>
+          </div>
         </div>
 
-        {/* Search & View Mode Switcher */}
+        {/* Right Controls: Search & View Mode Switcher */}
         <div className="flex items-center gap-2.5">
           <div className="relative flex-1 sm:w-60">
             <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
@@ -406,14 +478,15 @@ export function PositionsClient({ signals }: PositionsClientProps) {
         </div>
       ) : viewMode === 'cards' ? (
         /* =========================================================================
-           SIMPLIFIED & CLEAN CARD VIEW
+           SIMPLIFIED & EXPLICIT CARD VIEW
            ========================================================================= */
         <div className="space-y-3">
           {displayedSignals.map(signal => {
             const isBuy = signal.type.includes('BUY');
             const evalResult = signal.eval;
             const isOpen = evalResult.isOpen;
-            const totalProfit = evalResult.totalProfit;
+            const subProfit = evalResult.subProfit;
+            const masterProfit = evalResult.masterProfit;
 
             return (
               <div 
@@ -424,7 +497,7 @@ export function PositionsClient({ signals }: PositionsClientProps) {
                     : 'border-border/40 hover:border-border/70'
                 }`}
               >
-                {/* 1. TOP HEADER: Symbol, Direction, Volume & Big P/L */}
+                {/* 1. TOP HEADER: Symbol, Direction, ORIGIN BADGE, Status & Net Outcome */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-border/30">
                   <div className="flex items-center gap-2.5 flex-wrap">
                     {/* Buy / Sell Badge */}
@@ -439,12 +512,11 @@ export function PositionsClient({ signals }: PositionsClientProps) {
                       {signal.symbol}
                     </span>
 
-                    {/* Master Lot Size */}
-                    <span className="text-xs text-muted-foreground font-mono">
-                      {signal.volume} Lot{signal.volume === 1 ? '' : 's'}
+                    {/* PROMINENT ORIGIN BADGE: Explicitly shows WHERE trade was taken */}
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-500/10 text-blue-500 border border-blue-500/25">
+                      <Crown className="w-3 h-3 text-amber-400 shrink-0" />
+                      <span>Taken on Master #{signal.masterLogin}</span>
                     </span>
-
-                    <span className="text-muted-foreground/30 hidden sm:inline">&bull;</span>
 
                     {/* Date / Time */}
                     <span className="text-xs text-muted-foreground hidden sm:inline">
@@ -452,69 +524,87 @@ export function PositionsClient({ signals }: PositionsClientProps) {
                     </span>
                   </div>
 
-                  {/* Outcome Hero Metric & Status Badge */}
+                  {/* Right Status Badge */}
                   <div className="flex items-center gap-2.5 self-end sm:self-center">
-                    {totalProfit !== null && totalProfit !== undefined ? (
-                      <span className={`font-mono font-bold text-base num-tabular ${
-                        totalProfit > 0 ? 'text-emerald-500' : totalProfit < 0 ? 'text-red-500' : 'text-muted-foreground'
-                      }`}>
-                        {totalProfit > 0 ? `+$${totalProfit.toFixed(2)}` : totalProfit < 0 ? `-$${Math.abs(totalProfit).toFixed(2)}` : '$0.00'}
-                      </span>
-                    ) : isOpen ? (
-                      <span className="text-xs font-mono font-semibold text-emerald-500">Live Floating</span>
-                    ) : null}
-
                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium border ${
                       isOpen 
                         ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/25' 
                         : 'bg-secondary/60 text-muted-foreground border-border/40'
                     }`}>
                       {isOpen && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
-                      {isOpen ? 'Active' : 'Closed'}
+                      {isOpen ? 'Active in Market' : 'Closed'}
                     </span>
                   </div>
                 </div>
 
-                {/* 2. FLEET COPY ROUTING STRIP (Simple, unified, no nested box!) */}
-                <div className="my-3 p-2.5 rounded-xl bg-secondary/30 border border-border/30 flex flex-wrap items-center gap-2 text-xs">
-                  {/* Master Info */}
-                  <div className="inline-flex items-center gap-1.5 text-muted-foreground font-mono">
-                    <span className="text-[10px] uppercase font-semibold text-muted-foreground/70 tracking-wider">Master:</span>
-                    <span className="text-foreground font-semibold">#{signal.masterLogin}</span>
-                    <span className="text-muted-foreground/60 text-[11px]">(Ticket #{signal.ticket})</span>
+                {/* 2. DUAL EXECUTION STRIP: MASTER (ORIGIN) ➔ SUB (COPIED) WITH DISTINCT VOLUMES & P/L */}
+                <div className="my-3 p-3 rounded-xl bg-secondary/30 border border-border/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  {/* Master Origin Execution */}
+                  <div className="flex items-center gap-2.5 font-mono">
+                    <div className="w-7 h-7 rounded-lg bg-blue-500/15 text-blue-500 flex items-center justify-center shrink-0">
+                      <Crown className="w-3.5 h-3.5 text-amber-400" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] uppercase font-bold text-blue-400 tracking-wider">Master Trade</span>
+                        <span className="font-semibold text-foreground">#{signal.masterLogin}</span>
+                        <span className="text-muted-foreground/60 text-[10px]">Tkt: #{signal.ticket}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
+                        <span className="font-medium text-foreground">{signal.volume} Lot{signal.volume === 1 ? '' : 's'}</span>
+                        <span>&bull;</span>
+                        {masterProfit !== null ? (
+                          <span className={`font-bold ${masterProfit > 0 ? 'text-emerald-500' : masterProfit < 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
+                            Master P/L: {masterProfit > 0 ? `+$${masterProfit.toFixed(2)}` : masterProfit < 0 ? `-$${Math.abs(masterProfit).toFixed(2)}` : '$0.00'}
+                          </span>
+                        ) : isOpen ? (
+                          <span className="text-emerald-500 font-medium">Live</span>
+                        ) : null}
+                      </div>
+                    </div>
                   </div>
 
-                  <ArrowRight className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0 mx-0.5" />
+                  {/* Routing Arrow */}
+                  <div className="hidden sm:flex items-center gap-1 text-muted-foreground/40 text-[10px] font-semibold uppercase tracking-wider px-2">
+                    <span>Copied To</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </div>
 
-                  {/* Sub-account Carrying Pills */}
-                  {signal.copies.length === 0 ? (
-                    <span className="text-muted-foreground italic text-xs">No copy targets attached</span>
-                  ) : (
-                    <div className="flex flex-wrap items-center gap-2">
-                      {signal.copies.map(c => (
+                  {/* Sub Account Execution(s) */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {signal.copies.length === 0 ? (
+                      <span className="text-muted-foreground italic text-xs">No copy targets attached</span>
+                    ) : (
+                      signal.copies.map(c => (
                         <div 
                           key={c.id} 
-                          className="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-background border border-border/40 text-xs font-mono"
+                          className="flex items-center gap-2.5 p-2 px-3 rounded-lg bg-background border border-border/40 font-mono"
                         >
-                          <span className="w-1.5 h-1.5 rounded-full bg-primary/70 shrink-0" />
-                          <span className="font-semibold text-foreground">Sub #{c.subAccountLogin}</span>
-                          <span className="text-muted-foreground font-normal">
-                            {c.executedVolume || c.requestedVolume || '0'} Lots
-                          </span>
-                          {c.profit !== null && c.profit !== undefined && (
-                            <span className={`font-bold ${
-                              c.profit > 0 ? 'text-emerald-500' : c.profit < 0 ? 'text-red-500' : 'text-muted-foreground'
-                            }`}>
-                              {c.profit > 0 ? `+$${c.profit.toFixed(2)}` : c.profit < 0 ? `-$${Math.abs(c.profit).toFixed(2)}` : '$0.00'}
-                            </span>
-                          )}
-                          {c.subPositionId && (
-                            <span className="text-muted-foreground/50 text-[10px]">#{c.subPositionId}</span>
-                          )}
+                          <div className="w-6 h-6 rounded-md bg-emerald-500/15 text-emerald-500 flex items-center justify-center shrink-0">
+                            <Zap className="w-3 h-3 text-emerald-400" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] uppercase font-bold text-emerald-500 tracking-wider">Sub Copied</span>
+                              <span className="font-semibold text-foreground">#{c.subAccountLogin}</span>
+                              {c.subPositionId && <span className="text-muted-foreground/60 text-[10px]">#{c.subPositionId}</span>}
+                            </div>
+                            <div className="flex items-center gap-2 text-[11px] mt-0.5">
+                              <span className="text-muted-foreground font-medium">{c.executedVolume || c.requestedVolume || '0'} Lots</span>
+                              <span>&bull;</span>
+                              {c.profit !== null && c.profit !== undefined ? (
+                                <span className={`font-bold ${c.profit > 0 ? 'text-emerald-500' : c.profit < 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
+                                  Sub P/L: {c.profit > 0 ? `+$${c.profit.toFixed(2)}` : c.profit < 0 ? `-$${Math.abs(c.profit).toFixed(2)}` : '$0.00'}
+                                </span>
+                              ) : isOpen ? (
+                                <span className="text-emerald-500 font-medium">Live</span>
+                              ) : null}
+                            </div>
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      ))
+                    )}
+                  </div>
                 </div>
 
                 {/* 3. PRICE & PROTECTION METRICS (Clean horizontal 4-column strip) */}
@@ -553,7 +643,7 @@ export function PositionsClient({ signals }: PositionsClientProps) {
         </div>
       ) : (
         /* =========================================================================
-           STREAMLINED TABLE VIEW
+           STREAMLINED TABLE VIEW WITH EXPLICIT ORIGIN & TARGET
            ========================================================================= */
         <div className="plaiz-card rounded-2xl overflow-hidden border border-border/40">
           <div className="overflow-x-auto">
@@ -562,10 +652,11 @@ export function PositionsClient({ signals }: PositionsClientProps) {
                 <tr>
                   <th className="px-4 py-3">Time</th>
                   <th className="px-4 py-3">Trade</th>
-                  <th className="px-4 py-3">Copy Routing (Master ➔ Sub)</th>
+                  <th className="px-4 py-3">Origin (Taken On)</th>
+                  <th className="px-4 py-3">Fleet Copy (Target)</th>
                   <th className="px-4 py-3">Entry / Exit</th>
                   <th className="px-4 py-3">Protection</th>
-                  <th className="px-4 py-3">Profit / Loss</th>
+                  <th className="px-4 py-3">Sub P/L</th>
                   <th className="px-4 py-3">Status</th>
                 </tr>
               </thead>
@@ -574,7 +665,8 @@ export function PositionsClient({ signals }: PositionsClientProps) {
                   const isBuy = signal.type.includes('BUY');
                   const evalResult = signal.eval;
                   const isOpen = evalResult.isOpen;
-                  const totalProfit = evalResult.totalProfit;
+                  const subProfit = evalResult.subProfit;
+                  const masterProfit = evalResult.masterProfit;
 
                   return (
                     <tr key={signal.id} className="hover:bg-secondary/20 transition-colors">
@@ -594,32 +686,31 @@ export function PositionsClient({ signals }: PositionsClientProps) {
                           </span>
                           <span className="font-bold text-foreground">{signal.symbol}</span>
                         </div>
-                        <div className="text-[11px] text-muted-foreground mt-0.5 font-mono">
-                          {signal.volume} Lot{signal.volume === 1 ? '' : 's'}
+                      </td>
+
+                      {/* Origin (Taken on Master) */}
+                      <td className="px-4 py-3.5 font-mono">
+                        <div className="flex items-center gap-1 text-blue-400 font-semibold text-[11px]">
+                          <Crown className="w-3 h-3 text-amber-400 shrink-0" />
+                          <span>Master #{signal.masterLogin}</span>
+                        </div>
+                        <div className="text-[10px] text-muted-foreground mt-0.5">
+                          {signal.volume} Lots &bull; {masterProfit !== null ? (masterProfit > 0 ? `+$${masterProfit.toFixed(2)}` : `-$${Math.abs(masterProfit).toFixed(2)}`) : 'Live'}
                         </div>
                       </td>
 
-                      {/* Copy Routing */}
-                      <td className="px-4 py-3.5">
-                        <div className="flex items-center gap-2 flex-wrap font-mono">
-                          <span className="text-muted-foreground text-[11px]">#{signal.masterLogin}</span>
-                          <ArrowRight className="w-3 h-3 text-muted-foreground/50 shrink-0" />
-                          {signal.copies.length === 0 ? (
-                            <span className="text-muted-foreground italic text-[11px]">None</span>
-                          ) : (
-                            signal.copies.map(c => (
-                              <span key={c.id} className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-secondary text-[11px]">
-                                <span className="font-semibold text-foreground">#{c.subAccountLogin}</span>
-                                <span className="text-muted-foreground">({c.executedVolume || c.requestedVolume || '0'}L)</span>
-                                {c.profit !== null && c.profit !== undefined && (
-                                  <span className={`font-bold ${c.profit > 0 ? 'text-emerald-500' : c.profit < 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
-                                    {c.profit > 0 ? `+$${c.profit.toFixed(2)}` : c.profit < 0 ? `-$${Math.abs(c.profit).toFixed(2)}` : '$0.00'}
-                                  </span>
-                                )}
-                              </span>
-                            ))
-                          )}
-                        </div>
+                      {/* Fleet Copy (Sub) */}
+                      <td className="px-4 py-3.5 font-mono">
+                        {signal.copies.length === 0 ? (
+                          <span className="text-muted-foreground italic text-[11px]">None</span>
+                        ) : (
+                          signal.copies.map(c => (
+                            <div key={c.id} className="text-[11px]">
+                              <span className="text-emerald-500 font-semibold">Sub #{c.subAccountLogin}</span>
+                              <span className="text-muted-foreground ml-1.5">({c.executedVolume || c.requestedVolume || '0'} Lots)</span>
+                            </div>
+                          ))
+                        )}
                       </td>
 
                       {/* Entry / Exit */}
@@ -644,16 +735,16 @@ export function PositionsClient({ signals }: PositionsClientProps) {
                         </div>
                       </td>
 
-                      {/* Profit / Loss */}
+                      {/* Sub Profit / Loss */}
                       <td className="px-4 py-3.5 font-mono">
-                        {totalProfit !== null && totalProfit !== undefined ? (
+                        {subProfit !== null && subProfit !== undefined ? (
                           <span className={`font-bold text-sm ${
-                            totalProfit > 0 ? 'text-emerald-500' : totalProfit < 0 ? 'text-red-500' : 'text-muted-foreground'
+                            subProfit > 0 ? 'text-emerald-500' : subProfit < 0 ? 'text-red-500' : 'text-muted-foreground'
                           }`}>
-                            {totalProfit > 0 
-                              ? `+$${totalProfit.toFixed(2)}` 
-                              : totalProfit < 0 
-                              ? `-$${Math.abs(totalProfit).toFixed(2)}` 
+                            {subProfit > 0 
+                              ? `+$${subProfit.toFixed(2)}` 
+                              : subProfit < 0 
+                              ? `-$${Math.abs(subProfit).toFixed(2)}` 
                               : '$0.00'}
                           </span>
                         ) : (
