@@ -114,7 +114,7 @@ export default async function DashboardOverview() {
   
   const isOnline = (account: any) => {
     if (!account?.lastHeartbeatAt) return false;
-    return account.connectionStatus === 'ONLINE' && new Date().getTime() - new Date(account.lastHeartbeatAt).getTime() < 180_000;
+    return account.connectionStatus === 'ONLINE' && Math.abs(Date.now() - new Date(account.lastHeartbeatAt).getTime()) < 180_000;
   };
 
   const masterOnline = (masterAccount?.isActive ?? false) && isOnline(masterAccount);
@@ -337,7 +337,7 @@ export default async function DashboardOverview() {
                           : 'plaiz-pill-destructive'
                       }`}>
                         <Wifi className={`w-3 h-3 ${masterAccount.connectionStatus === 'PROVISIONING' ? 'animate-pulse' : ''}`} />
-                        {masterOnline ? 'Connected' : masterAccount.connectionStatus === 'PROVISIONING' ? 'Connecting...' : 'Offline'}
+                        {masterOnline ? 'Online' : masterAccount.connectionStatus === 'PROVISIONING' ? 'Connecting...' : 'Offline'}
                       </div>
                     </div>
                     <h4 className="text-[28px] font-bold text-foreground tracking-tighter leading-none group-hover:text-primary transition-colors">{masterAccount.login}</h4>
@@ -536,15 +536,29 @@ export default async function DashboardOverview() {
         
         {subAccounts.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {subAccounts.map((sub) => (
-              <Link key={sub.id} href="/accounts" className="group plaiz-card p-5 rounded-[16px] hover:border-border/80 transition-colors">
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h4 className="text-[16px] font-bold text-foreground tracking-tight group-hover:text-primary transition-colors leading-none">{sub.login}</h4>
-                    <span className="text-[11px] text-muted-foreground mt-1 block">{sub.broker || 'Unknown'}</span>
+            {subAccounts.map((sub) => {
+              const subOnline = (sub.isActive ?? false) && isOnline(sub);
+              const subConnecting = sub.connectionStatus === 'PROVISIONING' || sub.connectionStatus === 'CONNECTING';
+              const subFailed = sub.connectionStatus === 'FAILED' || !!sub.provisioningError;
+
+              return (
+                <Link key={sub.id} href="/accounts" className="group plaiz-card p-5 rounded-[16px] hover:border-border/80 transition-colors">
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <h4 className="text-[16px] font-bold text-foreground tracking-tight group-hover:text-primary transition-colors leading-none">{sub.login}</h4>
+                      <span className="text-[11px] text-muted-foreground mt-1 block">{sub.broker || 'Unknown'}</span>
+                    </div>
+                    <div className={`plaiz-pill text-[10px] px-2 py-0.5 ${
+                      subOnline 
+                        ? 'plaiz-pill-success' 
+                        : subConnecting 
+                        ? 'bg-amber-500/10 text-amber-500 border-amber-500/25' 
+                        : 'plaiz-pill-destructive'
+                    }`}>
+                      <Wifi className={`w-2.5 h-2.5 ${subConnecting ? 'animate-pulse' : ''}`} />
+                      {subOnline ? 'Online' : subConnecting ? 'Connecting...' : subFailed ? 'Failed' : 'Offline'}
+                    </div>
                   </div>
-                  <div className={`w-2 h-2 rounded-full ${sub.isActive && isOnline(sub) ? 'bg-emerald-500' : 'bg-muted-foreground/40'}`}></div>
-                </div>
                 
                 <div className="flex items-center justify-between pt-4 border-t border-border/30">
                   <div className="flex flex-col">
@@ -572,7 +586,8 @@ export default async function DashboardOverview() {
                   </div>
                 </div>
               </Link>
-            ))}
+            );
+          })}
           </div>
         ) : (
           <div className="plaiz-card p-8 rounded-[20px] flex flex-col items-center justify-center text-center">

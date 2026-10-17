@@ -38,7 +38,7 @@ export default async function MasterPage() {
   const lastSeen = hbTime ? new Date(hbTime).getTime() : 0;
   const masterOnline = (masterAccount?.isActive ?? false) && 
     masterAccount?.connectionStatus === 'ONLINE' && 
-    (Date.now() - lastSeen < 180_000);
+    (Math.abs(Date.now() - lastSeen) < 180_000);
 
   return (
     <div className="flex-1 p-4 md:p-6 lg:p-12 flex flex-col gap-10 pb-32 overflow-y-auto custom-scrollbar relative">
@@ -79,7 +79,7 @@ export default async function MasterPage() {
                         : 'plaiz-pill-destructive'
                     }`}>
                       <Wifi className={`w-3 h-3 ${masterAccount.connectionStatus === 'PROVISIONING' ? 'animate-pulse' : ''}`} />
-                      {masterOnline ? 'Connected' : masterAccount.connectionStatus === 'PROVISIONING' ? 'Connecting...' : 'Offline'}
+                      {masterOnline ? 'Online' : masterAccount.connectionStatus === 'PROVISIONING' ? 'Connecting...' : 'Offline'}
                     </div>
                   </div>
                   <h2 className="text-[36px] font-bold text-foreground tracking-tighter leading-none">{masterAccount.login}</h2>
