@@ -1,8 +1,10 @@
 import { prisma } from '@/lib/prisma';
 import { notFound } from 'next/navigation';
 import { RiskSettingsClient } from './risk-settings-client';
-import { ArrowLeft, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, ShieldAlert, Wifi } from 'lucide-react';
 import Link from 'next/link';
+
+export const dynamic = 'force-dynamic';
 
 export default async function AccountSettingsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -38,12 +40,21 @@ export default async function AccountSettingsPage({ params }: { params: Promise<
           <ArrowLeft className="w-5 h-5" />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            Risk Controls 
-            <span className="text-sm font-normal text-muted-foreground bg-secondary px-2 py-0.5 rounded-md">
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl font-bold tracking-tight">Risk Controls</h1>
+            <span className="text-sm font-normal text-muted-foreground bg-secondary px-2 py-0.5 rounded-md font-mono">
               {account.login}
             </span>
-          </h1>
+            {(() => {
+              const isOnline = (account.isActive ?? false) && account.connectionStatus === 'ONLINE' && account.lastHeartbeatAt && (Math.abs(Date.now() - new Date(account.lastHeartbeatAt).getTime()) < 180_000);
+              return (
+                <div className={`plaiz-pill text-[10px] ${isOnline ? 'plaiz-pill-success' : 'plaiz-pill-destructive'}`}>
+                  <Wifi className="w-3 h-3" />
+                  {isOnline ? 'Online' : 'Offline'}
+                </div>
+              );
+            })()}
+          </div>
           <p className="text-muted-foreground mt-1 text-sm">
             Configure safety parameters and execution overrides for this specific sub account.
           </p>

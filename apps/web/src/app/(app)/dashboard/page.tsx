@@ -402,7 +402,7 @@ export default async function DashboardOverview() {
                     <Link key={sub.id} href="/risk" className="group plaiz-card bg-secondary/30 p-4 rounded-[16px] flex flex-col sm:flex-row sm:items-center justify-between hover:bg-black/10 dark:hover:bg-white/5 border border-border/30 transition-all cursor-pointer gap-4">
                       <div className="flex items-center gap-3">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                          subOnline ? 'bg-emerald-500/10 text-emerald-500' : subConnecting ? 'bg-amber-500/10 text-amber-500' : 'bg-black/5 dark:bg-white/5 text-muted-foreground'
+                          subOnline ? 'bg-emerald-500/10 text-emerald-500' : subConnecting ? 'bg-amber-500/10 text-amber-500' : 'bg-destructive/10 text-destructive'
                         }`}>
                           <Users className="w-4 h-4" />
                         </div>
@@ -416,10 +416,10 @@ export default async function DashboardOverview() {
                                 ? 'bg-amber-500/10 text-amber-500 border-amber-500/25' 
                                 : subFailed 
                                 ? 'plaiz-pill-destructive' 
-                                : 'plaiz-pill-neutral'
+                                : 'plaiz-pill-destructive'
                             }`}>
                               <Wifi className={`w-2.5 h-2.5 ${subConnecting ? 'animate-pulse' : ''}`} />
-                              {subOnline ? 'Connected' : subConnecting ? 'Connecting...' : subFailed ? 'Failed' : 'Offline'}
+                              {subOnline ? 'Online' : subConnecting ? 'Connecting...' : subFailed ? 'Failed' : 'Offline'}
                             </div>
                           </div>
                           <div className="text-[10px] text-muted-foreground mt-1">{sub.broker} &bull; {sub.server}</div>

@@ -55,54 +55,52 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
 
   // Evaluate online status based on fresh UTC heartbeat and ONLINE connection status
   const hbTime = accountData.lastHeartbeatAt || accountData.updatedAt;
-  const isOnline = isMounted && !isFailed && !isConnecting && accountData.isActive && accountData.connectionStatus === 'ONLINE' && hbTime
-    ? (Date.now() - new Date(hbTime).getTime() < 180_000)
+  const isOnline = !isFailed && !isConnecting && (accountData.isActive ?? false) && accountData.connectionStatus === 'ONLINE' && hbTime
+    ? (Math.abs(Date.now() - new Date(hbTime).getTime()) < 180_000)
     : false;
 
-  // Active polling while account is connecting or provisioning
+  // Polling for live status updates:
+  // - High frequency (2s) when connecting or provisioning
+  // - Low frequency (15s) in background to keep heartbeat and balances fresh
   useEffect(() => {
-    if (!isConnecting) {
-      setElapsedSeconds(0);
-      return;
-    }
+    const pollIntervalMs = isConnecting ? 2000 : 15000;
 
-    const elapsedTimer = setInterval(() => {
-      setElapsedSeconds(prev => prev + 1);
-    }, 1000);
+    let elapsedTimer: NodeJS.Timeout | null = null;
+    if (isConnecting) {
+      elapsedTimer = setInterval(() => {
+        setElapsedSeconds(prev => prev + 1);
+      }, 1000);
+    } else {
+      setElapsedSeconds(0);
+    }
 
     const pollTimer = setInterval(async () => {
       try {
         const res = await getAccountConnectionStatus(accountData.id);
         if (res.success && res.account) {
           const acc = res.account;
-          if (acc.connectionStatus === 'ONLINE') {
-            setAccountData(prev => ({
-              ...prev,
-              connectionStatus: 'ONLINE',
-              provisioningError: null,
-              balance: acc.balance ?? prev.balance,
-              equity: acc.equity ?? prev.equity,
-              currency: acc.currency ?? prev.currency,
-              lastHeartbeatAt: acc.lastHeartbeatAt ?? new Date(),
-            }));
+          setAccountData(prev => ({
+            ...prev,
+            connectionStatus: acc.connectionStatus ?? prev.connectionStatus,
+            provisioningError: acc.provisioningError,
+            balance: acc.balance ?? prev.balance,
+            equity: acc.equity ?? prev.equity,
+            currency: acc.currency ?? prev.currency,
+            lastHeartbeatAt: acc.lastHeartbeatAt ?? prev.lastHeartbeatAt,
+          }));
+
+          if (isConnecting && acc.connectionStatus === 'ONLINE') {
             setJustConnected(true);
-            router.refresh();
-          } else if (acc.connectionStatus === 'FAILED') {
-            setAccountData(prev => ({
-              ...prev,
-              connectionStatus: 'FAILED',
-              provisioningError: acc.provisioningError || 'Broker rejected credentials.',
-            }));
             router.refresh();
           }
         }
       } catch (err) {
         console.error('Error polling sub account connection status:', err);
       }
-    }, 2000);
+    }, pollIntervalMs);
 
     return () => {
-      clearInterval(elapsedTimer);
+      if (elapsedTimer) clearInterval(elapsedTimer);
       clearInterval(pollTimer);
     };
   }, [isConnecting, accountData.id, router]);
@@ -153,7 +151,7 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
         ? 'border-amber-500/30 shadow-sm shadow-amber-500/5'
         : isOnline
         ? 'border-emerald-500/25 shadow-sm shadow-emerald-500/5'
-        : ''
+        : 'border-border/40'
     }`}>
       <div>
         <div className="flex items-center justify-between mb-4">
@@ -165,7 +163,7 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
                 ? 'bg-amber-500 animate-pulse' 
                 : isOnline 
                 ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50' 
-                : 'bg-muted-foreground/40'
+                : 'bg-destructive/80'
             }`} />
             <span className="font-semibold text-lg">{accountData.displayName || accountData.login}</span>
           </div>
@@ -180,11 +178,11 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
               </span>
             ) : isOnline ? (
               <span className="plaiz-pill plaiz-pill-success text-[10px] flex items-center gap-1">
-                <Wifi className="w-3 h-3" /> Connected
+                <Wifi className="w-3 h-3" /> Online
               </span>
             ) : (
-              <span className="plaiz-pill plaiz-pill-neutral text-[10px] flex items-center gap-1">
-                <Wifi className="w-3 h-3 opacity-40" /> Offline
+              <span className="plaiz-pill plaiz-pill-destructive text-[10px] flex items-center gap-1">
+                <Wifi className="w-3 h-3" /> Offline
               </span>
             )}
             <span className="plaiz-pill plaiz-pill-neutral text-[10px]">
@@ -303,17 +301,15 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
                 ? 'text-amber-500 font-medium flex items-center gap-1.5' 
                 : isOnline 
                 ? 'text-emerald-500 font-medium flex items-center gap-1.5' 
-                : 'text-muted-foreground'
+                : 'text-destructive font-medium flex items-center gap-1.5'
             }>
               {isFailed 
                 ? 'Connection Rejected' 
                 : isConnecting 
                 ? 'Connecting to Broker...' 
                 : isOnline 
-                ? 'Connected' 
-                : isActive 
-                ? 'Standby / Offline' 
-                : 'Disabled'}
+                ? 'Online' 
+                : 'Offline'}
             </span>
           </div>
           <div className="flex justify-between text-sm">

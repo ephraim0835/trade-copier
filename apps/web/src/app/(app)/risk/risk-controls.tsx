@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Save, AlertTriangle, Percent } from 'lucide-react';
+import { Save, AlertTriangle, Percent, Wifi } from 'lucide-react';
 import { MoneyDisplay } from '@/components/money-display';
 
 export function RiskControls({ initialAccounts }: { initialAccounts: any[] }) {
@@ -76,12 +76,19 @@ export function RiskControls({ initialAccounts }: { initialAccounts: any[] }) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {accounts.map((account) => {
           const currentPct = account.copySettings?.riskPercentage ?? 1.0;
+          const isOnline = (account.isActive ?? false) && account.connectionStatus === 'ONLINE' && account.lastHeartbeatAt && (Math.abs(Date.now() - new Date(account.lastHeartbeatAt).getTime()) < 180_000);
           
           return (
             <div key={account.id} className="plaiz-card bg-secondary/30 p-6 rounded-[24px]">
               <div className="flex items-start justify-between mb-8 border-b border-border/30 pb-6">
                 <div>
-                  <h3 className="text-[18px] font-bold text-foreground tracking-tight leading-none mb-2">{account.login}</h3>
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="text-[18px] font-bold text-foreground tracking-tight leading-none">{account.displayName || account.login}</h3>
+                    <div className={`plaiz-pill text-[9px] px-1.5 py-0.5 ${isOnline ? 'plaiz-pill-success' : 'plaiz-pill-destructive'}`}>
+                      <Wifi className="w-2.5 h-2.5" />
+                      {isOnline ? 'Online' : 'Offline'}
+                    </div>
+                  </div>
                   <span className="plaiz-pill plaiz-pill-neutral text-[10px] uppercase tracking-widest">{account.broker || 'Unknown'}</span>
                 </div>
                 <div className="text-right">

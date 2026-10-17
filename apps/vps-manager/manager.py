@@ -483,9 +483,9 @@ def execute_query(query, params=None, fetch=False):
     if not DATABASE_URL:
         logger.error("Missing DATABASE_URL in .env!")
         return None
-    for attempt in range(2):
+    for attempt in range(3):
         try:
-            with psycopg2.connect(DATABASE_URL, connect_timeout=10) as conn:
+            with psycopg2.connect(DATABASE_URL, connect_timeout=25) as conn:
                 with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
                     cur.execute(query, params)
                     if fetch:
@@ -493,8 +493,8 @@ def execute_query(query, params=None, fetch=False):
                     conn.commit()
                     return True
         except Exception as e:
-            if attempt == 0:
-                time.sleep(1)
+            if attempt < 2:
+                time.sleep(2 ** attempt)
                 continue
             logger.error(f"Database error: {e}")
             return None
