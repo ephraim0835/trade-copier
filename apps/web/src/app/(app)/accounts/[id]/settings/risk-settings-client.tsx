@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Save, Loader2, Info } from 'lucide-react';
+import { updateAccountRiskSettings } from '@/app/actions/account-actions';
 
 type RiskSettingsProps = {
   accountId: string;
@@ -61,17 +62,11 @@ export function RiskSettingsClient({ accountId, initialSettings }: RiskSettingsP
         maxRecoveryRRDegradation: Number(formData.maxRecoveryRRDegradation),
       };
 
-      // Call the Next.js API proxy
-      const res = await fetch(`/api/accounts/${accountId}/settings`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      // Use the direct Next.js Server Action
+      const result = await updateAccountRiskSettings(accountId, payload);
 
-      if (!res.ok) {
-        const data = await res.json();
-        const errorMessage = Array.isArray(data.message) ? data.message.join(', ') : (data.message || 'Failed to save settings');
-        throw new Error(errorMessage);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to save settings');
       }
 
       setSuccess(true);

@@ -383,4 +383,86 @@ export async function updateAccountCredentials(data: {
   }
 }
 
+export async function updateAccountRiskSettings(
+  accountId: string,
+  data: {
+    displayName?: string | null;
+    riskPercentage?: number;
+    roundingTolerancePct?: number;
+    dailyRiskEnabled?: boolean;
+    maxDailyRisk?: number;
+    maxTradesEnabled?: boolean;
+    maxActiveTrades?: number;
+    requireTp?: boolean;
+    missingSlTimeoutSec?: number;
+    maxRecoveryRRDegradation?: number;
+  }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return { success: false, error: 'Unauthorized: Please log in again.' };
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+    });
+
+    if (!user) {
+      return { success: false, error: 'User not found.' };
+    }
+
+    const account = await prisma.mt5Account.findUnique({
+      where: { id: accountId },
+    });
+
+    if (!account) {
+      return { success: false, error: 'Account not found.' };
+    }
+
+    if (account.userId !== user.id && user.role !== 'ADMIN' && user.role !== 'OWNER') {
+      return { success: false, error: 'You do not have permission to modify this account.' };
+    }
+
+    const { displayName, ...copySettingsData } = data;
+
+    if (displayName !== undefined) {
+      await prisma.mt5Account.update({
+        where: { id: accountId },
+        data: { displayName: displayName ? String(displayName).trim() : null },
+      });
+    }
+
+    const cleanData: any = {};
+    if (copySettingsData.riskPercentage !== undefined) cleanData.riskPercentage = Number(copySettingsData.riskPercentage);
+    if (copySettingsData.roundingTolerancePct !== undefined) cleanData.roundingTolerancePct = Number(copySettingsData.roundingTolerancePct);
+    if (copySettingsData.dailyRiskEnabled !== undefined) cleanData.dailyRiskEnabled = Boolean(copySettingsData.dailyRiskEnabled);
+    if (copySettingsData.maxDailyRisk !== undefined) cleanData.maxDailyRisk = Number(copySettingsData.maxDailyRisk);
+    if (copySettingsData.maxTradesEnabled !== undefined) cleanData.maxTradesEnabled = Boolean(copySettingsData.maxTradesEnabled);
+    if (copySettingsData.maxActiveTrades !== undefined) cleanData.maxActiveTrades = Number(copySettingsData.maxActiveTrades);
+    if (copySettingsData.requireTp !== undefined) cleanData.requireTp = Boolean(copySettingsData.requireTp);
+    if (copySettingsData.missingSlTimeoutSec !== undefined) cleanData.missingSlTimeoutSec = Number(copySettingsData.missingSlTimeoutSec);
+    if (copySettingsData.maxRecoveryRRDegradation !== undefined) cleanData.maxRecoveryRRDegradation = Number(copySettingsData.maxRecoveryRRDegradation);
+
+    await prisma.copySettings.upsert({
+      where: { mt5AccountId: accountId },
+      update: cleanData,
+      create: {
+        mt5AccountId: accountId,
+        ...cleanData,
+      },
+    });
+
+    revalidatePath(`/accounts/${accountId}/settings`);
+    revalidatePath('/accounts');
+    revalidatePath('/dashboard');
+    revalidatePath('/risk');
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('Error updating account risk settings:', err);
+    return { success: false, error: formatUserFriendlyError(err) };
+  }
+}
+
 

@@ -26,8 +26,8 @@ export class AuthService {
 
   async login(user: any) {
     const payload = { sub: user.id, email: user.email, role: user.role };
-    const accessExpiresIn = this.configService.get<string>('JWT_ACCESS_EXPIRES_IN') || '15m';
-    const refreshExpiresIn = this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') || '7d';
+    const accessExpiresIn = this.configService.get<string>('JWT_ACCESS_EXPIRES_IN') || '7d';
+    const refreshExpiresIn = this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') || '30d';
 
     const access_token = this.jwtService.sign(payload, {
       secret: this.configService.get<string>('JWT_ACCESS_SECRET'),
@@ -43,9 +43,14 @@ export class AuthService {
     );
 
     // Calculate expiry timestamp in ms so the frontend knows when to refresh
-    const expiresInMs = accessExpiresIn.endsWith('m')
-      ? parseInt(accessExpiresIn) * 60 * 1000
-      : 15 * 60 * 1000;
+    const parseExpiresInMs = (timeStr: string): number => {
+      if (timeStr.endsWith('d')) return parseInt(timeStr) * 24 * 60 * 60 * 1000;
+      if (timeStr.endsWith('h')) return parseInt(timeStr) * 60 * 60 * 1000;
+      if (timeStr.endsWith('m')) return parseInt(timeStr) * 60 * 1000;
+      if (timeStr.endsWith('s')) return parseInt(timeStr) * 1000;
+      return 7 * 24 * 60 * 60 * 1000;
+    };
+    const expiresInMs = parseExpiresInMs(accessExpiresIn);
 
     return {
       access_token,
