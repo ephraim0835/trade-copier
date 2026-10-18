@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Activity, Users, Server, ShieldAlert, Percent } from 'lucide-react';
+import { Activity, Users, Server, ShieldAlert, Percent, DollarSign } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function AdminSidebarNav() {
@@ -10,6 +10,7 @@ export function AdminSidebarNav() {
 
   const navItems = [
     { name: 'Overview', href: '/admin', icon: Activity, exact: true },
+    { name: 'Revenue', href: '/admin/revenue', icon: DollarSign },
     { name: 'Users & Subs', href: '/admin/users', icon: Users },
     { name: 'Discounts', href: '/admin/discounts', icon: Percent },
     { name: 'Infrastructure', href: '/admin/infrastructure', icon: Server },

@@ -12,16 +12,17 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { planId, discountCode } = body;
+    const { planId, discountCode, currency = "USD" } = body;
 
     let amount = 0;
     let planName = "";
+    const selectedCurrency = (currency === "NGN") ? "NGN" : "USD";
 
     if (planId === "basic") {
-      amount = 26;
+      amount = selectedCurrency === "NGN" ? 39000 : 26;
       planName = "Basic Plan";
     } else if (planId === "pro") {
-      amount = 39;
+      amount = selectedCurrency === "NGN" ? 58500 : 39;
       planName = "Pro Plan";
     } else {
       return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
@@ -66,28 +67,32 @@ export async function POST(req: NextRequest) {
     const flwSecret = process.env.FLW_SECRET_KEY;
     if (!flwSecret) {
       console.error("Missing FLW_SECRET_KEY in environment");
-      return NextResponse.json({ error: "Billing is not configured" }, { status: 500 });
+      return NextResponse.json({ 
+        error: "Billing gateway is not yet configured. Please set FLW_SECRET_KEY in your environment settings." 
+      }, { status: 500 });
     }
 
     // The base URL of the application
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.FRONTEND_URL || req.nextUrl.origin;
+    const redirect_url = `${appUrl}/billing/verify?tx_ref=${tx_ref}&plan=${planId}`;
 
     const payload = {
       tx_ref,
       amount,
-      currency: "USD",
-      redirect_url: `${appUrl}/dashboard?payment=success`,
+      currency: selectedCurrency,
+      redirect_url,
       meta: {
         userId: user.id,
-        planId: planId
+        planId: planId,
+        currency: selectedCurrency
       },
       customer: {
         email: user.email,
-        name: user.name || "Customer"
+        name: user.name || user.email.split('@')[0] || "Customer"
       },
       customizations: {
         title: "Plaiz Markets Subscription",
-        description: `Payment for ${planName}`
+        description: `Payment for ${planName} (${selectedCurrency === 'NGN' ? '₦' : '$'}${amount.toLocaleString()})`
       }
     };
 

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
+import { useCurrency } from "@/components/currency-provider";
 
 interface CheckoutButtonProps {
   planId: "basic" | "pro";
@@ -10,6 +11,7 @@ interface CheckoutButtonProps {
 }
 
 export function CheckoutButton({ planId, className = "", children }: CheckoutButtonProps) {
+  const { currency } = useCurrency();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,7 +25,7 @@ export function CheckoutButton({ planId, className = "", children }: CheckoutBut
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ planId }),
+        body: JSON.stringify({ planId, currency }),
       });
 
       const data = await res.json();

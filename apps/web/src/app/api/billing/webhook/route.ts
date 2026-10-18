@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
 
     // According to Flutterwave docs, successful payments come with event: 'charge.completed'
     if (payload.event === "charge.completed" && payload.data?.status === "successful") {
-      const { tx_ref, customer, amount } = payload.data;
+      const { tx_ref, customer, amount, currency } = payload.data;
       
       const user = await prisma.user.findUnique({
         where: { email: customer.email }
@@ -35,7 +35,9 @@ export async function POST(req: NextRequest) {
 
       if (user) {
         // Look for the user's subscription or create it if missing
-        const planId = amount >= 39 ? "pro" : "basic";
+        const metaPlan = payload.data?.meta?.planId;
+        const isNgn = (currency || "").toUpperCase() === "NGN";
+        const planId = metaPlan || (amount >= (isNgn ? 50000 : 35) ? "pro" : "basic");
         
         // Let's define the current period end as 1 month from now
         const currentPeriodEnd = new Date();
