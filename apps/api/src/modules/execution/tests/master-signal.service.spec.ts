@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { MasterSignalService } from '../services/master-signal.service';
 import { RiskEngineService } from '../../risk-engine/services/risk-engine.service';
+import { CurrencyService } from '../../risk-engine/services/currency.service';
 import { PrismaService } from '../../../database/prisma.service';
 import { HotDispatchService } from '../services/hot-dispatch.service';
 import { AsyncPersistenceService } from '../services/async-persistence.service';
@@ -55,6 +56,7 @@ describe('MasterSignalService - Hot Path Suite', () => {
         HotDispatchService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: RiskEngineService, useValue: { evaluateTrade: jest.fn() } },
+        { provide: CurrencyService, useValue: { toUSD: (a: number) => a, fromUSD: (a: number) => a, convert: (a: number) => a } },
         {
           provide: AsyncPersistenceService,
           useValue: {

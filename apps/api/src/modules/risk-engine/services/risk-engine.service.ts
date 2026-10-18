@@ -83,9 +83,12 @@ export class RiskEngineService {
       return decision;
     }
 
-    // ── STEP 3: Monetary Risk Calculation ───────────────────
+    // ── STEP 3: Monetary Risk Calculation Based on Initial Balance ──
     const intendedRiskPct = profile.riskPercentage;
-    decision.intendedRisk = profile.equity * (intendedRiskPct / 100);
+    const baseCapital = (profile.initialBalance && profile.initialBalance > 0)
+      ? profile.initialBalance
+      : (profile.balance && profile.balance > 0 ? profile.balance : (profile.equity > 0 ? profile.equity : 10000));
+    decision.intendedRisk = baseCapital * (intendedRiskPct / 100);
     decision.maxPermittedRisk = decision.intendedRisk;
 
     // ── STEP 4: Absolute lot sizing is skipped here ──────────

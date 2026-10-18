@@ -68,7 +68,12 @@ ulong QueueQueuedAt[];
 int EventCount = 0;
 
 ulong lastTelemetryAt = 0;
-const ulong TELEMETRY_INTERVAL_US = 10000000; // 10 seconds in microseconds
+double lastSentFloatingPl = 9999999.0;
+const ulong TELEMETRY_ACTIVE_INTERVAL_US = 2000000;   // 2s when open positions exist
+const ulong TELEMETRY_IDLE_INTERVAL_US   = 10000000;  // 10s heartbeat when 0 open positions
+
+void SendTelemetry();
+void DispatchQueue();
 
 // --- State Cache ---
 struct StateCache {
@@ -194,6 +199,9 @@ void EnqueueEvent(string endpoint, string payload, ulong detectedAt)
    QueueDetectedAt[EventCount] = detectedAt;
    QueueQueuedAt[EventCount] = queuedAt;
    EventCount++;
+   
+   // Immediate hot dispatch without waiting for timer tick
+   DispatchQueue();
   }
 
 //+------------------------------------------------------------------+
@@ -292,26 +300,76 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
       if(trans.order != lastProcessedOrder)
         {
          lastProcessedOrder = trans.order;
-         if(OrderSelect(trans.order))
-           {
-            ENUM_ORDER_TYPE type = (ENUM_ORDER_TYPE)OrderGetInteger(ORDER_TYPE);
-            if(type == ORDER_TYPE_BUY_LIMIT || type == ORDER_TYPE_SELL_LIMIT || type == ORDER_TYPE_BUY_STOP || type == ORDER_TYPE_SELL_STOP)
-              {
-               string symbol = OrderGetString(ORDER_SYMBOL);
-               double volume = OrderGetDouble(ORDER_VOLUME_INITIAL);
-               double price = OrderGetDouble(ORDER_PRICE_OPEN);
-               double sl = OrderGetDouble(ORDER_SL);
-               double tp = OrderGetDouble(ORDER_TP);
-               
-               string orderTypeStr = "";
-               if(type == ORDER_TYPE_BUY_LIMIT) orderTypeStr = "BUY_LIMIT";
-               if(type == ORDER_TYPE_SELL_LIMIT) orderTypeStr = "SELL_LIMIT";
-               if(type == ORDER_TYPE_BUY_STOP) orderTypeStr = "BUY_STOP";
-               if(type == ORDER_TYPE_SELL_STOP) orderTypeStr = "SELL_STOP";
+         
+         ENUM_ORDER_TYPE type = trans.order_type;
+         string symbol = trans.symbol;
+         double volume = trans.volume;
+         double price = trans.price;
+         double sl = trans.price_sl;
+         double tp = trans.price_tp;
 
-               SendOpenSignal(trans.order, symbol, orderTypeStr, volume, price, sl, tp, detectedAt);
-               AddCache(trans.order, sl, tp, price);
+         // Fallback to OrderSelect if trans attributes are empty
+         if((type == 0 || volume == 0 || price == 0) && OrderSelect(trans.order))
+           {
+            type = (ENUM_ORDER_TYPE)OrderGetInteger(ORDER_TYPE);
+            if(symbol == "") symbol = OrderGetString(ORDER_SYMBOL);
+            if(volume == 0) volume = OrderGetDouble(ORDER_VOLUME_INITIAL);
+            if(price == 0) price = OrderGetDouble(ORDER_PRICE_OPEN);
+            if(sl == 0) sl = OrderGetDouble(ORDER_SL);
+            if(tp == 0) tp = OrderGetDouble(ORDER_TP);
+           }
+
+         if(type == ORDER_TYPE_BUY_LIMIT || type == ORDER_TYPE_SELL_LIMIT || type == ORDER_TYPE_BUY_STOP || type == ORDER_TYPE_SELL_STOP)
+           {
+            string orderTypeStr = "";
+            if(type == ORDER_TYPE_BUY_LIMIT) orderTypeStr = "BUY_LIMIT";
+            else if(type == ORDER_TYPE_SELL_LIMIT) orderTypeStr = "SELL_LIMIT";
+            else if(type == ORDER_TYPE_BUY_STOP) orderTypeStr = "BUY_STOP";
+            else if(type == ORDER_TYPE_SELL_STOP) orderTypeStr = "SELL_STOP";
+
+            PrintFormat("MasterCopier: Pending order ORDER_ADD: ticket=%I64u, symbol=%s, type=%s, vol=%.2f, price=%.5f, sl=%.5f, tp=%.5f",
+                        trans.order, symbol, orderTypeStr, volume, price, sl, tp);
+            SendOpenSignal(trans.order, symbol, orderTypeStr, volume, price, sl, tp, detectedAt);
+            AddCache(trans.order, sl, tp, price);
+           }
+        }
+     }
+
+   // 1b. Handle Pending Order Update
+   if(trans.type == TRADE_TRANSACTION_ORDER_UPDATE)
+     {
+      ENUM_ORDER_TYPE type = trans.order_type;
+      if(type == ORDER_TYPE_BUY_LIMIT || type == ORDER_TYPE_SELL_LIMIT || type == ORDER_TYPE_BUY_STOP || type == ORDER_TYPE_SELL_STOP)
+        {
+         int idx = FindInCache(trans.order);
+         double price = trans.price;
+         double sl = trans.price_sl;
+         double tp = trans.price_tp;
+         string symbol = trans.symbol;
+         double volume = trans.volume;
+
+         if(idx >= 0)
+           {
+            if(CachedStates[idx].lastSL != sl || CachedStates[idx].lastTP != tp || CachedStates[idx].lastPrice != price)
+              {
+               SendModifySignal(trans.order, price, sl, tp, detectedAt);
+               CachedStates[idx].lastSL = sl;
+               CachedStates[idx].lastTP = tp;
+               CachedStates[idx].lastPrice = price;
               }
+           }
+         else
+           {
+            string orderTypeStr = "";
+            if(type == ORDER_TYPE_BUY_LIMIT) orderTypeStr = "BUY_LIMIT";
+            else if(type == ORDER_TYPE_SELL_LIMIT) orderTypeStr = "SELL_LIMIT";
+            else if(type == ORDER_TYPE_BUY_STOP) orderTypeStr = "BUY_STOP";
+            else if(type == ORDER_TYPE_SELL_STOP) orderTypeStr = "SELL_STOP";
+
+            PrintFormat("MasterCopier: Pending order ORDER_UPDATE (new): ticket=%I64u, symbol=%s, type=%s, price=%.5f",
+                        trans.order, symbol, orderTypeStr, price);
+            SendOpenSignal(trans.order, symbol, orderTypeStr, volume, price, sl, tp, detectedAt);
+            AddCache(trans.order, sl, tp, price);
            }
         }
      }
@@ -428,49 +486,59 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
         }
      }
      
-   // 5. Detect Pending Order Modifications
+   // 5. Detect Pending Order Additions and Modifications
    for(int i = 0; i < OrdersTotal(); i++)
      {
       ulong ticket = OrderGetTicket(i);
       if(ticket > 0)
         {
-         double sl = OrderGetDouble(ORDER_SL);
-         double tp = OrderGetDouble(ORDER_TP);
-         double price = OrderGetDouble(ORDER_PRICE_OPEN);
-         
-         int idx = FindInCache(ticket);
-         if(idx >= 0)
+         ENUM_ORDER_TYPE otype = (ENUM_ORDER_TYPE)OrderGetInteger(ORDER_TYPE);
+         if(otype == ORDER_TYPE_BUY_LIMIT || otype == ORDER_TYPE_SELL_LIMIT || 
+            otype == ORDER_TYPE_BUY_STOP || otype == ORDER_TYPE_SELL_STOP)
            {
-            if(CachedStates[idx].lastSL != sl || CachedStates[idx].lastTP != tp || CachedStates[idx].lastPrice != price)
+            double sl = OrderGetDouble(ORDER_SL);
+            double tp = OrderGetDouble(ORDER_TP);
+            double price = OrderGetDouble(ORDER_PRICE_OPEN);
+            
+            int idx = FindInCache(ticket);
+            if(idx >= 0)
               {
-               SendModifySignal(ticket, price, sl, tp, detectedAt);
-               CachedStates[idx].lastSL = sl;
-               CachedStates[idx].lastTP = tp;
-               CachedStates[idx].lastPrice = price;
+               if(CachedStates[idx].lastSL != sl || CachedStates[idx].lastTP != tp || CachedStates[idx].lastPrice != price)
+                 {
+                  SendModifySignal(ticket, price, sl, tp, detectedAt);
+                  CachedStates[idx].lastSL = sl;
+                  CachedStates[idx].lastTP = tp;
+                  CachedStates[idx].lastPrice = price;
+                 }
               }
-           }
-         else
-           {
-            AddCache(ticket, sl, tp, price);
+            else
+              {
+               string symbol = OrderGetString(ORDER_SYMBOL);
+               double volume = OrderGetDouble(ORDER_VOLUME_INITIAL);
+               string orderTypeStr = "";
+               if(otype == ORDER_TYPE_BUY_LIMIT) orderTypeStr = "BUY_LIMIT";
+               else if(otype == ORDER_TYPE_SELL_LIMIT) orderTypeStr = "SELL_LIMIT";
+               else if(otype == ORDER_TYPE_BUY_STOP) orderTypeStr = "BUY_STOP";
+               else if(otype == ORDER_TYPE_SELL_STOP) orderTypeStr = "SELL_STOP";
+
+               PrintFormat("MasterCopier: Pending order detected via OrdersTotal scan: ticket=%I64u, symbol=%s, type=%s, price=%.5f",
+                           ticket, symbol, orderTypeStr, price);
+               SendOpenSignal(ticket, symbol, orderTypeStr, volume, price, sl, tp, detectedAt);
+               AddCache(ticket, sl, tp, price);
+              }
            }
         }
      }
+
+   // Instant telemetry refresh on trade transaction
+   SendTelemetry();
   }
 
 //+------------------------------------------------------------------+
-//| OnTimer - Dispatch Loop                                          |
+//| DispatchQueue - Hot Non-blocking Network Sender                  |
 //+------------------------------------------------------------------+
-void OnTimer()
+void DispatchQueue()
   {
-   ulong nowUs = GetMicrosecondCount();
-   
-   // --- Telemetry Heartbeat (Every 5 Seconds) ---
-   if(nowUs - lastTelemetryAt > TELEMETRY_INTERVAL_US)
-     {
-      lastTelemetryAt = nowUs;
-      SendTelemetry();
-     }
-     
    if(EventCount == 0) return;
    
    int successfulDispatches = 0;
@@ -533,6 +601,29 @@ void OnTimer()
       ArrayResize(QueueDetectedAt, remaining);
       ArrayResize(QueueQueuedAt, remaining);
      }
+  }
+
+//+------------------------------------------------------------------+
+//| OnTimer - Dispatch Loop & Adaptive Telemetry                     |
+//+------------------------------------------------------------------+
+void OnTimer()
+  {
+   ulong nowUs = GetMicrosecondCount();
+   
+   // --- Adaptive Telemetry (Snappy PnL push without resource waste) ---
+   int openCount = PositionsTotal();
+   ulong telInterval = (openCount > 0) ? TELEMETRY_ACTIVE_INTERVAL_US : TELEMETRY_IDLE_INTERVAL_US;
+   double currentPl = AccountInfoDouble(ACCOUNT_PROFIT);
+   bool plChanged = (openCount > 0 && MathAbs(currentPl - lastSentFloatingPl) >= 0.05 && (nowUs - lastTelemetryAt > 1000000));
+
+   if(nowUs - lastTelemetryAt > telInterval || plChanged)
+     {
+      lastTelemetryAt = nowUs;
+      lastSentFloatingPl = currentPl;
+      SendTelemetry();
+     }
+     
+   DispatchQueue();
   }
 
 //+------------------------------------------------------------------+

@@ -3,10 +3,18 @@ import { ConfigService } from '@nestjs/config';
 import { MasterSignalDto, MasterModifyDto, MasterCloseDto, MasterTriggerDto } from '../dto/master-signal.dto';
 import { PrismaService } from '../../../database/prisma.service';
 import { RiskEngineService } from '../../risk-engine/services/risk-engine.service';
+import { CurrencyService } from '../../risk-engine/services/currency.service';
 import { HotDispatchService, HotCommandData } from './hot-dispatch.service';
 import { AsyncPersistenceService } from './async-persistence.service';
 import { CommandType, CommandStatus, CopyState, Mt5Account, CopySettings } from '@prisma/client';
 import * as crypto from 'crypto';
+
+interface CachedMasterAccount {
+  id: string;
+  currency: string;
+  balance: number;
+  initialBalance: number;
+}
 
 interface CachedSubAccount {
   id: string;
@@ -15,6 +23,7 @@ interface CachedSubAccount {
   copySettings: CopySettings | null;
   equity: number;
   balance: number;
+  initialBalance: number;
   freeMargin: number;
   currency: string;
 }
@@ -54,6 +63,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
 
   // In-memory Sub Accounts & CopySettings cache mapped by MasterAccountId (30s TTL with auto-refresh)
   private subAccountsCache = new Map<string, CachedSubAccount[]>();
+  private masterAccountsCache = new Map<string, CachedMasterAccount>();
   private lastSubCacheRefresh = 0;
 
   // In-memory active signals and copy mappings (O(1) lookups for modify/close)
@@ -64,6 +74,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly prisma: PrismaService,
     private readonly riskEngine: RiskEngineService,
+    private readonly currencyService: CurrencyService,
     private readonly hotDispatch: HotDispatchService,
     private readonly asyncPersistence: AsyncPersistenceService,
     private readonly configService: ConfigService,
@@ -137,6 +148,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
           subAccount: subAccountFilter,
         },
         include: {
+          masterAccount: true,
           subAccount: {
             include: {
               copySettings: true,
@@ -146,8 +158,19 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
       });
 
       const newCache = new Map<string, CachedSubAccount[]>();
+      const newMasterCache = new Map<string, CachedMasterAccount>();
       
       for (const sub of subscriptions) {
+        const m = sub.masterAccount;
+        if (m) {
+          newMasterCache.set(m.id, {
+            id: m.id,
+            currency: m.currency ?? 'USD',
+            balance: m.balance ?? 10000,
+            initialBalance: (m as any).initialBalance ?? m.balance ?? 10000,
+          });
+        }
+
         const a = sub.subAccount;
         
         // Ensure copySettings is never null so trades are never skipped
@@ -179,6 +202,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
           copySettings: mergedSettings,
           equity: a.equity ?? 0,
           balance: a.balance ?? 0,
+          initialBalance: (a as any).initialBalance ?? a.balance ?? a.equity ?? 0,
           freeMargin: a.freeMargin ?? 0,
           currency: a.currency ?? 'USD',
         };
@@ -190,6 +214,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
       }
 
       this.subAccountsCache = newCache;
+      this.masterAccountsCache = newMasterCache;
       this.lastSubCacheRefresh = Date.now();
       
       let totalSubs = 0;
@@ -243,13 +268,17 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
     return specs;
   }
 
-  private buildRiskProfile(sub: CachedSubAccount) {
+  private buildRiskProfile(sub: CachedSubAccount, master?: CachedMasterAccount) {
     const copySettings = sub.copySettings || ({} as any);
     return {
       equity: sub.equity > 0 ? sub.equity : 10000,
+      balance: sub.balance > 0 ? sub.balance : 10000,
+      initialBalance: sub.initialBalance > 0 ? sub.initialBalance : (sub.balance > 0 ? sub.balance : (sub.equity > 0 ? sub.equity : 10000)),
       currency: sub.currency,
       marginFree: sub.freeMargin > 0 ? sub.freeMargin : 10000,
       accountType: 'HEDGING' as const,
+      masterInitialBalance: master?.initialBalance,
+      masterCurrency: master?.currency,
       riskPercentage: copySettings.riskPercentage ?? 1.0,
       roundingTolerancePct: copySettings.roundingTolerancePct ?? 2.0,
       dailyRiskEnabled: copySettings.dailyRiskEnabled ?? false,
@@ -327,11 +356,17 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
 
     // 3. Authoritative Risk Engine evaluation in-memory for subscribed active Demo sub-accounts
     const subscribedSubs = this.subAccountsCache.get(masterAccountId) || [];
+    const masterInfo = this.masterAccountsCache.get(masterAccountId);
+    const masterCurrency = masterInfo?.currency || 'USD';
+    const masterInitial = masterInfo?.initialBalance || masterInfo?.balance || 10000;
+    const masterRiskPct = 1.0;
+    const masterCapitalUSD = this.currencyService.toUSD(masterInitial, masterCurrency);
+
     for (const sub of subscribedSubs) {
       if (!sub.copySettings || !sub.isActive) continue;
       if (this.demoOnly && !sub.isDemo) continue;
 
-      const riskProfile = this.buildRiskProfile(sub);
+      const riskProfile = this.buildRiskProfile(sub, masterInfo);
       const signalInput = {
         signalId,
         symbol: dto.symbol,
@@ -341,10 +376,21 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
         sl: dto.sl ?? 0,
         tp: dto.tp ?? 0,
         time: now,
-        masterRiskPct: 1.0,
+        masterRiskPct,
       };
 
       const decision = this.riskEngine.evaluateTrade(signalInput, riskProfile, symbolSpecs);
+      
+      // Proportional volume calculation based on initial balance in USD
+      const subBase = (sub.initialBalance && sub.initialBalance > 0) ? sub.initialBalance : (sub.balance > 0 ? sub.balance : (sub.equity > 0 ? sub.equity : 10000));
+      const subCapitalUSD = this.currencyService.toUSD(subBase, sub.currency);
+      const capitalRatio = masterCapitalUSD > 0 ? (subCapitalUSD / masterCapitalUSD) : 1;
+      const riskRatio = (sub.copySettings?.riskPercentage ?? 1.0) / masterRiskPct;
+      let scaledVolume = Number((dto.volume * capitalRatio * riskRatio).toFixed(2));
+      if (scaledVolume < 0.01) scaledVolume = 0.01;
+      if (scaledVolume > 100.0) scaledVolume = 100.0;
+
+      const finalVolume = (decision.executedVol && decision.executedVol > 0) ? decision.executedVol : scaledVolume;
       const tradeCopyId = crypto.randomUUID();
 
       const inFlightCopy: InFlightTradeCopy = {
@@ -352,7 +398,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
         signalId,
         subAccountId: sub.id,
         state: decision.state,
-        requestedVolume: decision.executedVol,
+        requestedVolume: finalVolume,
         createdAt: now,
       };
       inFlightSignal.copies.set(tradeCopyId, inFlightCopy);
@@ -362,7 +408,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
         signalId,
         subAccountId: sub.id,
         state: decision.state,
-        requestedVolume: decision.executedVol,
+        requestedVolume: finalVolume,
       });
 
       if (decision.state === CopyState.APPROVED) {
@@ -379,7 +425,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
           status: CommandStatus.CREATED,
           symbol: dto.symbol,
           orderType: dto.type,
-          volume: (decision.executedVol && decision.executedVol > 0) ? decision.executedVol : dto.volume,
+          volume: finalVolume,
           intendedRisk: decision.intendedRisk,
           price: dto.priceOpen || 0,
           sl: dto.sl ?? 0,

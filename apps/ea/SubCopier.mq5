@@ -66,7 +66,9 @@ const string HISTORY_FILE = "SubCopier_History.csv";
 static bool pollInFlight = false;   // In-flight guard to prevent WebRequest overlap & Error 1003
 
 ulong lastTelemetryAt = 0;
-const ulong TELEMETRY_INTERVAL_US = 10000000; // 10 seconds in microseconds
+double lastSentFloatingPl = 9999999.0;
+const ulong TELEMETRY_ACTIVE_INTERVAL_US = 2000000;   // 2s when open positions exist
+const ulong TELEMETRY_IDLE_INTERVAL_US   = 10000000;  // 10s heartbeat when 0 open positions
 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
@@ -125,9 +127,17 @@ void OnDeinit(const int reason)
 void OnTimer()
   {
    ulong nowUs = GetMicrosecondCount();
-   if(nowUs - lastTelemetryAt > TELEMETRY_INTERVAL_US)
+   
+   // --- Adaptive Telemetry (Snappy PnL push without resource waste) ---
+   int openCount = PositionsTotal();
+   ulong telInterval = (openCount > 0) ? TELEMETRY_ACTIVE_INTERVAL_US : TELEMETRY_IDLE_INTERVAL_US;
+   double currentPl = AccountInfoDouble(ACCOUNT_PROFIT);
+   bool plChanged = (openCount > 0 && MathAbs(currentPl - lastSentFloatingPl) >= 0.05 && (nowUs - lastTelemetryAt > 1000000));
+
+   if(nowUs - lastTelemetryAt > telInterval || plChanged)
      {
       lastTelemetryAt = nowUs;
+      lastSentFloatingPl = currentPl;
       SendTelemetry();
      }
 
@@ -320,37 +330,16 @@ void ProcessCommand(string json, ulong subReceivedAt)
   {
    string commandId = CMqlJson::GetString(json, "commandId");
    if(commandId == "") return;
-   
+
    // Idempotency: Check if already processed
    for(int i = 0; i < ArraySize(ProcessedCommands); i++)
      {
       if(ProcessedCommands[i] == commandId) return; // Already processed
      }
-     
 
-   // 1. ACK the command (T8)
-   char post[], result[];
    ulong subAcknowledgedAt = GetMicrosecondCount(); // T8
-   string ackJson = "{\"commandId\":\"" + commandId + "\",\"subReceivedAt\": " + IntegerToString(subReceivedAt) + ",\"subAcknowledgedAt\": " + IntegerToString(subAcknowledgedAt) + "}";
-   StringToCharArray(ackJson, post, 0, WHOLE_ARRAY, CP_UTF8);
-   ArrayResize(post, StringLen(ackJson)); // Remove null terminator
-   string headers = "Content-Type: application/json\r\nAuthorization: Bearer " + EA_TOKEN + "\r\nConnection: close\r\n";
-   
-   int res = CWinInet::Post(API_URL + "/ack", headers, post, result);
-   if(res != 200 && res != 201) 
-     {
-      // Fallback to native WebRequest
-      string webHeaders = "Content-Type: application/json\r\nAuthorization: Bearer " + EA_TOKEN + "\r\n";
-      string respHeaders = "";
-      char respData[];
-      res = WebRequest("POST", API_URL + "/ack", webHeaders, 3000, post, respData, respHeaders);
-     }
-   if(res != 200 && res != 201) 
-     {
-      PrintFormat("POST /ack warning: failed HTTP: %d, Err: %d. Proceeding with trade execution.", res, GetLastError());
-     }
 
-   // 2. Validate Command
+   // 2. Validate Command & Symbol
    PrintFormat("DEBUG RECEIVED JSON: %s", json);
    string rawSymbol = CMqlJson::GetString(json, "symbol");
    string symbol = ResolveSymbol(rawSymbol);
@@ -361,17 +350,28 @@ void ProcessCommand(string json, ulong subReceivedAt)
       return;
      }
      
-   // Extract parameters early to calculate volume if needed
+   // Extract parameters early to calculate volume
    string commandType = CMqlJson::GetString(json, "type");
    string orderType = CMqlJson::GetString(json, "orderType");
    double sl = CMqlJson::GetDouble(json, "sl");
    double tp = CMqlJson::GetDouble(json, "tp");
    double price = CMqlJson::GetDouble(json, "price");
    
-   if(price == 0 && (orderType == "BUY" || orderType == "BUY_LIMIT" || orderType == "BUY_STOP")) price = SymbolInfoDouble(symbol, SYMBOL_ASK);
-   if(price == 0 && (orderType == "SELL" || orderType == "SELL_LIMIT" || orderType == "SELL_STOP")) price = SymbolInfoDouble(symbol, SYMBOL_BID);
+   // For market orders, fallback to current ASK/BID if price is 0
+   if(price == 0 && orderType == "BUY") price = SymbolInfoDouble(symbol, SYMBOL_ASK);
+   if(price == 0 && orderType == "SELL") price = SymbolInfoDouble(symbol, SYMBOL_BID);
 
-   double volume = CMqlJson::GetDouble(json, "volume");
+   // Pending orders require valid non-zero limit/stop price
+   bool isPending = (orderType == "BUY_LIMIT" || orderType == "SELL_LIMIT" || orderType == "BUY_STOP" || orderType == "SELL_STOP");
+   if(isPending && price <= 0)
+     {
+      ulong now = GetMicrosecondCount();
+      ReportResult(commandId, false, 0, "Pending order requires a valid non-zero price", 0, 0, subReceivedAt, subAcknowledgedAt, now, now);
+      return;
+     }
+
+   double passedVolume = CMqlJson::GetDouble(json, "volume");
+   double volume = passedVolume;
    double intendedRisk = CMqlJson::GetDouble(json, "intendedRisk");
    
    if(intendedRisk > 0 && sl > 0 && price > 0)
@@ -397,11 +397,10 @@ void ProcessCommand(string json, ulong subReceivedAt)
    double maxVol = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MAX);
    double stepVol = SymbolInfoDouble(symbol, SYMBOL_VOLUME_STEP);
 
-   // Fallback: If volume is 0 or below minimum (e.g. tick value unavailable or delegated sizing), default to minVol
-   if(volume <= 0 && minVol > 0)
+   // Fallback: If volume is 0 or below minimum, preserve passed scaled volume or minVol
+   if(volume <= 0)
      {
-      PrintFormat("Volume uncalculated or 0 (intendedRisk=%f), defaulting to minVol=%f", intendedRisk, minVol);
-      volume = minVol;
+      volume = (passedVolume > 0) ? passedVolume : minVol;
      }
 
    // Step and clamp volume
@@ -416,8 +415,8 @@ void ProcessCommand(string json, ulong subReceivedAt)
       return;
      }
 
-   // 3. Execute based on command type
-   
+   // 3. Ultra-Low-Latency Order Execution (T9-T10)
+   // Direct execution BEFORE any blocking network roundtrips!
    ulong subPositionTicket = 0;
    string subTicketStr = CMqlJson::GetString(json, "subPositionTicket");
    if(subTicketStr != "") subPositionTicket = (ulong)StringToInteger(subTicketStr);
@@ -432,13 +431,12 @@ void ProcessCommand(string json, ulong subReceivedAt)
    
    ulong subExecutionStartedAt = GetMicrosecondCount(); // T9
    
-   // Normalize prices and volume
+   // Normalize prices
    int digits = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
    if(sl > 0) sl = NormalizeDouble(sl, digits);
    if(tp > 0) tp = NormalizeDouble(tp, digits);
    if(price > 0) price = NormalizeDouble(price, digits);
 
-   
    if(commandType == "OPEN_ORDER" || commandType == "")
      {
       if(orderType == "BUY")
@@ -477,15 +475,15 @@ void ProcessCommand(string json, ulong subReceivedAt)
     else if (commandType == "MODIFY_ORDER")
       {
        ulong targetTicket = subPositionTicket;
-       bool found = false;
+       bool isPos = false;
        
        if(targetTicket > 0 && PositionSelectByTicket(targetTicket))
          {
-          found = true;
+          isPos = true;
          }
        else
          {
-          // Fallback search across open positions matching ticket, identifier, or symbol
+          // Fallback search across open positions
           int matchingPositions = 0;
           ulong matchedTicket = 0;
           for(int p = PositionsTotal() - 1; p >= 0; p--)
@@ -508,53 +506,56 @@ void ProcessCommand(string json, ulong subReceivedAt)
                   }
                }
             }
-          if(targetTicket == 0 && matchingPositions > 1)
-            {
-             Print("CRITICAL: Multiple positions match symbol, but targetTicket is 0. Aborting modification to prevent modifying the wrong trade.");
-             found = false;
-            }
-          else if(matchingPositions == 1)
+          if(matchingPositions == 1)
             {
              targetTicket = matchedTicket;
-             found = true;
+             isPos = true;
             }
          }
 
-       if(found)
+       // Check if it's a pending order to modify
+       ulong orderTicketToModify = 0;
+       if(!isPos)
          {
-          PrintFormat("=== MODIFY START ===\ncommandId=%s\nsymbol=%s\npositionTicket=%I64u\nrequestedSL=%.5f\nrequestedTP=%.5f",
+          if(subOrderTicket > 0 && OrderSelect(subOrderTicket)) orderTicketToModify = subOrderTicket;
+          else if(targetTicket > 0 && OrderSelect(targetTicket)) orderTicketToModify = targetTicket;
+         }
+
+       if(isPos)
+         {
+          PrintFormat("=== MODIFY POSITION START ===\ncommandId=%s\nsymbol=%s\npositionTicket=%I64u\nrequestedSL=%.5f\nrequestedTP=%.5f",
                       commandId, symbol, targetTicket, sl, tp);
           success = trade.PositionModify(targetTicket, sl, tp);
-          PrintFormat("=== MODIFY END ===\nPositionModify returned=%s\nResultRetcode=%u\nResultRetcodeDescription=%s\nResultOrder=%I64u\nResultDeal=%I64u",
-                      (success ? "true" : "false"), trade.ResultRetcode(), trade.ResultRetcodeDescription(), trade.ResultOrder(), trade.ResultDeal());
+          PrintFormat("=== MODIFY POSITION END ===\nPositionModify returned=%s\nResultRetcode=%u\nResultRetcodeDescription=%s",
+                      (success ? "true" : "false"), trade.ResultRetcode(), trade.ResultRetcodeDescription());
          }
-       else if(subOrderTicket > 0 && OrderSelect(subOrderTicket))
+       else if(orderTicketToModify > 0)
          {
-          PrintFormat("=== ORDER MODIFY START ===\ncommandId=%s\nsubOrderTicket=%I64u\nprice=%.5f\nrequestedSL=%.5f\nrequestedTP=%.5f",
-                      commandId, subOrderTicket, price, sl, tp);
-          success = trade.OrderModify(subOrderTicket, price, sl, tp, ORDER_TIME_GTC, 0, 0);
-          PrintFormat("=== ORDER MODIFY END ===\nOrderModify returned=%s\nResultRetcode=%u\nResultRetcodeDescription=%s",
+          PrintFormat("=== MODIFY ORDER START ===\ncommandId=%s\norderTicket=%I64u\nprice=%.5f\nrequestedSL=%.5f\nrequestedTP=%.5f",
+                      commandId, orderTicketToModify, price, sl, tp);
+          success = trade.OrderModify(orderTicketToModify, price, sl, tp, ORDER_TIME_GTC, 0, 0);
+          PrintFormat("=== MODIFY ORDER END ===\nOrderModify returned=%s\nResultRetcode=%u\nResultRetcodeDescription=%s",
                       (success ? "true" : "false"), trade.ResultRetcode(), trade.ResultRetcodeDescription());
          }
        else
          {
           ulong now = GetMicrosecondCount();
-          ReportResult(commandId, false, 0, "Position not found for modification. TargetTicket: " + IntegerToString(targetTicket) + ", Symbol: " + symbol, 0, 0, subReceivedAt, subAcknowledgedAt, now, now);
+          ReportResult(commandId, false, 0, "Position/Order not found for modification. Target: " + IntegerToString(targetTicket) + ", SubOrder: " + IntegerToString(subOrderTicket), 0, 0, subReceivedAt, subAcknowledgedAt, now, now);
           return;
          }
       }
     else if (commandType == "CLOSE_ORDER" || commandType == "CLOSE_PARTIAL")
       {
        ulong targetTicket = subPositionTicket;
-       bool found = false;
+       bool isPos = false;
        
        if(targetTicket > 0 && PositionSelectByTicket(targetTicket))
          {
-          found = true;
+          isPos = true;
          }
        else
          {
-          // Fallback search across open positions matching ticket, identifier, or symbol
+          // Fallback search across open positions
           int matchingPositions = 0;
           ulong matchedTicket = 0;
           for(int p = PositionsTotal() - 1; p >= 0; p--)
@@ -577,19 +578,22 @@ void ProcessCommand(string json, ulong subReceivedAt)
                   }
                }
             }
-          if(targetTicket == 0 && matchingPositions > 1)
-            {
-             Print("CRITICAL: Multiple positions match symbol, but targetTicket is 0. Aborting close to prevent closing the wrong trade.");
-             found = false;
-            }
-          else if(matchingPositions == 1)
+          if(matchingPositions == 1)
             {
              targetTicket = matchedTicket;
-             found = true;
+             isPos = true;
             }
          }
+
+       // Check if it's a pending order to cancel
+       ulong orderTicketToDelete = 0;
+       if(!isPos)
+         {
+          if(subOrderTicket > 0 && OrderSelect(subOrderTicket)) orderTicketToDelete = subOrderTicket;
+          else if(targetTicket > 0 && OrderSelect(targetTicket)) orderTicketToDelete = targetTicket;
+         }
          
-       if(found)
+       if(isPos)
          {
           PrintFormat("=== CLOSE START ===\ncommandType=%s\ncommandId=%s\nsymbol=%s\npositionTicket=%I64u\nrequestedVol=%.2f",
                       commandType, commandId, symbol, targetTicket, volume);
@@ -600,14 +604,15 @@ void ProcessCommand(string json, ulong subReceivedAt)
           PrintFormat("=== CLOSE END ===\nPositionClose returned=%s\nResultRetcode=%u\nResultRetcodeDescription=%s\nResultOrder=%I64u\nResultDeal=%I64u",
                       (success ? "true" : "false"), trade.ResultRetcode(), trade.ResultRetcodeDescription(), trade.ResultOrder(), trade.ResultDeal());
          }
-       else if(subOrderTicket > 0 && OrderSelect(subOrderTicket))
+       else if(orderTicketToDelete > 0)
          {
-          success = trade.OrderDelete(subOrderTicket);
+          PrintFormat("=== CANCEL PENDING ORDER ===\nticket=%I64u", orderTicketToDelete);
+          success = trade.OrderDelete(orderTicketToDelete);
          }
        else
          {
           ulong now = GetMicrosecondCount();
-          ReportResult(commandId, false, 0, "Position not found for closure. TargetTicket: " + IntegerToString(targetTicket) + ", Symbol: " + symbol, 0, 0, subReceivedAt, subAcknowledgedAt, now, now);
+          ReportResult(commandId, false, 0, "Position/Order not found for closure. Target: " + IntegerToString(targetTicket) + ", SubOrder: " + IntegerToString(subOrderTicket), 0, 0, subReceivedAt, subAcknowledgedAt, now, now);
           return;
          }
       }
@@ -620,18 +625,18 @@ void ProcessCommand(string json, ulong subReceivedAt)
 
    ulong subExecutionCompletedAt = GetMicrosecondCount(); // T10
    retcode = trade.ResultRetcode();
-   resultTicket = trade.ResultOrder();
+   resultTicket = (isPending || commandType == "OPEN_ORDER") ? trade.ResultOrder() : trade.ResultDeal();
+   if(resultTicket == 0) resultTicket = trade.ResultOrder();
    
    double execVol = trade.ResultVolume();
    if (execVol == 0 && success && (commandType == "CLOSE_PARTIAL" || commandType == "CLOSE_ORDER")) {
       execVol = volume; 
-   } else if (execVol == 0 && success && commandType == "OPEN_ORDER") {
+   } else if (execVol == 0 && success && (commandType == "OPEN_ORDER" || commandType == "")) {
       execVol = volume;
    }
    
    if(success)
      {
-      // Mark as processed in memory
       int size = ArraySize(ProcessedCommands);
       if(size >= MAX_PROCESSED)
         {
@@ -644,23 +649,23 @@ void ProcessCommand(string json, ulong subReceivedAt)
          ProcessedCommands[size] = commandId;
         }
         
-      // Explicitly flush to history file
       int handle = FileOpen(HISTORY_FILE, FILE_READ|FILE_WRITE|FILE_CSV|FILE_ANSI);
       if(handle != INVALID_HANDLE)
         {
          FileSeek(handle, 0, SEEK_END);
          FileWrite(handle, commandId);
-         FileFlush(handle); // Force write to disk to prevent crash-window data loss
+         FileFlush(handle);
          FileClose(handle);
         }
+        
+      // Instant telemetry push on trade change
+      SendTelemetry();
      }
    
+   // Send ACK and ReportResult
    ReportResult(commandId, success, retcode, trade.ResultComment(), resultTicket, execVol, subReceivedAt, subAcknowledgedAt, subExecutionStartedAt, subExecutionCompletedAt);
   }
 
-//+------------------------------------------------------------------+
-//| Report Result (T11 dispatch)                                      |
-//+------------------------------------------------------------------+
 void ReportResult(string commandId, bool success, uint retcode, string errorStr, ulong ticket = 0, double executedVolume = 0, ulong subReceivedAt = 0, ulong subAcknowledgedAt = 0, ulong subExecutionStartedAt = 0, ulong subExecutionCompletedAt = 0)
   {
    string json = "{";

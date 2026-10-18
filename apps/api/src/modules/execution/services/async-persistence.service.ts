@@ -209,12 +209,14 @@ export class AsyncPersistenceService implements OnModuleInit, OnModuleDestroy {
 
           if (result.success && result.executedVolume) {
             if (cmd.type === 'OPEN_ORDER' && result.orderTicket) {
+              const isPending = cmd.orderType === 'BUY_LIMIT' || cmd.orderType === 'SELL_LIMIT' ||
+                                cmd.orderType === 'BUY_STOP' || cmd.orderType === 'SELL_STOP';
               await tx.tradeCopy.updateMany({
                 where: { id: cmd.tradeCopyId },
                 data: {
                   subOrderTicket: BigInt(result.orderTicket),
                   subDealTicket: result.dealTicket ? BigInt(result.dealTicket) : null,
-                  subPositionId: BigInt(result.orderTicket),
+                  subPositionId: isPending ? null : BigInt(result.orderTicket),
                   executedVolume: result.executedVolume,
                   state: CopyState.EXECUTED,
                 },

@@ -52,20 +52,31 @@ export class AccountsService {
       return { success: false, message: 'Terminal not connected to broker' };
     }
 
+    const currentAccount = await this.prisma.mt5Account.findUnique({
+      where: { id: accountId },
+      select: { initialBalance: true, userId: true },
+    });
+
+    const updateData: any = {
+      isActive: true,
+      connectionStatus: 'ONLINE',
+      provisioningError: null,
+      lastHeartbeatAt: new Date(),
+      balance: dto.balance,
+      equity: dto.equity,
+      margin: dto.margin,
+      freeMargin: dto.freeMargin,
+      floatingPl: dto.floatingPl,
+      currency: dto.currency,
+    };
+
+    if (currentAccount && (currentAccount.initialBalance === null || currentAccount.initialBalance === undefined) && typeof dto.balance === 'number' && dto.balance > 0) {
+      updateData.initialBalance = dto.balance;
+    }
+
     const account = await this.prisma.mt5Account.update({
       where: { id: accountId },
-      data: {
-        isActive: true,
-        connectionStatus: 'ONLINE',
-        provisioningError: null,
-        lastHeartbeatAt: new Date(),
-        balance: dto.balance,
-        equity: dto.equity,
-        margin: dto.margin,
-        freeMargin: dto.freeMargin,
-        floatingPl: dto.floatingPl,
-        currency: dto.currency,
-      },
+      data: updateData,
     });
     
     this.realtimeService.emit(account.userId, 'REFRESH', {

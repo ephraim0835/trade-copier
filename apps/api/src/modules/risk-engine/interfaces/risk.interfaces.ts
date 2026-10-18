@@ -4,9 +4,13 @@ export type AccountType = 'HEDGING' | 'NETTING';
 
 export interface RiskProfile {
   equity: number;
+  balance?: number;
+  initialBalance?: number;
   currency: string;
   marginFree: number;
   accountType: AccountType; // HEDGING or NETTING
+  masterInitialBalance?: number;
+  masterCurrency?: string;
 
   // From CopySettings
   riskPercentage: number;

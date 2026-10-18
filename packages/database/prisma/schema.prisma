@@ -39,6 +39,7 @@ model Mt5Account {
   createdAt           DateTime              @default(now())
   updatedAt           DateTime              @updatedAt
   balance             Float?
+  initialBalance      Float?
   currency            String?               @db.VarChar(10)
   equity              Float?
   floatingPl          Float?

@@ -28,7 +28,7 @@ describe('Failure Matrix & Idempotency', () => {
       evaluateTrade: jest.fn().mockReturnValue({ state: CopyState.APPROVED, executedVol: 0.1 })
     } as any;
 
-    masterSignal = new MasterSignalService(mockPrisma, mockRiskEngine, hotDispatch, { enqueueTask: jest.fn() } as any, { get: jest.fn() } as any);
+    masterSignal = new MasterSignalService(mockPrisma, mockRiskEngine, { toUSD: (a: any) => a, fromUSD: (a: any) => a, convert: (a: any) => a } as any, hotDispatch, { enqueueTask: jest.fn() } as any, { get: jest.fn() } as any);
     await masterSignal.onModuleInit();
     
     executionService = new ExecutionService(hotDispatch, { enqueueTask: jest.fn() } as any);
