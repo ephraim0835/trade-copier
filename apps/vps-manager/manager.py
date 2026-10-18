@@ -322,11 +322,18 @@ def launch_mt5_and_attach_ea(account):
     ini_file_name = f"startup_{login}.ini"
     ini_file_path = ini_file_dir / ini_file_name
     
+    # Direct hostname mapping for brokers without servers.dat definitions
+    KNOWN_BROKER_SERVERS = {
+        'headway-real': 'mt5.real.trade-hw.online:443',
+        'headway-demo': 'mt5.demo.trade-hw.online:443',
+    }
+    resolved_server = KNOWN_BROKER_SERVERS.get(server.strip().lower() if server else '', server)
+
     with open(ini_file_path, 'w') as f:
         f.write(f"[Common]\n")
         f.write(f"Login={login}\n")
         f.write(f"Password={password}\n")
-        f.write(f"Server={server}\n")
+        f.write(f"Server={resolved_server}\n")
         f.write(f"AutoConfiguration=true\n")
         f.write(f"EnableNews=false\n")
         f.write(f"CertInstall=0\n")
@@ -657,7 +664,8 @@ def poll_db_worker():
                                 try:
                                     init_kwargs["login"] = int(login)
                                     init_kwargs["password"] = acc.get('password')
-                                    init_kwargs["server"] = acc.get('server')
+                                    srv_raw = acc.get('server', '')
+                                    init_kwargs["server"] = KNOWN_BROKER_SERVERS.get(srv_raw.strip().lower() if srv_raw else '', srv_raw)
                                 except Exception:
                                     pass
 

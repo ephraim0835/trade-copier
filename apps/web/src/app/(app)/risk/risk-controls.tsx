@@ -76,17 +76,21 @@ export function RiskControls({ initialAccounts }: { initialAccounts: any[] }) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {accounts.map((account) => {
           const currentPct = account.copySettings?.riskPercentage ?? 1.0;
-          const isOnline = (account.isActive ?? false) && account.connectionStatus === 'ONLINE' && account.lastHeartbeatAt && (Math.abs(Date.now() - new Date(account.lastHeartbeatAt).getTime()) < 180_000);
+          const isFailed = account.connectionStatus === 'FAILED' || !!account.provisioningError;
+          const isConnecting = account.connectionStatus === 'PROVISIONING' || account.connectionStatus === 'PENDING';
+          const isOnline = !isFailed && !isConnecting && (account.isActive ?? false) && account.connectionStatus === 'ONLINE' && account.lastHeartbeatAt && (Math.abs(Date.now() - new Date(account.lastHeartbeatAt).getTime()) < 180_000);
           
           return (
             <div key={account.id} className="plaiz-card bg-secondary/30 p-6 rounded-[24px]">
-              <div className="flex items-start justify-between mb-8 border-b border-border/30 pb-6">
+              <div className="flex items-start justify-between mb-6 border-b border-border/30 pb-6">
                 <div>
                   <div className="flex items-center gap-2 mb-2">
                     <h3 className="text-[18px] font-bold text-foreground tracking-tight leading-none">{account.displayName || account.login}</h3>
-                    <div className={`plaiz-pill text-[9px] px-1.5 py-0.5 ${isOnline ? 'plaiz-pill-success' : 'plaiz-pill-destructive'}`}>
-                      <Wifi className="w-2.5 h-2.5" />
-                      {isOnline ? 'Online' : 'Offline'}
+                    <div className={`plaiz-pill text-[9px] px-1.5 py-0.5 ${
+                      isFailed ? 'plaiz-pill-destructive' : isConnecting ? 'plaiz-pill-warning' : isOnline ? 'plaiz-pill-success' : 'plaiz-pill-neutral'
+                    }`}>
+                      <Wifi className={`w-2.5 h-2.5 ${isConnecting ? 'animate-pulse' : ''}`} />
+                      {isFailed ? 'Failed' : isConnecting ? 'Connecting...' : isOnline ? 'Online' : 'Offline'}
                     </div>
                   </div>
                   <span className="plaiz-pill plaiz-pill-neutral text-[10px] uppercase tracking-widest">{account.broker || 'Unknown'}</span>
@@ -94,10 +98,26 @@ export function RiskControls({ initialAccounts }: { initialAccounts: any[] }) {
                 <div className="text-right">
                   <span className="text-[10px] text-muted-foreground uppercase tracking-widest mb-1 block">Balance</span>
                   <span className="text-[16px] font-semibold text-foreground num-tabular leading-none">
-                    {account.balance != null ? <MoneyDisplay amount={account.balance} sourceCurrency={account.currency || 'USD'} /> : 'N/A'}
+                    {isOnline && account.balance != null ? (
+                      <MoneyDisplay amount={account.balance} sourceCurrency={account.currency || 'USD'} />
+                    ) : account.balance != null && !isFailed && account.balance > 0 ? (
+                      <MoneyDisplay amount={account.balance} sourceCurrency={account.currency || 'USD'} />
+                    ) : (
+                      '—'
+                    )}
                   </span>
                 </div>
               </div>
+
+              {isFailed && (
+                <div className="mb-6 p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-[11px] flex items-start gap-2.5">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-destructive" />
+                  <div className="flex-1">
+                    <span className="font-semibold block mb-0.5">Connection Failed</span>
+                    <span className="text-destructive/90 leading-tight">{account.provisioningError || "The broker rejected authorization or account details. Please verify your login, password, and server."}</span>
+                  </div>
+                </div>
+              )}
 
               <div className="flex flex-col gap-5">
                 <div className="flex items-center justify-between">

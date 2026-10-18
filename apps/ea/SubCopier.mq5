@@ -592,12 +592,15 @@ void ReportResult(string commandId, bool success, uint retcode, string errorStr,
 //+------------------------------------------------------------------+
 void SendTelemetry()
   {
+   if(!TerminalInfoInteger(TERMINAL_CONNECTED)) return;
+   string currency = AccountInfoString(ACCOUNT_CURRENCY);
+   if(StringLen(currency) == 0) return;
+   
    double balance = AccountInfoDouble(ACCOUNT_BALANCE);
    double equity = AccountInfoDouble(ACCOUNT_EQUITY);
    double margin = AccountInfoDouble(ACCOUNT_MARGIN);
    double freeMargin = AccountInfoDouble(ACCOUNT_MARGIN_FREE);
    double floatingPl = AccountInfoDouble(ACCOUNT_PROFIT);
-   string currency = AccountInfoString(ACCOUNT_CURRENCY);
    
    string json = "{";
    json += "\"balance\":" + DoubleToString(balance, 2) + ",";
