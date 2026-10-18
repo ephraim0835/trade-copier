@@ -320,3 +320,67 @@ export async function retryAccountConnection(accountId: string) {
   }
 }
 
+export async function updateAccountCredentials(data: {
+  accountId: string;
+  login?: string;
+  server?: string;
+  password?: string;
+  isDemo?: boolean;
+}) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email }
+    });
+
+    if (!user) {
+      return { success: false, error: 'User not found' };
+    }
+
+    const account = await prisma.mt5Account.findFirst({
+      where: { id: data.accountId, userId: user.id }
+    });
+
+    if (!account) {
+      return { success: false, error: 'Account not found' };
+    }
+
+    const updateData: any = {
+      connectionStatus: 'PENDING',
+      provisioningError: null,
+      updatedAt: new Date(),
+    };
+
+    if (data.login && data.login.trim()) {
+      updateData.login = data.login.trim();
+    }
+    if (data.server && data.server.trim()) {
+      updateData.server = data.server.trim();
+    }
+    if (data.password && data.password.trim()) {
+      updateData.password = encrypt(data.password.trim());
+    }
+    if (data.isDemo !== undefined) {
+      updateData.isDemo = data.isDemo;
+    }
+
+    await prisma.mt5Account.update({
+      where: { id: account.id },
+      data: updateData,
+    });
+
+    revalidatePath('/accounts');
+    revalidatePath('/dashboard');
+    revalidatePath('/risk');
+
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: formatUserFriendlyError(err) };
+  }
+}
+
+

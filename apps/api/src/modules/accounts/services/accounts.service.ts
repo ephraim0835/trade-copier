@@ -46,6 +46,12 @@ export class AccountsService {
   }
 
   async updateTelemetry(accountId: string, dto: UpdateTelemetryDto) {
+    // If the terminal has no broker currency, it is not connected to any trading account.
+    // Do not mark the account ONLINE or wipe provisioningError with empty 0.00 data.
+    if (!dto.currency || dto.currency.trim() === '') {
+      return { success: false, message: 'Terminal not connected to broker' };
+    }
+
     const account = await this.prisma.mt5Account.update({
       where: { id: accountId },
       data: {

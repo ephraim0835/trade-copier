@@ -2,10 +2,10 @@
 
 import { useState, useTransition, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { Settings2, Activity, Trash2, Power, PowerOff, AlertCircle, RefreshCw, Loader2, CheckCircle2, Wifi } from 'lucide-react';
+import { Settings2, Activity, Trash2, Power, PowerOff, AlertCircle, RefreshCw, Loader2, CheckCircle2, Wifi, KeyRound, Edit3, X, Check } from 'lucide-react';
 import { MoneyDisplay } from '@/components/money-display';
 import { ProtectedAction } from '@/components/protected-action';
-import { toggleAccountActive, deleteAccount, retryAccountConnection, getAccountConnectionStatus } from '@/app/actions/account-actions';
+import { toggleAccountActive, deleteAccount, retryAccountConnection, getAccountConnectionStatus, updateAccountCredentials } from '@/app/actions/account-actions';
 import { useRouter } from 'next/navigation';
 import { getFriendlyErrorDetails } from '@/lib/error-formatter';
 
@@ -37,6 +37,12 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
   const [isMounted, setIsMounted] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [justConnected, setJustConnected] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editLogin, setEditLogin] = useState(account.login);
+  const [editServer, setEditServer] = useState(account.server || '');
+  const [editPassword, setEditPassword] = useState('');
+  const [editError, setEditError] = useState<string | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const router = useRouter();
 
   // Prevent hydration mismatch by evaluating time-sensitive logic only on the client
@@ -143,6 +149,39 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
     });
   }
 
+  async function handleSaveCredentials(e: React.FormEvent) {
+    e.preventDefault();
+    setIsSavingEdit(true);
+    setEditError(null);
+    try {
+      const res = await updateAccountCredentials({
+        accountId: accountData.id,
+        login: editLogin,
+        server: editServer,
+        password: editPassword || undefined,
+      });
+      if (res.success) {
+        setIsEditing(false);
+        setEditPassword('');
+        setAccountData(prev => ({
+          ...prev,
+          login: editLogin,
+          server: editServer,
+          connectionStatus: 'PENDING',
+          provisioningError: null,
+        }));
+        setElapsedSeconds(0);
+        router.refresh();
+      } else {
+        setEditError(res.error || 'Failed to update credentials');
+      }
+    } catch (err: any) {
+      setEditError(err.message || 'An error occurred');
+    } finally {
+      setIsSavingEdit(false);
+    }
+  }
+
   return (
     <div className={`plaiz-card p-6 flex flex-col justify-between group transition-all duration-300 ${
       isFailed 
@@ -166,6 +205,13 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
                 : 'bg-destructive/80'
             }`} />
             <span className="font-semibold text-lg">{accountData.displayName || accountData.login}</span>
+            <button
+              onClick={() => setIsEditing(true)}
+              title="Edit login, password, or server"
+              className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+            </button>
           </div>
           <div className="flex items-center gap-1.5">
             {isFailed ? (
@@ -190,6 +236,110 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
             </span>
           </div>
         </div>
+
+        {/* Inline Credentials Editor */}
+        {isEditing && (
+          <div className="mb-4 p-4 rounded-2xl bg-secondary/50 border border-primary/30 flex flex-col gap-3 text-left animate-in fade-in duration-200">
+            <div className="flex items-center justify-between pb-2 border-b border-border/30">
+              <span className="font-bold text-xs flex items-center gap-1.5 text-foreground">
+                <KeyRound className="w-3.5 h-3.5 text-primary" /> Edit MT5 Credentials
+              </span>
+              <button 
+                type="button" 
+                onClick={() => { setIsEditing(false); setEditError(null); }}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {editError && (
+              <div className="p-2 rounded-lg bg-destructive/10 text-destructive text-[11px] font-medium">
+                {editError}
+              </div>
+            )}
+
+            <form onSubmit={handleSaveCredentials} className="flex flex-col gap-3">
+              <div>
+                <label className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider block mb-1">
+                  MT5 Account Number / Login
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editLogin}
+                  onChange={(e) => setEditLogin(e.target.value)}
+                  className="w-full bg-background border border-border/60 rounded-xl px-3 py-1.5 text-xs font-mono text-foreground focus:outline-none focus:border-primary"
+                  placeholder="e.g. 6208473"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider block mb-1">
+                  Broker Server Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editServer}
+                  onChange={(e) => setEditServer(e.target.value)}
+                  className="w-full bg-background border border-border/60 rounded-xl px-3 py-1.5 text-xs font-mono text-foreground focus:outline-none focus:border-primary"
+                  placeholder="e.g. Headway-Real or Headway-Demo"
+                />
+                <div className="flex gap-1.5 mt-1.5">
+                  {['Headway-Real', 'Headway-Demo'].map(srv => (
+                    <button
+                      type="button"
+                      key={srv}
+                      onClick={() => setEditServer(srv)}
+                      className={`text-[9px] px-2 py-0.5 rounded-md border font-mono transition-colors ${
+                        editServer === srv 
+                          ? 'border-primary bg-primary/10 text-primary font-semibold' 
+                          : 'border-border/40 text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {srv}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider block mb-1">
+                  New MT5 Master Password
+                </label>
+                <input
+                  type="password"
+                  value={editPassword}
+                  onChange={(e) => setEditPassword(e.target.value)}
+                  className="w-full bg-background border border-border/60 rounded-xl px-3 py-1.5 text-xs font-mono text-foreground focus:outline-none focus:border-primary"
+                  placeholder="Enter correct trading password"
+                />
+                <span className="text-[10px] text-muted-foreground block mt-1">
+                  Leave blank to keep existing encrypted password.
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2 border-t border-border/20">
+                <button
+                  type="submit"
+                  disabled={isSavingEdit}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 disabled:opacity-50 transition-all"
+                >
+                  {isSavingEdit ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                  {isSavingEdit ? 'Connecting...' : 'Save & Reconnect'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setIsEditing(false); setEditError(null); }}
+                  className="px-3 py-1.5 rounded-xl border border-border/40 text-xs text-muted-foreground hover:text-foreground transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
 
         {/* Detailed Connection Error Banner */}
         {isFailed && (() => {
@@ -216,6 +366,13 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
                 </div>
               </div>
               <div className="flex items-center gap-2 pt-1 border-t border-destructive/15">
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-[11px] font-semibold transition-all"
+                >
+                  <KeyRound className="w-3 h-3" />
+                  Update Credentials
+                </button>
                 <button
                   onClick={handleRetry}
                   disabled={isPending}
