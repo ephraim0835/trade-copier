@@ -18,40 +18,47 @@ export default async function AdminRevenuePage() {
     redirect('/dashboard');
   }
 
-  // Fetch all users with their subscriptions and active discount relations
-  const users = await prisma.user.findMany({
-    include: {
-      subscription: {
-        include: {
-          discountCode: true,
+  let users: any[] = [];
+  let discountCodes: any[] = [];
+
+  try {
+    // Fetch all users with their subscriptions and active discount relations
+    users = await prisma.user.findMany({
+      include: {
+        subscription: {
+          include: {
+            discountCode: true,
+          },
+        },
+        _count: {
+          select: { accounts: true },
         },
       },
-      _count: {
-        select: { accounts: true },
-      },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+      orderBy: { createdAt: 'desc' },
+    });
 
-  // Fetch discount codes
-  const discountCodes = await prisma.discountCode.findMany({
-    orderBy: { createdAt: 'desc' },
-  });
+    // Fetch discount codes
+    discountCodes = await prisma.discountCode.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+  } catch (err) {
+    console.error('Failed to query revenue records from database:', err);
+  }
 
   // Serialize users for client component
   const serializedUsers = users.map((u) => ({
     id: u.id,
     email: u.email,
     role: u.role,
-    createdAt: u.createdAt.toISOString(),
-    accountCount: u._count.accounts,
+    createdAt: u.createdAt ? new Date(u.createdAt).toISOString() : new Date().toISOString(),
+    accountCount: u._count?.accounts || 0,
     subscription: u.subscription
       ? {
           id: u.subscription.id,
           status: u.subscription.status,
           planId: u.subscription.planId,
           currentPeriodEnd: u.subscription.currentPeriodEnd
-            ? u.subscription.currentPeriodEnd.toISOString()
+            ? new Date(u.subscription.currentPeriodEnd).toISOString()
             : null,
           flutterwaveTxRef: u.subscription.flutterwaveTxRef,
           discountPercentage: u.subscription.discountCode?.percentage || 0,
@@ -68,7 +75,7 @@ export default async function AdminRevenuePage() {
     usedCount: d.usedCount,
     maxUses: d.maxUses,
     isActive: d.isActive,
-    validUntil: d.validUntil ? d.validUntil.toISOString() : null,
+    validUntil: d.validUntil ? new Date(d.validUntil).toISOString() : null,
   }));
 
   return (

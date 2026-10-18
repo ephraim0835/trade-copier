@@ -16,15 +16,24 @@ export default function GlobalError({
     console.error("Global Error Boundary caught:", error);
   }, [error]);
 
+  const isConnectionError = error?.message?.toLowerCase().includes('database') || 
+                            error?.message?.toLowerCase().includes('prisma') || 
+                            error?.message?.toLowerCase().includes('connect') ||
+                            error?.message?.toLowerCase().includes('timeout');
+
   return (
     <div className="flex min-h-[50vh] w-full items-center justify-center p-4">
       <div className="plaiz-card p-8 md:p-12 max-w-md w-full flex flex-col items-center text-center rounded-[24px]">
         <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mb-6">
           <AlertCircle className="w-8 h-8 text-destructive" />
         </div>
-        <h2 className="text-2xl font-bold tracking-tight mb-3">Connection Timeout</h2>
+        <h2 className="text-2xl font-bold tracking-tight mb-3">
+          {isConnectionError ? "Connection Timeout" : "Something Went Wrong"}
+        </h2>
         <p className="text-muted-foreground text-sm mb-8 leading-relaxed">
-          We encountered a temporary issue connecting to the database. This is usually caused by a momentary network drop or connection pool limit.
+          {isConnectionError 
+            ? "We encountered a temporary issue connecting to the database. This is usually caused by a momentary network drop or connection pool limit."
+            : "An unexpected error occurred while loading this section. Please try again."}
         </p>
         
         <div className="flex flex-col sm:flex-row gap-4 w-full">
