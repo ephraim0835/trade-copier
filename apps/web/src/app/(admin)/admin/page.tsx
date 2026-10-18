@@ -1,4 +1,4 @@
-import { Server, Users, ArrowRightLeft, ShieldAlert, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Server, Users, ArrowRightLeft, ShieldAlert, AlertCircle, CheckCircle2, DollarSign } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
 import { AdminLiveOverview } from '@/components/admin-live-overview';
@@ -12,6 +12,8 @@ export default async function AdminOverviewPage() {
   let activeMasters = 0;
   let latestVps: any = null;
   let systemEvents: any[] = [];
+  let mrr = 0;
+  let payingSubscribers = 0;
   
   try {
     totalUsers = await prisma.user.count();
@@ -20,6 +22,13 @@ export default async function AdminOverviewPage() {
     latestVps = await prisma.vpsEnvironment.findFirst({
       orderBy: { lastHeartbeatAt: 'desc' },
     });
+
+    const activeSubscriptions = await prisma.subscription.findMany({
+      where: { status: 'ACTIVE' },
+      select: { planId: true }
+    });
+    payingSubscribers = activeSubscriptions.length;
+    mrr = activeSubscriptions.reduce((sum, s) => sum + (s.planId === 'pro' ? 39 : 26), 0);
 
     // 1. Audit log risk rejections
     const auditLogs = await prisma.auditLog.findMany({
@@ -100,6 +109,8 @@ export default async function AdminOverviewPage() {
         totalUsers={totalUsers}
         activeMasters={activeMasters}
         activeSubs={activeSubs}
+        mrr={mrr}
+        payingSubscribers={payingSubscribers}
       />
 
       {/* System Events & Quick Actions */}
@@ -148,6 +159,9 @@ export default async function AdminOverviewPage() {
         <section className="plaiz-card p-6 flex flex-col">
           <h3 className="text-lg font-bold mb-4">Quick Navigation</h3>
           <div className="flex flex-col gap-3">
+            <Link href="/admin/revenue" className="plaiz-btn plaiz-btn-secondary w-full justify-start text-xs py-3 hover:border-emerald-500/40 transition-all font-semibold text-foreground">
+              <DollarSign className="w-4 h-4 mr-2 text-emerald-500" /> Revenue & MRR Tracker ({payingSubscribers} active • ${mrr}/mo)
+            </Link>
             <Link href="/admin/infrastructure" className="plaiz-btn plaiz-btn-secondary w-full justify-start text-xs py-3 hover:border-primary/40 transition-all">
               <Server className="w-4 h-4 mr-2 text-primary" /> Check VPS Hardware & Terminals
             </Link>

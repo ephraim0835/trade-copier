@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Bot, Users, ArrowRightLeft, ShieldAlert, Cpu, HardDrive, Activity, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Bot, Users, ArrowRightLeft, ShieldAlert, Cpu, HardDrive, Activity, CheckCircle2, AlertTriangle, DollarSign } from 'lucide-react';
 import { AdminBotControls } from '@/components/admin-bot-controls';
 
 interface AdminLiveOverviewProps {
@@ -11,6 +11,8 @@ interface AdminLiveOverviewProps {
   totalUsers: number;
   activeMasters: number;
   activeSubs: number;
+  mrr?: number;
+  payingSubscribers?: number;
 }
 
 export function AdminLiveOverview({
@@ -19,6 +21,8 @@ export function AdminLiveOverview({
   totalUsers,
   activeMasters,
   activeSubs,
+  mrr = 0,
+  payingSubscribers = 0,
 }: AdminLiveOverviewProps) {
   const [isOnline, setIsOnline] = useState(initialIsOnline);
   const [vps, setVps] = useState(initialVps);
@@ -68,7 +72,7 @@ export function AdminLiveOverview({
   return (
     <div className="flex flex-col gap-8">
       {/* Overview Stat Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Bot Status Card */}
         <Link
           href="/admin/infrastructure"
@@ -115,6 +119,35 @@ export function AdminLiveOverview({
               {isOnline
                 ? `Pulse received ${diffSeconds < 60 ? `${diffSeconds}s ago` : `${Math.round(diffSeconds / 60)}m ago`}`
                 : 'VPS manager daemon not detected'}
+            </span>
+          </div>
+        </Link>
+
+        {/* Revenue (MRR) Card */}
+        <Link
+          href="/admin/revenue"
+          className="plaiz-card p-6 flex flex-col justify-between hover:border-emerald-500/50 transition-all group"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-10 h-10 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center group-hover:bg-emerald-500/20 transition-colors">
+              <DollarSign className="w-5 h-5" />
+            </div>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+              MRR
+            </span>
+          </div>
+          <div>
+            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider block mb-1">
+              Monthly Revenue
+            </span>
+            <div className="flex items-baseline gap-1">
+              <span className="text-2xl font-bold num-tabular text-foreground">
+                ${mrr.toLocaleString()}
+              </span>
+              <span className="text-xs text-muted-foreground">/mo</span>
+            </div>
+            <span className="text-[11px] text-primary font-medium block mt-2 group-hover:underline">
+              {payingSubscribers} active paying &rarr;
             </span>
           </div>
         </Link>
