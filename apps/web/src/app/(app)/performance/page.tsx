@@ -82,6 +82,8 @@ export default async function PerformancePage() {
     timestamp: s.timestamp.toISOString(),
   }));
 
+  const accountCurrencyMap = new Map(userAccounts.map(a => [a.id, a.currency || 'USD']));
+
   // Build trade list from both master signals and sub copies
   const trades: PerformanceTrade[] = [];
 
@@ -100,6 +102,7 @@ export default async function PerformancePage() {
         createdAt: signal.createdAt.toISOString(),
         masterLogin: accountLoginMap.get(signal.masterAcctId),
         accountRole: 'MASTER',
+        currency: accountCurrencyMap.get(signal.masterAcctId) || 'USD',
       });
     }
 
@@ -118,6 +121,7 @@ export default async function PerformancePage() {
         masterLogin: accountLoginMap.get(signal.masterAcctId),
         subLogin: copy.subAccount?.login || accountLoginMap.get(copy.subAccountId),
         accountRole: 'SUB',
+        currency: copy.subAccount?.currency || accountCurrencyMap.get(copy.subAccountId) || 'USD',
       });
     });
   });

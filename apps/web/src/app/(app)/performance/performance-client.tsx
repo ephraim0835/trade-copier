@@ -19,6 +19,8 @@ import {
   ArrowRightLeft
 } from 'lucide-react';
 import { PerformanceChart } from '@/components/dashboard/performance-chart';
+import { MultiMoneyDisplay } from '@/components/multi-money-display';
+import { useCurrency } from '@/components/currency-provider';
 import Link from 'next/link';
 
 export interface PerformanceAccount {
@@ -54,6 +56,7 @@ export interface PerformanceTrade {
   masterLogin?: string;
   subLogin?: string;
   accountRole: 'MASTER' | 'SUB';
+  currency?: string;
 }
 
 interface PerformanceClientProps {
@@ -63,6 +66,36 @@ interface PerformanceClientProps {
 }
 
 export function PerformanceClient({ accounts, snapshots, trades }: PerformanceClientProps) {
+  const { currency, exchangeRate, formatMoney } = useCurrency();
+
+  // Helper to convert an amount from source currency to target viewing currency
+  const convertAmount = (amount: number, sourceCurrency: string = 'USD') => {
+    const src = (sourceCurrency || 'USD').toUpperCase();
+    if (src === 'NGN' && currency === 'USD') {
+      return amount / exchangeRate;
+    } else if (src === 'USD' && currency === 'NGN') {
+      return amount * exchangeRate;
+    }
+    return amount;
+  };
+
+  // Format currency helper for current active currency
+  const formatCurValue = (val: number) => {
+    return new Intl.NumberFormat(currency === 'NGN' ? 'en-NG' : 'en-US', {
+      style: 'currency',
+      currency: currency,
+      minimumFractionDigits: currency === 'NGN' ? 0 : 2,
+      maximumFractionDigits: currency === 'NGN' ? 0 : 2
+    }).format(val);
+  };
+
+  // Account currency map
+  const accountCurrencyMap = useMemo(() => {
+    const map = new Map<string, string>();
+    accounts.forEach(a => map.set(a.id, a.currency || 'USD'));
+    return map;
+  }, [accounts]);
+
   // Account filter: 'all' | account.login
   const [selectedAccount, setSelectedAccount] = useState<string>('all');
   const [timeRange, setTimeRange] = useState<'all' | '7d' | '30d'>('all');
@@ -77,22 +110,39 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
     return new Set(filteredAccounts.map(a => a.id));
   }, [filteredAccounts]);
 
+  // MultiMoneyDisplay data payloads
+  const balanceBalances = useMemo(() => {
+    return filteredAccounts.map(a => ({
+      id: a.id,
+      amount: a.balance || 0,
+      currency: a.currency || 'USD'
+    }));
+  }, [filteredAccounts]);
+
+  const equityBalances = useMemo(() => {
+    return filteredAccounts.map(a => ({
+      id: a.id,
+      amount: a.equity || a.balance || 0,
+      currency: a.currency || 'USD'
+    }));
+  }, [filteredAccounts]);
+
   // Filtered trades based on selection
   const filteredTrades = useMemo(() => {
     if (selectedAccount === 'all') return trades;
     return trades.filter(t => t.masterLogin === selectedAccount || t.subLogin === selectedAccount);
   }, [trades, selectedAccount]);
 
-  // Calculate high-level performance metrics
+  // Calculate high-level performance metrics (converted to active viewing currency)
   const totalBalance = useMemo(() => {
-    return filteredAccounts.reduce((sum, a) => sum + (a.balance || 0), 0);
-  }, [filteredAccounts]);
+    return filteredAccounts.reduce((sum, a) => sum + convertAmount(a.balance || 0, a.currency), 0);
+  }, [filteredAccounts, currency, exchangeRate]);
 
   const totalEquity = useMemo(() => {
-    return filteredAccounts.reduce((sum, a) => sum + (a.equity || a.balance || 0), 0);
-  }, [filteredAccounts]);
+    return filteredAccounts.reduce((sum, a) => sum + convertAmount(a.equity || a.balance || 0, a.currency), 0);
+  }, [filteredAccounts, currency, exchangeRate]);
 
-  // Trade analytics
+  // Trade analytics (converted to active viewing currency)
   const tradeStats = useMemo(() => {
     const closedTrades = filteredTrades.filter(t => t.profit !== null && t.profit !== undefined);
     const totalTrades = closedTrades.length;
@@ -120,7 +170,7 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
     let worstTrade = Infinity;
 
     closedTrades.forEach(t => {
-      const p = t.profit || 0;
+      const p = convertAmount(t.profit || 0, t.currency || 'USD');
       if (p > 0) {
         winningTrades++;
         grossProfit += p;
@@ -148,7 +198,7 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
       grossProfit: Math.round(grossProfit * 100) / 100,
       grossLoss: Math.round(grossLoss * 100) / 100,
     };
-  }, [filteredTrades]);
+  }, [filteredTrades, currency, exchangeRate]);
 
   // Chart Data preparation: group snapshots or synthesize from trade trajectory
   const chartData = useMemo(() => {
@@ -167,7 +217,7 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
             value: 0
           };
         }
-        acc[hourKey].value += (curr.equity || curr.balance || 0);
+        acc[hourKey].value += convertAmount(curr.equity || curr.balance || 0, accountCurrencyMap.get(curr.mt5AccountId) || 'USD');
         return acc;
       }, {});
 
@@ -183,7 +233,7 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
           return {
             date: d.toLocaleString('default', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
             timestamp: d.getTime(),
-            value: Math.round((s.equity || s.balance || 0) * 100) / 100
+            value: Math.round(convertAmount(s.equity || s.balance || 0, accountCurrencyMap.get(s.mt5AccountId) || 'USD') * 100) / 100
           };
         })
         .sort((a, b) => a.timestamp - b.timestamp);
@@ -214,7 +264,7 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
         });
 
         closedTrades.forEach((t) => {
-          runningEquity += (t.profit || 0);
+          runningEquity += convertAmount(t.profit || 0, t.currency || 'USD');
           const d = new Date(t.createdAt);
           points.push({
             date: d.toLocaleString('default', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
@@ -309,11 +359,15 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
           </div>
           <div>
             <div className="text-2xl sm:text-3xl font-bold num-tabular text-foreground">
-              ${totalEquity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <MultiMoneyDisplay 
+                balances={equityBalances}
+                liveType="equity"
+              />
             </div>
-            <span className="text-[11px] text-muted-foreground mt-0.5 block">
-              Balance: ${totalBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-            </span>
+            <div className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
+              <span>Balance:</span>
+              <MultiMoneyDisplay balances={balanceBalances} liveType="balance" />
+            </div>
           </div>
         </div>
 
@@ -327,7 +381,7 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
             <div className={`text-2xl sm:text-3xl font-bold num-tabular ${
               tradeStats.netProfit > 0 ? 'text-emerald-500' : tradeStats.netProfit < 0 ? 'text-red-500' : 'text-muted-foreground'
             }`}>
-              {tradeStats.netProfit > 0 ? `+$${tradeStats.netProfit.toFixed(2)}` : tradeStats.netProfit < 0 ? `-$${Math.abs(tradeStats.netProfit).toFixed(2)}` : '$0.00'}
+              {tradeStats.netProfit > 0 ? `+${formatCurValue(tradeStats.netProfit)}` : tradeStats.netProfit < 0 ? `-${formatCurValue(Math.abs(tradeStats.netProfit))}` : formatCurValue(0)}
             </div>
             <span className="text-[11px] text-muted-foreground mt-0.5 block">
               Across {tradeStats.totalTrades} completed trade{tradeStats.totalTrades === 1 ? '' : 's'}
@@ -365,7 +419,7 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
               {tradeStats.profitFactor > 50 ? 'N/A' : tradeStats.profitFactor.toFixed(2)}
             </div>
             <span className="text-[11px] text-muted-foreground mt-0.5 block">
-              Gains: +${tradeStats.grossProfit.toFixed(2)} &bull; Losses: -${tradeStats.grossLoss.toFixed(2)}
+              Gains: +{formatCurValue(tradeStats.grossProfit)} &bull; Losses: -{formatCurValue(tradeStats.grossLoss)}
             </span>
           </div>
         </div>
@@ -529,7 +583,7 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
                       <td className="px-4 py-3 font-bold text-sm">
                         {profit !== null && profit !== undefined ? (
                           <span className={profit > 0 ? 'text-emerald-500' : profit < 0 ? 'text-red-500' : 'text-muted-foreground'}>
-                            {profit > 0 ? `+$${profit.toFixed(2)}` : profit < 0 ? `-$${Math.abs(profit).toFixed(2)}` : '$0.00'}
+                            {profit > 0 ? `+${formatCurValue(convertAmount(profit, trade.currency || 'USD'))}` : profit < 0 ? `-${formatCurValue(Math.abs(convertAmount(profit, trade.currency || 'USD')))}` : formatCurValue(0)}
                           </span>
                         ) : (
                           <span className="text-muted-foreground">--</span>

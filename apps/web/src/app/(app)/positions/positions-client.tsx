@@ -18,6 +18,7 @@ import {
   CheckCircle2,
   Clock
 } from 'lucide-react';
+import { MoneyDisplay } from '@/components/money-display';
 
 export interface SerializedCommand {
   id: string;
@@ -329,20 +330,24 @@ export function PositionsClient({ signals, accounts = [] }: PositionsClientProps
                   <div>
                     <span className="text-[10px] text-muted-foreground uppercase tracking-wider block">Balance</span>
                     <span className="font-mono font-semibold text-xs text-foreground">
-                      ${(acc.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      <MoneyDisplay 
+                        amount={acc.balance || 0} 
+                        sourceCurrency={acc.currency || 'USD'} 
+                        accountId={acc.id} 
+                        liveType="balance" 
+                      />
                     </span>
                   </div>
 
                   <div className="text-right">
                     <span className="text-[10px] text-muted-foreground uppercase tracking-wider block">Realized P/L</span>
-                    <span className={`font-mono font-bold text-sm ${
-                      stats.realizedPnl > 0 ? 'text-emerald-500' : stats.realizedPnl < 0 ? 'text-red-500' : 'text-muted-foreground'
-                    }`}>
-                      {stats.realizedPnl > 0 
-                        ? `+$${stats.realizedPnl.toFixed(2)}` 
-                        : stats.realizedPnl < 0 
-                        ? `-$${Math.abs(stats.realizedPnl).toFixed(2)}` 
-                        : '$0.00'}
+                    <span className="font-mono font-bold text-sm">
+                      <MoneyDisplay 
+                        amount={stats.realizedPnl} 
+                        sourceCurrency={acc.currency || 'USD'} 
+                        colored={true} 
+                        showSign={true} 
+                      />
                     </span>
                   </div>
                 </div>
