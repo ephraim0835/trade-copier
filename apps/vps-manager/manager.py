@@ -1,4 +1,5 @@
 import os
+import re
 import time
 import threading
 import json
@@ -58,6 +59,24 @@ def decrypt_password(encrypted_str):
     except Exception as e:
         logger.error(f"Failed to decrypt password: {e}")
         return encrypted_str
+
+# Known direct hostnames for brokers without preloaded servers.dat definitions
+# Note: MT5 expects hostnames WITHOUT :443 (e.g. 'mt5.demo.trade-hw.online')
+KNOWN_BROKER_SERVERS = {
+    'headway-real': 'mt5.real.trade-hw.online',
+    'headway-demo': 'mt5.demo.trade-hw.online',
+    'mt5.real.trade-hw.online:443': 'mt5.real.trade-hw.online',
+    'mt5.demo.trade-hw.online:443': 'mt5.demo.trade-hw.online',
+}
+
+def resolve_server_name(server_str: str) -> str:
+    if not server_str:
+        return ''
+    cleaned = server_str.strip()
+    if ':443' in cleaned:
+        cleaned = cleaned.replace(':443', '')
+    return KNOWN_BROKER_SERVERS.get(cleaned.lower(), cleaned)
+
 
 def get_broker_symbol(account):
     broker = (account.get('broker') or '').lower()
@@ -170,6 +189,17 @@ def launch_mt5_and_attach_ea(account):
                 shutil.copy2(cand, config_dir / 'servers.dat')
                 logger.info(f"Synced master servers.dat ({cand.stat().st_size:,} bytes) into {instance_dir.name}")
                 break
+
+        # Block MetaQuotes LiveUpdate hijacking in portable instance
+        try:
+            lu_block = instance_dir / 'liveupdate'
+            if lu_block.exists() and lu_block.is_dir():
+                shutil.rmtree(lu_block, ignore_errors=True)
+            if not lu_block.exists():
+                lu_block.write_bytes(b"LOCKED_LIVEUPDATE_BLOCK")
+                os.chmod(lu_block, stat.S_IREAD)
+        except Exception:
+            pass
 
         # For portable instances, the terminal path AND data path are the exact same directory
         return instance_dir, instance_dir
@@ -322,12 +352,7 @@ def launch_mt5_and_attach_ea(account):
     ini_file_name = f"startup_{login}.ini"
     ini_file_path = ini_file_dir / ini_file_name
     
-    # Direct hostname mapping for brokers without servers.dat definitions
-    KNOWN_BROKER_SERVERS = {
-        'headway-real': 'mt5.real.trade-hw.online:443',
-        'headway-demo': 'mt5.demo.trade-hw.online:443',
-    }
-    resolved_server = KNOWN_BROKER_SERVERS.get(server.strip().lower() if server else '', server)
+    resolved_server = resolve_server_name(server)
 
     with open(ini_file_path, 'w') as f:
         f.write(f"[Common]\n")
@@ -376,6 +401,21 @@ def launch_mt5_and_attach_ea(account):
     account['process'] = proc
     account['instance_dir'] = str(terminal_path)
     account['server'] = server
+    account['launch_time'] = time.time()
+
+    # Record log file offsets at launch so diagnostics only inspect new session logs
+    try:
+        logs_dir = terminal_path / 'logs'
+        log_files = sorted(logs_dir.glob('*.log'), key=lambda p: p.stat().st_mtime, reverse=True) if logs_dir.exists() else []
+        account['log_offset'] = log_files[0].stat().st_size if log_files else 0
+        account['log_file'] = str(log_files[0]) if log_files else None
+
+        mql_dir = terminal_path / 'MQL5' / 'Logs'
+        mql_files = sorted(mql_dir.glob('*.log'), key=lambda p: p.stat().st_mtime, reverse=True) if mql_dir.exists() else []
+        account['mql_offset'] = mql_files[0].stat().st_size if mql_files else 0
+        account['mql_file'] = str(mql_files[0]) if mql_files else None
+    except Exception:
+        pass
     
     return True
 
@@ -408,6 +448,8 @@ def check_terminal_logs_for_diagnostics(acc):
     
     server_name = acc.get('server') or 'broker server'
     login_id = acc.get('login') or ''
+    launch_ts = acc.get('launch_time', 0)
+    launch_dt = datetime.datetime.fromtimestamp(launch_ts) if launch_ts > 0 else None
     
     # 1. Inspect network and terminal logs
     logs_dir = Path(instance_dir) / 'logs'
@@ -416,14 +458,28 @@ def check_terminal_logs_for_diagnostics(acc):
         if log_files:
             target_log = log_files[0]
             try:
-                content = ''
-                try:
-                    content = target_log.read_text(encoding='utf-16-le', errors='ignore')
-                except Exception:
-                    content = target_log.read_text(encoding='utf-8', errors='ignore')
+                # If the log file was not modified after this session launched, no new entries exist
+                if launch_ts > 0 and target_log.stat().st_mtime < launch_ts:
+                    lines = []
+                else:
+                    content = ''
+                    try:
+                        content = target_log.read_text(encoding='utf-16-le', errors='ignore')
+                    except Exception:
+                        content = target_log.read_text(encoding='utf-8', errors='ignore')
+                    lines = content.splitlines()[-100:]
                 
-                lines = content.splitlines()[-60:]
                 for line in reversed(lines):
+                    # Check MT5 log line timestamp format: HH:MM:SS
+                    if launch_dt:
+                        match = re.search(r'\b(\d{2}):(\d{2}):(\d{2})\b', line)
+                        if match:
+                            h, m, s = map(int, match.groups())
+                            line_dt = launch_dt.replace(hour=h, minute=m, second=s, microsecond=0)
+                            # If log line is older than launch time by more than 10s, stop backward search
+                            if (launch_dt - line_dt).total_seconds() > 10:
+                                break
+
                     line_lower = line.lower()
                     
                     # Ignore non-broker community, cloud, or MQL5 service logs
@@ -466,19 +522,30 @@ def check_terminal_logs_for_diagnostics(acc):
         if mql_log_files:
             target_mql_log = mql_log_files[0]
             try:
-                content = ''
-                try:
-                    content = target_mql_log.read_text(encoding='utf-16-le', errors='ignore')
-                except Exception:
-                    content = target_mql_log.read_text(encoding='utf-8', errors='ignore')
+                if launch_ts > 0 and target_mql_log.stat().st_mtime < launch_ts:
+                    lines = []
+                else:
+                    content = ''
+                    try:
+                        content = target_mql_log.read_text(encoding='utf-16-le', errors='ignore')
+                    except Exception:
+                        content = target_mql_log.read_text(encoding='utf-8', errors='ignore')
+                    lines = content.splitlines()[-60:]
                 
-                lines = content.splitlines()[-40:]
                 for line in reversed(lines):
+                    if launch_dt:
+                        match = re.search(r'\b(\d{2}):(\d{2}):(\d{2})\b', line)
+                        if match:
+                            h, m, s = map(int, match.groups())
+                            line_dt = launch_dt.replace(hour=h, minute=m, second=s, microsecond=0)
+                            if (launch_dt - line_dt).total_seconds() > 10:
+                                break
+
                     line_lower = line.lower()
                     if 'webrequest failed with code 401' in line_lower or 'unauthorized' in line_lower:
                         return 'FAILED', "EA Authentication Failed: Invalid or expired EA authorization token (HTTP 401)."
-                    if 'initialization failed' in line_lower or 'expert removed' in line_lower:
-                        return 'FAILED', "Terminal Startup Interrupted: The Trade Copier expert was removed or stopped by the terminal. Please try again."
+                    if 'initialization failed' in line_lower:
+                        return 'FAILED', "Terminal Startup Interrupted: The Trade Copier expert initialization failed. Please try again."
             except Exception as e:
                 logger.debug(f"Error checking MQL5 logs for {login_id}: {e}")
                 
@@ -665,7 +732,7 @@ def poll_db_worker():
                                     init_kwargs["login"] = int(login)
                                     init_kwargs["password"] = acc.get('password')
                                     srv_raw = acc.get('server', '')
-                                    init_kwargs["server"] = KNOWN_BROKER_SERVERS.get(srv_raw.strip().lower() if srv_raw else '', srv_raw)
+                                    init_kwargs["server"] = resolve_server_name(srv_raw)
                                 except Exception:
                                     pass
 
