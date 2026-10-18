@@ -42,6 +42,7 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
   const [editServer, setEditServer] = useState(account.server || '');
   const [editPassword, setEditPassword] = useState('');
   const [editError, setEditError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const router = useRouter();
 
@@ -139,13 +140,19 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
   function handleDelete() {
     if (!confirmDelete) {
       setConfirmDelete(true);
-      // Auto-reset confirmation state after 3 seconds
-      setTimeout(() => setConfirmDelete(false), 3000);
+      setDeleteError(null);
+      // Auto-reset confirmation state after 4 seconds
+      setTimeout(() => setConfirmDelete(false), 4000);
       return;
     }
+    setConfirmDelete(false);
     startTransition(async () => {
-      await deleteAccount(accountData.id);
-      router.refresh();
+      const res = await deleteAccount(accountData.id);
+      if (!res.success) {
+        setDeleteError(res.error || 'Failed to delete account');
+      } else {
+        router.refresh();
+      }
     });
   }
 
@@ -569,6 +576,12 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
         {confirmDelete && (
           <p className="text-[11px] text-destructive text-center animate-in fade-in">
             Click delete again to confirm — this cannot be undone
+          </p>
+        )}
+
+        {deleteError && (
+          <p className="text-[11px] text-destructive text-center animate-in fade-in bg-destructive/10 py-1 px-2 rounded-md">
+            {deleteError}
           </p>
         )}
       </div>

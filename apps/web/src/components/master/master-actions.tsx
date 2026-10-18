@@ -15,18 +15,25 @@ export function MasterActions({ masterAccountId }: MasterActionsProps) {
   const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function handleDisconnect() {
     if (!confirmDisconnect) {
       setConfirmDisconnect(true);
-      setTimeout(() => setConfirmDisconnect(false), 3000);
+      setError(null);
+      setTimeout(() => setConfirmDisconnect(false), 4000);
       return;
     }
+    setConfirmDisconnect(false);
     startTransition(async () => {
       if (masterAccountId) {
-        await deleteAccount(masterAccountId);
-        router.refresh();
+        const res = await deleteAccount(masterAccountId);
+        if (!res.success) {
+          setError(res.error || 'Failed to disconnect account');
+        } else {
+          router.refresh();
+        }
       }
     });
   }
@@ -34,6 +41,11 @@ export function MasterActions({ masterAccountId }: MasterActionsProps) {
   return (
     <>
       <div className="flex items-center gap-3">
+        {error && (
+          <span className="text-xs text-destructive font-medium px-2 py-1 bg-destructive/10 rounded-md">
+            {error}
+          </span>
+        )}
         {/* Disconnect button — only shown when a master account exists */}
         {masterAccountId && (
           <ProtectedAction>
@@ -47,7 +59,7 @@ export function MasterActions({ masterAccountId }: MasterActionsProps) {
               }`}
             >
               <Unplug className="w-4 h-4" />
-              {confirmDisconnect ? 'Confirm Disconnect' : 'Disconnect'}
+              {isPending ? 'Disconnecting...' : confirmDisconnect ? 'Confirm Disconnect' : 'Disconnect'}
             </button>
           </ProtectedAction>
         )}
