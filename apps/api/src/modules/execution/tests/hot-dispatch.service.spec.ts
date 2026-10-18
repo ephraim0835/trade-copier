@@ -143,6 +143,27 @@ describe('HotDispatchService (Phase B Unit Tests)', () => {
       expect(second.id).toBe('cmd-idem');
       expect(service.getAllActiveCommands('sub-1').length).toBe(1);
     });
+
+    it('should allow multiple sub-accounts to enqueue commands sharing the same master eventId', async () => {
+      const cmdSub1 = createMockCommand('cmd-sub1', 'sub-1', 1, 5555n);
+      cmdSub1.eventId = 'shared-master-event-1';
+      const cmdSub2 = createMockCommand('cmd-sub2', 'sub-2', 1, 5555n);
+      cmdSub2.eventId = 'shared-master-event-1';
+
+      const first = await service.enqueueCommand(cmdSub1);
+      const second = await service.enqueueCommand(cmdSub2);
+
+      expect(first.id).toBe('cmd-sub1');
+      expect(second.id).toBe('cmd-sub2');
+
+      const claimedSub1 = service.claimPendingCommands('sub-1', 1);
+      const claimedSub2 = service.claimPendingCommands('sub-2', 1);
+
+      expect(claimedSub1.length).toBe(1);
+      expect(claimedSub1[0].id).toBe('cmd-sub1');
+      expect(claimedSub2.length).toBe(1);
+      expect(claimedSub2[0].id).toBe('cmd-sub2');
+    });
   });
 
   describe('4. State Machine & EXECUTION_UNKNOWN Safety', () => {

@@ -75,7 +75,7 @@ export interface IHotDispatchQueue {
   acknowledgeCommand(subAccountId: string, commandId: string, subTelemetry?: any): HotCommandData;
   recordExecutionResult(subAccountId: string, result: any, subTelemetry?: any): HotCommandData;
   getCommand(commandId: string): HotCommandData | null;
-  checkIdempotency(eventId: string): HotCommandData | null;
+  checkIdempotency(eventId: string, subAccountId?: string): HotCommandData | null;
   markExecutionUnknown(commandId: string, reason: string): HotCommandData;
 }
 
@@ -98,8 +98,11 @@ export class HotDispatchService implements IHotDispatchQueue, OnModuleInit, OnMo
   // Global O(1) command lookup table
   private readonly commandMap = new Map<string, HotCommandData>();
 
-  // Idempotency lookup: "masterAccountId:masterTicket:sequenceNumber:eventType" -> commandId
+  // Idempotency lookup: `${eventId}:${subAccountId}` -> commandId
   private readonly idempotencyIndex = new Map<string, string>();
+
+  // Master event lookup: `eventId` -> first commandId (for master signal retry detection)
+  private readonly masterEventIdIndex = new Map<string, string>();
 
   // Track highest processed sequence per (masterAccountId + masterTicket) to reject stale/out-of-order signals
   private readonly highestSequenceMap = new Map<string, number>();
@@ -195,7 +198,11 @@ export class HotDispatchService implements IHotDispatchQueue, OnModuleInit, OnMo
 
           // Update idempotency index
           if (cmdData.eventId) {
-            this.idempotencyIndex.set(cmdData.eventId, cmdData.id);
+            const idemKey = `${cmdData.eventId}:${cmdData.subAccountId}`;
+            this.idempotencyIndex.set(idemKey, cmdData.id);
+            if (!this.masterEventIdIndex.has(cmdData.eventId)) {
+              this.masterEventIdIndex.set(cmdData.eventId, cmdData.id);
+            }
           }
 
           // Update sequence tracker
@@ -245,9 +252,16 @@ export class HotDispatchService implements IHotDispatchQueue, OnModuleInit, OnMo
     }
   }
 
-  checkIdempotency(eventId: string): HotCommandData | null {
+  checkIdempotency(eventId: string, subAccountId?: string): HotCommandData | null {
     if (!eventId) return null;
-    const existingId = this.idempotencyIndex.get(eventId);
+    if (subAccountId) {
+      const existingId = this.idempotencyIndex.get(`${eventId}:${subAccountId}`);
+      if (existingId) {
+        return this.commandMap.get(existingId) || null;
+      }
+      return null;
+    }
+    const existingId = this.masterEventIdIndex.get(eventId);
     if (existingId) {
       return this.commandMap.get(existingId) || null;
     }
@@ -270,10 +284,11 @@ export class HotDispatchService implements IHotDispatchQueue, OnModuleInit, OnMo
     cmd.updatedAt = now;
     cmd.hotPathCommandAvailableAt = now;
 
-    // 1. Check idempotency
+    // 1. Check idempotency (scoped to eventId + subAccountId for multi-sub fan-out)
     if (cmd.eventId) {
-      if (this.idempotencyIndex.has(cmd.eventId)) {
-        const existingId = this.idempotencyIndex.get(cmd.eventId)!;
+      const idemKey = `${cmd.eventId}:${cmd.subAccountId}`;
+      if (this.idempotencyIndex.has(idemKey)) {
+        const existingId = this.idempotencyIndex.get(idemKey)!;
         return this.commandMap.get(existingId)!;
       }
     }
@@ -284,7 +299,11 @@ export class HotDispatchService implements IHotDispatchQueue, OnModuleInit, OnMo
     // 3. Register in in-memory lookups
     this.commandMap.set(cmd.id, cmd);
     if (cmd.eventId) {
-      this.idempotencyIndex.set(cmd.eventId, cmd.id);
+      const idemKey = `${cmd.eventId}:${cmd.subAccountId}`;
+      this.idempotencyIndex.set(idemKey, cmd.id);
+      if (!this.masterEventIdIndex.has(cmd.eventId)) {
+        this.masterEventIdIndex.set(cmd.eventId, cmd.id);
+      }
     }
 
     // 4. Update highest sequence
@@ -504,6 +523,7 @@ export class HotDispatchService implements IHotDispatchQueue, OnModuleInit, OnMo
     this.subQueues.clear();
     this.commandMap.clear();
     this.idempotencyIndex.clear();
+    this.masterEventIdIndex.clear();
     this.highestSequenceMap.clear();
   }
 }

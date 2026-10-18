@@ -81,48 +81,57 @@ public:
             }
         }
         
-        if(g_hConnect == 0 || g_lastHost != host || g_lastPort != port) {
-            if(g_hConnect != 0) {
+        int maxRetries = 2;
+        long hRequest = 0;
+        bool sendRes = false;
+        
+        for(int attempt = 0; attempt < maxRetries; attempt++) {
+            if(g_hConnect == 0 || g_lastHost != host || g_lastPort != port) {
+                if(g_hConnect != 0) {
+                    InternetCloseHandle(g_hConnect);
+                    g_hConnect = 0;
+                }
+                g_hConnect = InternetConnectW(g_hInternet, host, port, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
+                if(g_hConnect == 0) {
+                    Print("InternetConnectW failed");
+                    return -1;
+                }
+                g_lastHost = host;
+                g_lastPort = port;
+            }
+            
+            int flags = INTERNET_FLAG_RELOAD | INTERNET_FLAG_NO_CACHE_WRITE;
+            if(isHttps) {
+                flags |= INTERNET_FLAG_SECURE | INTERNET_FLAG_IGNORE_CERT_CN_INVALID | INTERNET_FLAG_IGNORE_CERT_DATE_INVALID;
+            }
+            
+            hRequest = HttpOpenRequestW(g_hConnect, method, path, "HTTP/1.1", NULL, 0, flags, 0);
+            if(hRequest == 0) {
                 InternetCloseHandle(g_hConnect);
                 g_hConnect = 0;
-            }
-            g_hConnect = InternetConnectW(g_hInternet, host, port, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
-            if(g_hConnect == 0) {
-                Print("InternetConnectW failed");
+                if(attempt < maxRetries - 1) continue;
+                Print("HttpOpenRequestW failed, GetLastError=", GetLastError());
                 return -1;
             }
-            g_lastHost = host;
-            g_lastPort = port;
-        }
-        
-        int flags = INTERNET_FLAG_RELOAD | INTERNET_FLAG_NO_CACHE_WRITE;
-        if(isHttps) {
-            flags |= INTERNET_FLAG_SECURE | INTERNET_FLAG_IGNORE_CERT_CN_INVALID | INTERNET_FLAG_IGNORE_CERT_DATE_INVALID;
-        }
-        
-        long hRequest = HttpOpenRequestW(g_hConnect, method, path, "HTTP/1.1", NULL, 0, flags, 0);
-        if(hRequest == 0) {
-            Print("HttpOpenRequestW failed, GetLastError=", GetLastError());
-            InternetCloseHandle(g_hConnect);
-            g_hConnect = 0;
-            return -1;
-        }
-        
-        bool sendRes = false;
-        if(ArraySize(postData) > 0) {
-            sendRes = HttpSendRequestW(hRequest, headers, -1, postData, ArraySize(postData));
-        } else {
-            uchar dummy[1];
-            dummy[0] = 0;
-            sendRes = HttpSendRequestW(hRequest, headers, -1, dummy, 0);
-        }
-        
-        if(!sendRes) {
-            Print("HttpSendRequestW failed, GetLastError=", GetLastError());
-            InternetCloseHandle(hRequest);
-            InternetCloseHandle(g_hConnect);
-            g_hConnect = 0;
-            return -1;
+            
+            if(ArraySize(postData) > 0) {
+                sendRes = HttpSendRequestW(hRequest, headers, -1, postData, ArraySize(postData));
+            } else {
+                uchar dummy[1];
+                dummy[0] = 0;
+                sendRes = HttpSendRequestW(hRequest, headers, -1, dummy, 0);
+            }
+            
+            if(!sendRes) {
+                InternetCloseHandle(hRequest);
+                hRequest = 0;
+                InternetCloseHandle(g_hConnect);
+                g_hConnect = 0;
+                if(attempt < maxRetries - 1) continue;
+                Print("HttpSendRequestW failed, GetLastError=", GetLastError());
+                return -1;
+            }
+            break;
         }
         
         // Read response

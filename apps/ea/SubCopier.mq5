@@ -66,7 +66,7 @@ const string HISTORY_FILE = "SubCopier_History.csv";
 static bool pollInFlight = false;   // In-flight guard to prevent WebRequest overlap & Error 1003
 
 ulong lastTelemetryAt = 0;
-const ulong TELEMETRY_INTERVAL_US = 1000000; // 1 second in microseconds
+const ulong TELEMETRY_INTERVAL_US = 10000000; // 10 seconds in microseconds
 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
@@ -132,7 +132,17 @@ void OnTimer()
      }
 
    // Only execute trades if algo trading active
-   if(!TerminalInfoInteger(TERMINAL_TRADE_ALLOWED)) return;
+   if(!TerminalInfoInteger(TERMINAL_TRADE_ALLOWED))
+     {
+      static ulong lastWarnUs = 0;
+      if(nowUs - lastWarnUs > 10000000) // Log once every 10 seconds
+        {
+         lastWarnUs = nowUs;
+         Print("WARNING: Algorithmic trading (TERMINAL_TRADE_ALLOWED) is DISABLED in MT5! SubCopier cannot poll or copy trades.");
+         LogToFile("WARNING: Algorithmic trading is DISABLED in MT5! Trade polling and execution blocked.");
+        }
+      return;
+     }
      
    PollCommands();
   }
@@ -150,6 +160,20 @@ void PollCommands()
    
    ResetLastError();
    int res = CWinInet::Get(API_URL + "/poll", headers, result);
+   
+   // Resilient fallback: If WinInet fails, immediately fall back to MT5 native WebRequest
+   if(res != 200 && res != 201 && res != 204)
+     {
+      string webHeaders = "Authorization: Bearer " + EA_TOKEN + "\r\n";
+      string respHeaders = "";
+      uchar dummyPost[];
+      char respData[];
+      res = WebRequest("GET", API_URL + "/poll", webHeaders, 3000, dummyPost, respData, respHeaders);
+      if(res == 200 || res == 201 || res == 204)
+        {
+         ArrayCopy(result, respData);
+        }
+     }
    
    if(res == 200 || res == 201)
      {
@@ -200,6 +224,96 @@ void PollCommands()
   }
 
 //+------------------------------------------------------------------+
+//| Resolve Symbol for Current Broker                                |
+//+------------------------------------------------------------------+
+string ResolveSymbol(string symbol)
+{
+   if(SymbolSelect(symbol, true)) return symbol;
+
+   string baseSym = symbol;
+   int dotPos = StringFind(baseSym, ".");
+   if(dotPos > 0) baseSym = StringSubstr(baseSym, 0, dotPos);
+   else if(StringLen(baseSym) > 6 && StringSubstr(baseSym, StringLen(baseSym)-1, 1) == "m")
+      baseSym = StringSubstr(baseSym, 0, StringLen(baseSym)-1);
+
+   // Cross-broker alias lists
+   string aliases[];
+   ArrayResize(aliases, 0);
+
+   if(StringFind(baseSym, "BTC") >= 0)
+     {
+      ArrayResize(aliases, 4);
+      aliases[0] = "BTC"; aliases[1] = "BTCUSD"; aliases[2] = "BTCUSD.m"; aliases[3] = "BTCUSDm";
+     }
+   else if(StringFind(baseSym, "ETH") >= 0)
+     {
+      ArrayResize(aliases, 4);
+      aliases[0] = "ETH"; aliases[1] = "ETHUSD"; aliases[2] = "ETHUSD.m"; aliases[3] = "ETHUSDm";
+     }
+   else if(StringFind(baseSym, "NAS") >= 0 || StringFind(baseSym, "USTEC") >= 0 || StringFind(baseSym, "100") >= 0)
+     {
+      ArrayResize(aliases, 5);
+      aliases[0] = "NASDAQ-100"; aliases[1] = "NAS100"; aliases[2] = "USTEC"; aliases[3] = "US100"; aliases[4] = "NAS100.m";
+     }
+   else if(StringFind(baseSym, "US30") >= 0 || StringFind(baseSym, "DJ") >= 0 || StringFind(baseSym, "WS30") >= 0)
+     {
+      ArrayResize(aliases, 4);
+      aliases[0] = "DJ30"; aliases[1] = "US30"; aliases[2] = "WALLSTREET30"; aliases[3] = "US30.m";
+     }
+   else if(StringFind(baseSym, "XAU") >= 0 || StringFind(baseSym, "GOLD") >= 0)
+     {
+      ArrayResize(aliases, 4);
+      aliases[0] = "XAUUSD"; aliases[1] = "GOLD"; aliases[2] = "XAUUSD.m"; aliases[3] = "XAUUSDm";
+     }
+
+   for(int i = 0; i < ArraySize(aliases); i++)
+     {
+      if(SymbolSelect(aliases[i], true))
+        {
+         PrintFormat("Mapped symbol '%s' -> alias '%s'", symbol, aliases[i]);
+         return aliases[i];
+        }
+     }
+
+   // Standard prefix/suffix candidates
+   string candidates[8];
+   candidates[0] = baseSym;
+   candidates[1] = baseSym + ".m";
+   candidates[2] = baseSym + "m";
+   candidates[3] = baseSym + ".s";
+   candidates[4] = baseSym + "_i";
+   candidates[5] = symbol + ".m";
+   candidates[6] = symbol + "m";
+   candidates[7] = baseSym + ".";
+
+   for(int c = 0; c < 8; c++)
+     {
+      if(SymbolSelect(candidates[c], true))
+        {
+         PrintFormat("Mapped symbol '%s' -> candidate '%s'", symbol, candidates[c]);
+         return candidates[c];
+        }
+     }
+
+   // Dynamic search in broker market watch
+   int total = SymbolsTotal(false);
+   for(int s = 0; s < total; s++)
+     {
+      string sName = SymbolName(s, false);
+      if(StringFind(sName, baseSym) == 0 || StringFind(sName, symbol) == 0)
+        {
+         if(SymbolSelect(sName, true))
+           {
+            PrintFormat("Mapped symbol '%s' -> searched '%s'", symbol, sName);
+            return sName;
+           }
+        }
+     }
+
+   return "";
+}
+
+//+------------------------------------------------------------------+
 //| Process Command                                                  |
 //+------------------------------------------------------------------+
 void ProcessCommand(string json, ulong subReceivedAt)
@@ -225,48 +339,26 @@ void ProcessCommand(string json, ulong subReceivedAt)
    int res = CWinInet::Post(API_URL + "/ack", headers, post, result);
    if(res != 200 && res != 201) 
      {
-      PrintFormat("POST /ack failed! HTTP: %d, Err: %d", res, GetLastError());
-      return;
+      // Fallback to native WebRequest
+      string webHeaders = "Content-Type: application/json\r\nAuthorization: Bearer " + EA_TOKEN + "\r\n";
+      string respHeaders = "";
+      char respData[];
+      res = WebRequest("POST", API_URL + "/ack", webHeaders, 3000, post, respData, respHeaders);
+     }
+   if(res != 200 && res != 201) 
+     {
+      PrintFormat("POST /ack warning: failed HTTP: %d, Err: %d. Proceeding with trade execution.", res, GetLastError());
      }
 
    // 2. Validate Command
    PrintFormat("DEBUG RECEIVED JSON: %s", json);
-   string symbol = CMqlJson::GetString(json, "symbol");
-   if(!SymbolSelect(symbol, true))
+   string rawSymbol = CMqlJson::GetString(json, "symbol");
+   string symbol = ResolveSymbol(rawSymbol);
+   if(symbol == "")
      {
-      // Try broker suffix variations (.m, m, .s, or stripped base)
-      string baseSym = symbol;
-      int dotPos = StringFind(baseSym, ".");
-      if(dotPos > 0) baseSym = StringSubstr(baseSym, 0, dotPos);
-      else if(StringLen(baseSym) > 6 && StringSubstr(baseSym, StringLen(baseSym)-1, 1) == "m")
-         baseSym = StringSubstr(baseSym, 0, StringLen(baseSym)-1);
-
-      string candidates[6];
-      candidates[0] = symbol + ".m";
-      candidates[1] = symbol + "m";
-      candidates[2] = baseSym + ".m";
-      candidates[3] = baseSym + "m";
-      candidates[4] = baseSym;
-      candidates[5] = baseSym + ".s";
-
-      bool found = false;
-      for(int c = 0; c < 6; c++)
-        {
-         if(SymbolSelect(candidates[c], true))
-           {
-            PrintFormat("Mapped symbol '%s' -> '%s' on sub broker", symbol, candidates[c]);
-            symbol = candidates[c];
-            found = true;
-            break;
-           }
-        }
-
-      if(!found)
-        {
-         ulong now = GetMicrosecondCount();
-         ReportResult(commandId, false, 0, "Symbol not found or disabled: " + symbol, 0, 0, subReceivedAt, subAcknowledgedAt, now, now);
-         return;
-        }
+      ulong now = GetMicrosecondCount();
+      ReportResult(commandId, false, 0, "Symbol not found or disabled on broker: " + rawSymbol, 0, 0, subReceivedAt, subAcknowledgedAt, now, now);
+      return;
      }
      
    // Extract parameters early to calculate volume if needed
@@ -286,6 +378,8 @@ void ProcessCommand(string json, ulong subReceivedAt)
      {
       double tickSize = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_SIZE);
       double tickValue = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_VALUE);
+      if(tickValue <= 0) tickValue = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_VALUE_LOSS);
+      if(tickValue <= 0) tickValue = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_VALUE_PROFIT);
       if(tickSize > 0 && tickValue > 0)
         {
          double slDistance = MathAbs(price - sl);
@@ -299,11 +393,23 @@ void ProcessCommand(string json, ulong subReceivedAt)
         }
      }
 
-
    double minVol = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MIN);
    double maxVol = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MAX);
+   double stepVol = SymbolInfoDouble(symbol, SYMBOL_VOLUME_STEP);
+
+   // Fallback: If volume is 0 or below minimum (e.g. tick value unavailable or delegated sizing), default to minVol
+   if(volume <= 0 && minVol > 0)
+     {
+      PrintFormat("Volume uncalculated or 0 (intendedRisk=%f), defaulting to minVol=%f", intendedRisk, minVol);
+      volume = minVol;
+     }
+
+   // Step and clamp volume
+   if(stepVol > 0 && volume > 0) volume = MathFloor(volume / stepVol) * stepVol;
+   if(minVol > 0 && volume < minVol) volume = minVol;
+   if(maxVol > 0 && volume > maxVol) volume = maxVol;
    
-   if(volume < minVol || volume > maxVol)
+   if(volume < minVol || (maxVol > 0 && volume > maxVol))
      {
       ulong now = GetMicrosecondCount();
       ReportResult(commandId, false, 0, "Volume invalid for symbol limits", 0, 0, subReceivedAt, subAcknowledgedAt, now, now);
@@ -332,10 +438,6 @@ void ProcessCommand(string json, ulong subReceivedAt)
    if(tp > 0) tp = NormalizeDouble(tp, digits);
    if(price > 0) price = NormalizeDouble(price, digits);
 
-   double stepVol = SymbolInfoDouble(symbol, SYMBOL_VOLUME_STEP);
-   if(stepVol > 0 && volume > 0) volume = MathFloor(volume / stepVol) * stepVol;
-   if(volume > 0 && volume < minVol) volume = minVol;
-   if(volume > maxVol) volume = maxVol;
    
    if(commandType == "OPEN_ORDER" || commandType == "")
      {
@@ -581,6 +683,14 @@ void ReportResult(string commandId, bool success, uint retcode, string errorStr,
    string headers = "Content-Type: application/json\r\nAuthorization: Bearer " + EA_TOKEN + "\r\n";
    
    int res = CWinInet::Post(API_URL + "/result", headers, post, result);
+   if(res != 200 && res != 201)
+     {
+      // Fallback to native WebRequest
+      string webHeaders = "Content-Type: application/json\r\nAuthorization: Bearer " + EA_TOKEN + "\r\n";
+      string respHeaders = "";
+      char respData[];
+      res = WebRequest("POST", API_URL + "/result", webHeaders, 5000, post, respData, respHeaders);
+     }
    if(res != 200 && res != 201)
      {
       PrintFormat("POST /result failed! HTTP: %d, Err: %d", res, GetLastError());

@@ -372,16 +372,35 @@ def launch_mt5_and_attach_ea(account):
         f.write(f"[Experts]\n")
         f.write(f"AllowDllImport=1\n")
         f.write(f"Enabled=1\n")
+        f.write(f"Account=0\n")
+        f.write(f"Profile=0\n")
+        f.write(f"Chart=0\n")
         f.write(f"WebRequest=1\n")
         f.write(f"AllowWebRequest=1\n")
         f.write(f"WebRequestUrl1={base_api_root}\n")
 
-    # Tune terminal.ini for sound off and news off to conserve CPU
+    # Tune terminal.ini for sound off and news off to conserve CPU, and enforce Expert Advisor execution permissions
     terminal_ini = ini_file_dir / 'terminal.ini'
     try:
-        terminal_ini.write_text("[Common]\nNewsEnable=0\nSoundEnable=0\n[Charts]\nMaxBars=1000\n", encoding='utf-16')
-    except Exception:
-        pass
+        terminal_ini_content = (
+            "[Common]\n"
+            "NewsEnable=0\n"
+            "SoundEnable=0\n\n"
+            "[Charts]\n"
+            "MaxBars=1000\n\n"
+            "[Experts]\n"
+            "Enabled=1\n"
+            "Account=0\n"
+            "Profile=0\n"
+            "Chart=0\n"
+            "AllowDllImport=1\n"
+            "WebRequest=1\n"
+            "AllowWebRequest=1\n"
+            f"WebRequestUrl1={base_api_root}\n"
+        )
+        terminal_ini.write_text(terminal_ini_content, encoding='utf-16')
+    except Exception as e:
+        logger.warning(f"Could not write terminal.ini: {e}")
 
     # 5. Launch Terminal with the config
     logger.info(f"Launching MT5 terminal for account {login} with config and EA attached...")
@@ -562,8 +581,10 @@ def execute_query(query, params=None, fetch=False):
         logger.error("Missing DATABASE_URL in .env!")
         return None
     for attempt in range(3):
+        # On retry, fallback to direct host without -pooler to bypass pooler connection limits/timeouts
+        target_db_url = DATABASE_URL if attempt == 0 else DATABASE_URL.replace('-pooler', '')
         try:
-            with psycopg2.connect(DATABASE_URL, connect_timeout=25) as conn:
+            with psycopg2.connect(target_db_url, connect_timeout=15) as conn:
                 with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
                     cur.execute(query, params)
                     if fetch:
@@ -611,7 +632,7 @@ def poll_db_worker():
                 # Check stale heartbeat for intelligent watchdog with launch grace period
                 is_stale = False
                 launch_time = active_terminals.get(login, {}).get('launch_time', 0)
-                if (time.time() - launch_time) > 300:
+                if (time.time() - launch_time) > 600: # 10 minute grace after launch
                     if account['connectionStatus'] == 'ONLINE' and account['lastHeartbeatAt']:
                         try:
                             hb_time = account['lastHeartbeatAt']
@@ -620,8 +641,13 @@ def poll_db_worker():
                                 hb_time = datetime.datetime.fromisoformat(hb_str)
                             if hb_time.tzinfo is None:
                                 hb_time = hb_time.replace(tzinfo=datetime.timezone.utc)
-                            if (datetime.datetime.now(datetime.timezone.utc) - hb_time).total_seconds() > 180:
-                                is_stale = True
+                            if (datetime.datetime.now(datetime.timezone.utc) - hb_time).total_seconds() > 600:
+                                # Only kill if process actually died or exited
+                                proc = active_terminals.get(login, {}).get('process')
+                                if not proc or proc.poll() is not None:
+                                    is_stale = True
+                                else:
+                                    logger.debug(f"Watchdog: Account {login} heartbeat is >600s old, but terminal PID {proc.pid} is still actively running. Preserving process.")
                         except Exception:
                             pass
                 
@@ -632,6 +658,12 @@ def poll_db_worker():
                     if account['connectionStatus'] == 'FAILED' and not is_stale:
                         continue
                         
+                    if login in active_terminals:
+                        proc = active_terminals[login].get('process')
+                        if proc and proc.poll() is not None:
+                            logger.info(f"Terminal process for {login} exited (code {proc.poll()}). Cleaning up active_terminals.")
+                            del active_terminals[login]
+
                     if login not in active_terminals or is_stale:
                         if is_stale:
                             logger.info(f"Intelligent Watchdog: Account {login} is ONLINE but heartbeat is stale. Terminating for safe recovery.")
@@ -725,18 +757,21 @@ def poll_db_worker():
                             init_kwargs = {
                                 "path": terminal_exe,
                                 "portable": True,
-                                "timeout": 30000
+                                "timeout": 10000
                             }
-                            if acc.get('password') and acc.get('server'):
+                            # Connect to running terminal without re-logging in to prevent MT5 "automated trading disabled"
+                            connected = mt5.initialize(**init_kwargs)
+                            if not connected and acc.get('password') and acc.get('server'):
                                 try:
                                     init_kwargs["login"] = int(login)
                                     init_kwargs["password"] = acc.get('password')
                                     srv_raw = acc.get('server', '')
                                     init_kwargs["server"] = resolve_server_name(srv_raw)
+                                    connected = mt5.initialize(**init_kwargs)
                                 except Exception:
                                     pass
 
-                            if mt5.initialize(**init_kwargs):
+                            if connected:
                                 info = mt5.account_info()
                                 if info and str(info.login) == str(login):
                                     telemetry_payload = {
@@ -947,25 +982,38 @@ def force_webrequest_permission():
             elif child.is_dir() and child.name == 'Common':
                 target_configs.append(child / 'common.ini')
             for common_ini_path in target_configs:
-                content = f"[Experts]\nEnabled=1\nAllowDllImport=1\nWebRequest=1\nAllowWebRequest=1\nWebRequestUrl1={base_api_root}\n\n[Common]\n"
-            # Preserve Environment key if present
-            if common_ini_path.exists():
-                try:
-                    existing = common_ini_path.read_text(encoding='utf-16')
-                except Exception:
+                content = f"[Experts]\nEnabled=1\nAccount=0\nProfile=0\nChart=0\nAllowDllImport=1\nWebRequest=1\nAllowWebRequest=1\nWebRequestUrl1={base_api_root}\n\n[Common]\n"
+                # Preserve Environment key if present
+                if common_ini_path.exists():
                     try:
-                        existing = common_ini_path.read_text(encoding='utf-8', errors='ignore')
+                        existing = common_ini_path.read_text(encoding='utf-16')
                     except Exception:
-                        existing = ''
-                for line in existing.splitlines():
-                    if line.startswith('Environment='):
-                        content += line + '\n'
-                        break
-            try:
-                common_ini_path.write_text(content, encoding='utf-16')
-                logger.info(f"Force-patched WebRequest permission in {common_ini_path}")
-            except Exception as e:
-                logger.warning(f"Could not patch {common_ini_path}: {e}")
+                        try:
+                            existing = common_ini_path.read_text(encoding='utf-8', errors='ignore')
+                        except Exception:
+                            existing = ''
+                    for line in existing.splitlines():
+                        if line.startswith('Environment='):
+                            content += line + '\n'
+                            break
+                try:
+                    common_ini_path.write_text(content, encoding='utf-16')
+                    logger.info(f"Force-patched WebRequest permission in {common_ini_path}")
+                except Exception as e:
+                    logger.warning(f"Could not patch {common_ini_path}: {e}")
+
+            # Also force patch terminal.ini in instances to ensure Account=0 and Enabled=1
+            if child.is_dir() and (child / 'config').exists():
+                term_ini = child / 'config' / 'terminal.ini'
+                try:
+                    t_content = (
+                        "[Common]\nNewsEnable=0\nSoundEnable=0\n\n"
+                        "[Charts]\nMaxBars=1000\n\n"
+                        f"[Experts]\nEnabled=1\nAccount=0\nProfile=0\nChart=0\nAllowDllImport=1\nWebRequest=1\nAllowWebRequest=1\nWebRequestUrl1={base_api_root}\n"
+                    )
+                    term_ini.write_text(t_content, encoding='utf-16')
+                except Exception:
+                    pass
 
     # Clean out any pending liveupdate files to prevent MT5 restart/update freezes
     try:

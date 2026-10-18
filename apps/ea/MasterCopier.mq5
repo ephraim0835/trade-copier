@@ -68,7 +68,7 @@ ulong QueueQueuedAt[];
 int EventCount = 0;
 
 ulong lastTelemetryAt = 0;
-const ulong TELEMETRY_INTERVAL_US = 1000000; // 1 second in microseconds
+const ulong TELEMETRY_INTERVAL_US = 10000000; // 10 seconds in microseconds
 
 // --- State Cache ---
 struct StateCache {

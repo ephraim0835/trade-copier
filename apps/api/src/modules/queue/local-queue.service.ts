@@ -83,8 +83,8 @@ export class LocalQueueService implements IHotDispatchQueue, OnModuleInit, OnMod
       -- Index for ultra-fast polling claims
       CREATE INDEX IF NOT EXISTS idx_poll ON commands(subAccountId, status, sequenceNumber);
       
-      -- Idempotency constraint
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_idem ON commands(eventId);
+      -- Idempotency constraint per subAccount
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_idem ON commands(eventId, subAccountId);
       
       -- Index for sweeping
       CREATE INDEX IF NOT EXISTS idx_sweep ON commands(status, deliveredAt);
@@ -158,13 +158,24 @@ export class LocalQueueService implements IHotDispatchQueue, OnModuleInit, OnMod
     return data as HotCommandData;
   }
 
-  checkIdempotency(eventId: string): HotCommandData | null {
+  checkIdempotency(eventId: string, subAccountId?: string): HotCommandData | null {
     if (!eventId) return null;
-    const stmt = this.db.prepare(`
-      SELECT payload FROM commands 
-      WHERE eventId = ?
-    `);
-    const row = stmt.get(eventId) as { payload: string } | undefined;
+    let stmt;
+    let row;
+    if (subAccountId) {
+      stmt = this.db.prepare(`
+        SELECT payload FROM commands 
+        WHERE eventId = ? AND subAccountId = ?
+      `);
+      row = stmt.get(eventId, subAccountId) as { payload: string } | undefined;
+    } else {
+      stmt = this.db.prepare(`
+        SELECT payload FROM commands 
+        WHERE eventId = ?
+        LIMIT 1
+      `);
+      row = stmt.get(eventId) as { payload: string } | undefined;
+    }
     if (row) {
       return this.deserializePayload(row.payload);
     }
@@ -178,9 +189,9 @@ export class LocalQueueService implements IHotDispatchQueue, OnModuleInit, OnMod
     cmd.updatedAt = now;
     cmd.hotPathCommandAvailableAt = now;
 
-    // Check Idempotency First
+    // Check Idempotency First (scoped to subAccount)
     if (cmd.eventId) {
-      const existing = this.checkIdempotency(cmd.eventId);
+      const existing = this.checkIdempotency(cmd.eventId, cmd.subAccountId);
       if (existing) return existing;
     }
 
@@ -210,7 +221,7 @@ export class LocalQueueService implements IHotDispatchQueue, OnModuleInit, OnMod
       );
     } catch (err: any) {
       if (err.code === 'SQLITE_CONSTRAINT_UNIQUE' && cmd.eventId) {
-        const raceExisting = this.checkIdempotency(cmd.eventId);
+        const raceExisting = this.checkIdempotency(cmd.eventId, cmd.subAccountId);
         if (raceExisting) return raceExisting;
       }
       throw err;
