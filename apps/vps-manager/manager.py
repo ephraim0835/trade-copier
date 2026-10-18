@@ -508,12 +508,19 @@ def cleanup_orphaned_instance_dirs(all_db_ids):
     if not instances_root.exists():
         return
         
+    def _remove_readonly(func, path, excinfo):
+        try:
+            os.chmod(path, stat.S_IWRITE)
+            func(path)
+        except Exception:
+            pass
+
     for p in instances_root.iterdir():
         if p.is_dir() and re.match(r'^[0-9a-fA-F-]{36}$', p.name):
             if p.name not in all_db_ids:
                 try:
                     logger.info(f"[DISK CLEANUP] Removing orphaned instance folder for deleted account: {p.name}")
-                    shutil.rmtree(p, ignore_errors=True)
+                    shutil.rmtree(p, onerror=_remove_readonly)
                 except Exception as e:
                     logger.debug(f"Could not delete orphaned folder {p.name}: {e}")
 
