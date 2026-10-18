@@ -459,6 +459,64 @@ def kill_account_terminal(account_or_login):
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             pass
 
+def sweep_all_orphan_terminals(db_rows):
+    """
+    Scans ALL running terminal64 and terminal.exe processes on the operating system.
+    If any running terminal does not belong to an active, valid database account,
+    terminates it immediately.
+    """
+    valid_logins = {str(r.get('login')) for r in db_rows if r.get('isActive')}
+    valid_ids = {str(r.get('id')) for r in db_rows if r.get('isActive')}
+    
+    for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'exe']):
+        try:
+            pname = (proc.info.get('name') or '').lower()
+            if 'terminal64' in pname or 'terminal.exe' in pname:
+                pid = proc.info['pid']
+                cmd = ' '.join(proc.info.get('cmdline') or [])
+                exe = proc.info.get('exe') or ''
+                
+                # Extract login from config filename
+                login_match = re.search(r'startup_(\d+)\.ini', cmd)
+                found_login = login_match.group(1) if login_match else None
+                
+                # Extract account UUID from path or cmdline
+                id_match = re.search(r'MT5_Instances[\\/]([0-9a-fA-F-]{36})', cmd + ' ' + exe)
+                found_id = id_match.group(1) if id_match else None
+                
+                is_valid = False
+                if found_login and found_login in valid_logins:
+                    is_valid = True
+                elif found_id and found_id in valid_ids:
+                    is_valid = True
+                    
+                if not is_valid:
+                    logger.info(f"[ORPHAN CLEANUP] Found running terminal PID {pid} (login={found_login}, id={found_id}) with no active DB account. Terminating process...")
+                    try:
+                        proc.kill()
+                        logger.info(f"[ORPHAN CLEANUP] Successfully killed orphan terminal PID {pid}")
+                    except Exception as ke:
+                        logger.warning(f"Could not kill process PID {pid}: {ke}")
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+        except Exception as e:
+            logger.debug(f"Error checking process for orphan cleanup: {e}")
+
+def cleanup_orphaned_instance_dirs(all_db_ids):
+    """Safely cleans up directories in MT5_Instances for accounts deleted from the database."""
+    instances_root = Path(r"C:\Users\Plaiz\MT5_Instances")
+    if not instances_root.exists():
+        return
+        
+    for p in instances_root.iterdir():
+        if p.is_dir() and re.match(r'^[0-9a-fA-F-]{36}$', p.name):
+            if p.name not in all_db_ids:
+                try:
+                    logger.info(f"[DISK CLEANUP] Removing orphaned instance folder for deleted account: {p.name}")
+                    shutil.rmtree(p, ignore_errors=True)
+                except Exception as e:
+                    logger.debug(f"Could not delete orphaned folder {p.name}: {e}")
+
 def check_terminal_logs_for_diagnostics(acc):
     """Sniffs the MT5 instance logs for instant connection, broker, or auth diagnostic feedback."""
     instance_dir = acc.get('instance_dir')
@@ -612,6 +670,21 @@ def poll_db_worker():
                 sync_event.wait(timeout=10)
                 sync_event.clear()
                 continue
+            
+            # 1. Sweep and kill any running terminal processes that don't belong to an active DB account
+            sweep_all_orphan_terminals(rows)
+            
+            # 2. Clean up active_terminals dictionary for deleted accounts
+            db_logins = {str(r.get('login')) for r in rows}
+            db_ids = {str(r.get('id')) for r in rows}
+            for term_login in list(active_terminals.keys()):
+                if term_login not in db_logins:
+                    logger.info(f"Account {term_login} was deleted from database. Terminating active terminal record.")
+                    kill_account_terminal(term_login)
+                    del active_terminals[term_login]
+            
+            # 3. Clean up orphaned disk folders for deleted accounts
+            cleanup_orphaned_instance_dirs(db_ids)
             
             for row in rows:
                 account = {

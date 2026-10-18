@@ -80,6 +80,18 @@ export async function deleteUser(userId: string) {
     await prisma.user.delete({
       where: { id: userId }
     });
+
+    try {
+      await prisma.vpsEnvironment.updateMany({
+        data: {
+          lastCommand: 'SYNC',
+          commandStatus: 'PENDING',
+          commandAt: new Date(),
+        },
+      });
+    } catch (cmdErr) {
+      console.warn('Could not notify VPS environment:', cmdErr);
+    }
   } catch (e: any) {
     throw new Error("Failed to delete user: " + e.message);
   }

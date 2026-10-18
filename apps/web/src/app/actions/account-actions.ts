@@ -264,6 +264,19 @@ export async function deleteAccount(accountId: string) {
       });
     });
 
+    // Notify VPS engine to immediately terminate the MT5 terminal for this deleted account
+    try {
+      await prisma.vpsEnvironment.updateMany({
+        data: {
+          lastCommand: 'SYNC',
+          commandStatus: 'PENDING',
+          commandAt: new Date(),
+        },
+      });
+    } catch (cmdErr) {
+      console.warn('Could not notify VPS environment:', cmdErr);
+    }
+
     revalidatePath('/');
     revalidatePath('/master');
     revalidatePath('/accounts');
@@ -311,6 +324,18 @@ export async function toggleAccountActive(accountId: string, isActive: boolean) 
       where: { id: accountId },
       data: { isActive }
     });
+
+    try {
+      await prisma.vpsEnvironment.updateMany({
+        data: {
+          lastCommand: 'SYNC',
+          commandStatus: 'PENDING',
+          commandAt: new Date(),
+        },
+      });
+    } catch (cmdErr) {
+      console.warn('Could not notify VPS environment:', cmdErr);
+    }
 
     revalidatePath('/accounts');
     revalidatePath('/dashboard');
