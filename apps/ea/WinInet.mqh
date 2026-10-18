@@ -10,6 +10,7 @@ long InternetOpenW(string sAgent, int lAccessType, string sProxyName, string sPr
 long InternetConnectW(long hInternet, string sServerName, int nServerPort, string sUserName, string sPassword, int lService, int lFlags, long lContext);
 long HttpOpenRequestW(long hConnect, string sVerb, string sObjectName, string sVersion, string sReferrer, long lplpszAcceptTypes, int lFlags, long lContext);
 bool HttpSendRequestW(long hRequest, string sHeaders, int dwHeadersLength, uchar &sOptional[], int dwOptionalLength);
+bool HttpQueryInfoW(long hRequest, int dwInfoLevel, int &lpvBuffer, int &lpdwBufferLength, int &lpdwIndex);
 int InternetReadFile(long hFile, uchar &sBuffer[], int lNumBytesToRead, int &lNumberOfBytesRead);
 bool InternetCloseHandle(long hInternet);
 #import
@@ -114,12 +115,13 @@ public:
                 return -1;
             }
             
+            int headersLen = StringLen(headers);
             if(ArraySize(postData) > 0) {
-                sendRes = HttpSendRequestW(hRequest, headers, -1, postData, ArraySize(postData));
+                sendRes = HttpSendRequestW(hRequest, headers, headersLen, postData, ArraySize(postData));
             } else {
                 uchar dummy[1];
                 dummy[0] = 0;
-                sendRes = HttpSendRequestW(hRequest, headers, -1, dummy, 0);
+                sendRes = HttpSendRequestW(hRequest, headers, headersLen, dummy, 0);
             }
             
             if(!sendRes) {
@@ -145,12 +147,18 @@ public:
             ArrayCopy(result, buffer, oldSize, 0, bytesRead);
         }
         
-        InternetCloseHandle(hRequest);
+        // Query real HTTP status code (HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER = 0x20000013)
+        int statusCode = 200;
+        int bufLen = 4;
+        int index = 0;
+        if(HttpQueryInfoW(hRequest, 0x20000013, statusCode, bufLen, index)) {
+            // statusCode correctly extracted (e.g. 200, 204, etc.)
+        } else {
+            statusCode = 200;
+        }
         
-        // Just return 200 for now if no errors occurred during send/read. 
-        // Real HTTP status code extraction is complex in WinInet without HttpQueryInfo,
-        // but since we only care about success/failure of the actual send, this works.
-        return 200; 
+        InternetCloseHandle(hRequest);
+        return statusCode; 
     }
     
     static int Get(string url, string headers, char &result[]) {
