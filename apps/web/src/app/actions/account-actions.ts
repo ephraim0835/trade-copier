@@ -99,28 +99,56 @@ export async function createMt5Account(data: {
         }
       });
 
-      // Auto-subscribe to the user's first Master account to prevent breakage until UI is built
-      const firstMaster = await prisma.mt5Account.findFirst({
+      // Auto-subscribe to all active Master accounts of this user
+      const userMasters = await prisma.mt5Account.findMany({
         where: { role: 'MASTER', userId: user.id }
       });
       
-      if (firstMaster && firstMaster.id !== account.id) {
-        await prisma.accountSubscription.upsert({
-          where: {
-            masterAccountId_subAccountId: {
-              masterAccountId: firstMaster.id,
+      for (const master of userMasters) {
+        if (master.id !== account.id) {
+          await prisma.accountSubscription.upsert({
+            where: {
+              masterAccountId_subAccountId: {
+                masterAccountId: master.id,
+                subAccountId: account.id,
+              }
+            },
+            update: {
+              isActive: true,
+            },
+            create: {
+              masterAccountId: master.id,
               subAccountId: account.id,
+              isActive: true,
             }
-          },
-          update: {
-            isActive: true,
-          },
-          create: {
-            masterAccountId: firstMaster.id,
-            subAccountId: account.id,
-            isActive: true,
-          }
-        });
+          });
+        }
+      }
+    } else if (data.role === 'MASTER') {
+      // Auto-subscribe all existing Sub accounts of this user to this master
+      const userSubs = await prisma.mt5Account.findMany({
+        where: { role: 'SUB', userId: user.id }
+      });
+
+      for (const sub of userSubs) {
+        if (sub.id !== account.id) {
+          await prisma.accountSubscription.upsert({
+            where: {
+              masterAccountId_subAccountId: {
+                masterAccountId: account.id,
+                subAccountId: sub.id,
+              }
+            },
+            update: {
+              isActive: true,
+            },
+            create: {
+              masterAccountId: account.id,
+              subAccountId: sub.id,
+              isActive: true,
+            }
+          });
+        }
       }
     }
 

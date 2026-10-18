@@ -92,8 +92,41 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
 
   private async refreshSubAccountsCache() {
     try {
-      // Fetch all active subscriptions including subAccount and copySettings
-      // When DEMO_ONLY=true, restrict to demo sub-accounts only
+      // 1. Self-healing: Ensure all active Master accounts are linked to active Sub accounts of the same user
+      if (this.prisma?.mt5Account?.findMany && this.prisma?.accountSubscription?.upsert) {
+        const activeMasters = await this.prisma.mt5Account.findMany({
+          where: { role: 'MASTER', isActive: true },
+          select: { id: true, userId: true },
+        });
+
+        const activeSubs = await this.prisma.mt5Account.findMany({
+          where: { role: 'SUB', isActive: true, ...(this.demoOnly ? { isDemo: true } : {}) },
+          include: { copySettings: true },
+        });
+
+        for (const master of activeMasters) {
+          const userSubs = activeSubs.filter(s => s.userId === master.userId);
+          for (const sub of userSubs) {
+            await this.prisma.accountSubscription.upsert({
+              where: {
+                masterAccountId_subAccountId: {
+                  masterAccountId: master.id,
+                  subAccountId: sub.id,
+                },
+              },
+              update: { isActive: true },
+              create: {
+                masterAccountId: master.id,
+                subAccountId: sub.id,
+                isActive: true,
+                riskPercentage: sub.copySettings?.riskPercentage ?? 1.0,
+              },
+            });
+          }
+        }
+      }
+
+      // 2. Fetch all active subscriptions including subAccount and copySettings
       const subAccountFilter: any = { isActive: true };
       if (this.demoOnly) {
         subAccountFilter.isDemo = true;
@@ -117,9 +150,25 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
       for (const sub of subscriptions) {
         const a = sub.subAccount;
         
-        // Merge the subscription risk override with the account copySettings if needed
-        const mergedSettings = a.copySettings ? { ...a.copySettings } : null;
-        if (mergedSettings && sub.riskPercentage !== null) {
+        // Ensure copySettings is never null so trades are never skipped
+        const baseSettings = a.copySettings || {
+          id: 'default',
+          mt5AccountId: a.id,
+          riskPercentage: 1.0,
+          roundingTolerancePct: 2.0,
+          dailyRiskEnabled: false,
+          maxDailyRisk: 0,
+          maxTradesEnabled: false,
+          maxActiveTrades: 0,
+          requireTp: false,
+          missingSlTimeoutSec: 60,
+          maxRecoveryRRDegradation: 0.5,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+
+        const mergedSettings = { ...baseSettings };
+        if (sub.riskPercentage !== null && sub.riskPercentage !== undefined) {
           mergedSettings.riskPercentage = sub.riskPercentage;
         }
 
@@ -330,7 +379,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
           status: CommandStatus.CREATED,
           symbol: dto.symbol,
           orderType: dto.type,
-          volume: decision.executedVol,
+          volume: (decision.executedVol && decision.executedVol > 0) ? decision.executedVol : dto.volume,
           intendedRisk: decision.intendedRisk,
           price: dto.priceOpen || 0,
           sl: dto.sl ?? 0,
@@ -533,8 +582,16 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
       }).then(async (dbSignal) => {
         if (dbSignal) {
           for (const copy of dbSignal.copies) {
+            let targetPos = copy.subPositionId ?? copy.subOrderTicket;
+            if (!targetPos) {
+              const openCmd = await this.prisma.executionCommand.findFirst({
+                where: { tradeCopyId: copy.id, type: CommandType.OPEN_ORDER, orderTicket: { not: null } },
+              });
+              if (openCmd?.orderTicket) {
+                targetPos = openCmd.orderTicket;
+              }
+            }
             const commandId = `cmd-mod-${copy.id}-${dto.sequenceNumber}`;
-            const targetPos = copy.subPositionId ?? copy.subOrderTicket;
             const hotCmd: HotCommandData = {
               id: commandId,
               eventId: dto.eventId,
@@ -659,8 +716,16 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
       }).then(async (dbSignal) => {
         if (dbSignal) {
           for (const copy of dbSignal.copies) {
+            let targetPos = copy.subPositionId ?? copy.subOrderTicket;
+            if (!targetPos) {
+              const openCmd = await this.prisma.executionCommand.findFirst({
+                where: { tradeCopyId: copy.id, type: CommandType.OPEN_ORDER, orderTicket: { not: null } },
+              });
+              if (openCmd?.orderTicket) {
+                targetPos = openCmd.orderTicket;
+              }
+            }
             const commandId = `cmd-close-${copy.id}-${dto.sequenceNumber}`;
-            const targetPos = copy.subPositionId ?? copy.subOrderTicket;
             const hotCmd: HotCommandData = {
               id: commandId,
               eventId: dto.eventId,

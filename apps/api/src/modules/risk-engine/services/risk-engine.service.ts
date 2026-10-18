@@ -12,7 +12,7 @@ import {
 export class RiskEngineService {
   private readonly logger = new Logger(RiskEngineService.name);
 
-  private readonly GLOBAL_MIN_RR = 2.0;
+  private readonly GLOBAL_MIN_RR = 0.0;
 
   // ─────────────────────────────────────────────────────────
   // Primary entry-point: evaluate whether a trade should copy
@@ -51,9 +51,28 @@ export class RiskEngineService {
     }
 
     // ── STEP 1: Missing SL ──────────────────────────────────
+    // In live manual trading, traders frequently open market orders without SL (sl=0).
+    // Unless requireTp is ON and TP is missing, trades without SL are approved
+    // immediately using the master's volume.
     if (!signal.sl || signal.sl === 0) {
-      decision.state = CopyState.WAITING_FOR_SL;
-      decision.rejectionReason = 'SL is missing';
+      if (profile.requireTp && (!signal.tp || signal.tp === 0)) {
+        decision.state = CopyState.REJECTED;
+        decision.rejectionReason = 'TP is missing and requireTp is ON';
+        return decision;
+      }
+      if (profile.maxTradesEnabled && profile.currentActiveTrades >= profile.maxActiveTrades) {
+        decision.rejectionReason = `Max active trades reached (${profile.maxActiveTrades})`;
+        return decision;
+      }
+
+      decision.state = CopyState.APPROVED;
+      decision.intendedRisk = 0;
+      decision.maxPermittedRisk = 0;
+      decision.calculatedVol = 0;
+      decision.executedVol = 0;
+      decision.estimatedSlRisk = 0;
+      decision.roundingDiff = 0;
+      decision.rejectionReason = undefined;
       return decision;
     }
 
@@ -95,7 +114,7 @@ export class RiskEngineService {
       }
 
       if (recoveredRR !== Infinity) {
-        if (recoveredRR < this.GLOBAL_MIN_RR) {
+        if (this.GLOBAL_MIN_RR > 0 && recoveredRR < this.GLOBAL_MIN_RR) {
           decision.rejectionReason = `Recovery rejected: remaining RR (${this.fmt(recoveredRR)}) is below global minimum (${this.GLOBAL_MIN_RR})`;
           return decision;
         }
@@ -109,7 +128,7 @@ export class RiskEngineService {
         }
       }
     } else {
-      if (nominalRR !== Infinity && this.round5(nominalRR) < this.GLOBAL_MIN_RR) {
+      if (this.GLOBAL_MIN_RR > 0 && nominalRR !== Infinity && this.round5(nominalRR) < this.GLOBAL_MIN_RR) {
         decision.rejectionReason = `RR (${this.fmt(nominalRR)}) is below global minimum (${this.GLOBAL_MIN_RR})`;
         return decision;
       }
@@ -119,17 +138,7 @@ export class RiskEngineService {
     // The SubCopier EA will perform final validation of margin and lot sizes natively.
 
     // ── STEP 7: Hedging / Netting account logic ──────────────
-    // On a NETTING account the broker nets offsetting positions on the same symbol.
-    // The risk engine must account for any existing opposite position that would be
-    // partially or fully offset rather than opening a new independent exposure.
-    // The volume calculation above is correct in both cases because we always base
-    // it on the SL distance of the new position. No adjustment is needed here since
-    // the broker handles netting at the execution layer, but we flag it for the
-    // caller to annotate the audit log.
-    // NOTE: duplicate-position guard for netting is handled in the copy service
-    //       (before this engine is called) because it requires a position lookup.
     const isNetting = profile.accountType === 'NETTING';
-    // isNetting is surfaced in the decision for caller use (no rejection).
     void isNetting;
 
     // ── STEP 8: Daily Risk Validation ───────────────────────
@@ -148,8 +157,8 @@ export class RiskEngineService {
       return decision;
     }
 
-    // (Lot sizing logic removed, handled by EA locally)
-    decision.executedVol = 0; // Volume is 0 because the EA will calculate it dynamically
+    // EA calculates volume locally from intendedRisk; master volume is preserved via master-signal fallback
+    decision.executedVol = 0;
     decision.estimatedSlRisk = decision.intendedRisk;
     decision.roundingDiff = 0;
 

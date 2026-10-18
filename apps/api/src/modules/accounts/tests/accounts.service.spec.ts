@@ -77,7 +77,8 @@ describe('AccountsService', () => {
         margin: undefined,
         freeMargin: undefined,
         floatingPl: undefined,
-        currency: 'USD'
+        currency: 'USD',
+        provisioningError: null,
       }
     });
     expect(result.success).toBe(true);

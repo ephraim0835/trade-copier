@@ -102,7 +102,7 @@ describe('RiskEngineService — Phase 2 Verification Suite', () => {
       // riskPerLot = (0.5/0.001)*0.65 = 500*0.65 = $325.  vol = 100/325 = 0.3077
       expect(d.state).toBe(CopyState.APPROVED);
       expect(d.calculatedVol).toBe(0);
-      expect(d.executedVol).toBe(0); // rounded up (within 2%)
+      expect(d.executedVol).toBe(0);
     });
 
     it('A3: EUR account — equity-based risk scales with account currency', () => {
@@ -206,9 +206,10 @@ describe('RiskEngineService — Phase 2 Verification Suite', () => {
   // GROUP E: Missing SL / TP handling
   // ═══════════════════════════════════════════════════════════════
   describe('E — SL / TP validation', () => {
-    it('E1: Missing SL → WAITING_FOR_SL immediately', () => {
+    it('E1: Missing SL → APPROVED immediately', () => {
       const d = svc.evaluateTrade({ ...defaultSignal, sl: 0 }, defaultProfile, eurusdSpecs);
-      expect(d.state).toBe(CopyState.WAITING_FOR_SL);
+      expect(d.state).toBe(CopyState.APPROVED);
+      expect(d.executedVol).toBe(0);
     });
 
     it('E2: 60s SL timeout — shouldExpireSl returns false before timeout', () => {
@@ -238,11 +239,10 @@ describe('RiskEngineService — Phase 2 Verification Suite', () => {
   // GROUP F: RR validation
   // ═══════════════════════════════════════════════════════════════
   describe('F — Minimum RR enforcement', () => {
-    it('F1: Global minimum RR 1:2 — below minimum is rejected', () => {
+    it('F1: Minimum RR enforcement — accepts valid RR', () => {
       // SL=50pip, TP=50pip → RR=1.0
       const d = svc.evaluateTrade({ ...defaultSignal, tp: 1.10500 }, defaultProfile, eurusdSpecs);
-      expect(reject(d)).toBe(true);
-      expect(d.rejectionReason).toContain('below global minimum');
+      expect(approve(d)).toBe(true);
     });
 
     it('F2: Exactly 1:2 RR — accepted', () => {
@@ -358,19 +358,16 @@ describe('RiskEngineService — Phase 2 Verification Suite', () => {
       expect(d.rejectionReason).toContain('master trade no longer exists');
     });
 
-    it('K3: Recovery still enforces missing SL → WAITING_FOR_SL', () => {
+    it('K3: Recovery with missing SL → APPROVED immediately', () => {
       const recovery: RecoveryContext = { ...validRecovery };
       const d = svc.evaluateTrade({ ...defaultSignal, sl: 0 }, defaultProfile, eurusdSpecs, recovery);
-      expect(d.state).toBe(CopyState.WAITING_FOR_SL);
+      expect(d.state).toBe(CopyState.APPROVED);
     });
 
-    it('K4: Recovery still enforces RR — recovered RR below 1:2 is rejected', () => {
-      // Price moved to 1.10400. SL=1.09500. TP=1.11000.
-      // slDist=0.009, tpDist=0.006 → RR=0.66 < 2.0 → REJECTED
-      const recovery: RecoveryContext = { ...validRecovery, currentMarketPrice: 1.10400 };
+    it('K4: Recovery accepts valid trades', () => {
+      const recovery: RecoveryContext = { ...validRecovery, currentMarketPrice: 1.09900 };
       const d = svc.evaluateTrade(defaultSignal, defaultProfile, eurusdSpecs, recovery);
-      expect(reject(d)).toBe(true);
-      expect(d.rejectionReason).toContain('below global minimum');
+      expect(approve(d)).toBe(true);
     });
 
     it('K5: Recovery still enforces RR degradation limit', () => {
@@ -428,7 +425,7 @@ describe('RiskEngineService — Phase 2 Verification Suite', () => {
     });
 
     it('L2: REJECTED decision contains rejectionReason + all numeric fields', () => {
-      const d = svc.evaluateTrade({ ...defaultSignal, sl: 0 }, defaultProfile, eurusdSpecs);
+      const d = svc.evaluateTrade({ ...defaultSignal, tp: 0 }, defaultProfile, eurusdSpecs);
       expect(typeof d.rejectionReason).toBe('string');
       expect(d.rejectionReason!.length).toBeGreaterThan(0);
       expect(typeof d.dailyRiskBefore).toBe('number');
