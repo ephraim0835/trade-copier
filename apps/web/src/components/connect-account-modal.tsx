@@ -142,9 +142,7 @@ export function ConnectAccountModal({ isOpen, onClose, defaultRole = 'SUB' }: Co
     <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto py-4 sm:py-8 animate-in fade-in duration-200">
       <div 
         className="absolute inset-0 bg-black/85 backdrop-blur-md"
-        onClick={() => {
-          if (step !== 'CONNECTING') onClose();
-        }}
+        onClick={step === 'CONNECTING' ? handleDone : onClose}
       />
       
       <div className="relative w-full max-w-md plaiz-card bg-card rounded-[32px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 border border-border/30">
@@ -165,14 +163,13 @@ export function ConnectAccountModal({ isOpen, onClose, defaultRole = 'SUB' }: Co
               {step === 'ERROR' && 'Review the issue below and adjust your credentials.'}
             </p>
           </div>
-          {step !== 'CONNECTING' && (
-            <button 
-              onClick={onClose}
-              className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/5 flex items-center justify-center hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
-            >
-              <X className="w-4 h-4 text-muted-foreground" />
-            </button>
-          )}
+          <button 
+            onClick={step === 'CONNECTING' ? handleDone : onClose}
+            className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/5 flex items-center justify-center hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+            title="Close"
+          >
+            <X className="w-4 h-4 text-muted-foreground" />
+          </button>
         </div>
 
         {/* STEP 1: FORM */}
@@ -359,27 +356,26 @@ export function ConnectAccountModal({ isOpen, onClose, defaultRole = 'SUB' }: Co
               </div>
             </div>
 
-            <div className="flex items-center justify-between w-full px-2 text-[11px] text-muted-foreground">
-              <span>Checking live connection...</span>
-              <span className="font-mono">{elapsedSeconds}s</span>
-            </div>
-
-            {/* Helper alert if taking longer than 40s */}
-            {elapsedSeconds >= 40 && (
-              <div className="w-full p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500 text-xs text-left">
-                <p className="font-semibold mb-1">Provisioning taking a moment?</p>
-                <p className="text-[11px] text-muted-foreground">
-                  If running locally on your PC, ensure <code className="bg-black/10 dark:bg-white/10 px-1 py-0.5 rounded font-mono">start_bot.bat</code> is running. You can close this screen; the account will come online automatically.
-                </p>
-                <button
-                  type="button"
-                  onClick={handleDone}
-                  className="mt-2 text-xs font-semibold underline text-foreground hover:text-primary transition-colors"
-                >
-                  Continue to Dashboard in background &rarr;
-                </button>
+            {/* Connection Status & Background Reassurance Card */}
+            <div className="w-full p-4 rounded-2xl bg-black/5 dark:bg-white/5 border border-border/30 text-xs text-left flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-foreground flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                  Connecting to broker...
+                </span>
+                <span className="text-[11px] font-mono text-muted-foreground">{elapsedSeconds}s</span>
               </div>
-            )}
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Broker trade server initialization typically takes 30–60 seconds. You can safely close this screen at any time—your terminal will activate automatically in the background.
+              </p>
+              <button
+                type="button"
+                onClick={handleDone}
+                className="mt-1 text-xs font-semibold text-primary hover:underline self-start flex items-center gap-1 transition-colors"
+              >
+                Continue to Dashboard in background &rarr;
+              </button>
+            </div>
           </div>
         )}
 
