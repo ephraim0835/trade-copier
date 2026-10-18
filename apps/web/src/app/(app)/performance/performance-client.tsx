@@ -171,18 +171,72 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
         return acc;
       }, {});
 
-      return Object.values(grouped).sort((a: any, b: any) => a.timestamp - b.timestamp);
+      const sorted = Object.values(grouped).sort((a: any, b: any) => a.timestamp - b.timestamp);
+      if (sorted.length >= 2) {
+        return sorted;
+      }
+
+      // If hourly grouping collapsed into 1 point, fall back to individual snapshots
+      const rawSorted = activeSnapshots
+        .map(s => {
+          const d = new Date(s.timestamp);
+          return {
+            date: d.toLocaleString('default', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+            timestamp: d.getTime(),
+            value: Math.round((s.equity || s.balance || 0) * 100) / 100
+          };
+        })
+        .sort((a, b) => a.timestamp - b.timestamp);
+
+      if (rawSorted.length >= 2) {
+        return rawSorted;
+      }
     }
 
     // If snapshots are fewer than 2, synthesize curve from current equity + closed trades
     if (totalEquity > 0) {
       const now = Date.now();
-      const points = [];
-      const baseEquity = totalEquity - tradeStats.netProfit;
+      const points: { date: string; timestamp: number; value: number }[] = [];
+      const baseEquity = Math.max(0, totalEquity - tradeStats.netProfit);
 
+      // If closedTrades exist, plot progression across trades
+      const closedTrades = filteredTrades
+        .filter(t => t.profit !== null && t.profit !== undefined)
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+      if (closedTrades.length > 0) {
+        let runningEquity = baseEquity;
+        const firstTradeTime = new Date(closedTrades[0].createdAt).getTime();
+        points.push({
+          date: 'Initial',
+          timestamp: firstTradeTime - 3600000,
+          value: Math.round(baseEquity * 100) / 100
+        });
+
+        closedTrades.forEach((t) => {
+          runningEquity += (t.profit || 0);
+          const d = new Date(t.createdAt);
+          points.push({
+            date: d.toLocaleString('default', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+            timestamp: d.getTime(),
+            value: Math.round(runningEquity * 100) / 100
+          });
+        });
+
+        // Add current live point
+        points.push({
+          date: 'Live Portfolio',
+          timestamp: now,
+          value: Math.round(totalEquity * 100) / 100
+        });
+
+        return points;
+      }
+
+      // No closed trades yet: synthesize a clean 24h trajectory to current equity
       points.push({
         date: 'Start',
-        timestamp: now - 3600000 * 6,
+        timestamp: now - 3600000 * 24,
         value: Math.round(baseEquity * 100) / 100
       });
 
@@ -196,7 +250,7 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
     }
 
     return [];
-  }, [snapshots, selectedAccountIds, totalEquity, tradeStats.netProfit]);
+  }, [snapshots, selectedAccountIds, totalEquity, tradeStats.netProfit, filteredTrades]);
 
   return (
     <div className="flex-1 p-4 md:p-6 lg:p-8 space-y-6 overflow-y-auto custom-scrollbar max-w-7xl mx-auto w-full">
@@ -335,13 +389,16 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
           </div>
         </div>
 
-        <div className="flex-1 w-full min-h-[300px]">
+        <div className="w-full h-[320px] min-h-[300px]">
           {chartData.length > 0 ? (
             <PerformanceChart data={chartData} />
           ) : (
-            <div className="h-full w-full flex flex-col items-center justify-center text-center p-8">
-              <Activity className="w-8 h-8 text-muted-foreground/40 mb-2" />
-              <p className="text-xs text-muted-foreground">Initializing growth curve from broker feed...</p>
+            <div className="h-[320px] w-full flex flex-col items-center justify-center text-center p-8 bg-black/5 dark:bg-white/[0.02] rounded-xl border border-dashed border-border/40">
+              <Activity className="w-8 h-8 text-muted-foreground/40 mb-3" />
+              <p className="text-sm font-semibold text-foreground">Awaiting Trading Activity</p>
+              <p className="text-xs text-muted-foreground mt-1 max-w-sm">
+                Connect an MT5 account or start copying trades to generate live equity curves and performance tracking.
+              </p>
             </div>
           )}
         </div>
