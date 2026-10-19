@@ -8,6 +8,7 @@ export interface FriendlyError {
   title: string;
   message: string;
   suggestion?: string;
+  isPlanLimit?: boolean;
 }
 
 export function formatUserFriendlyError(rawError: unknown): string {
@@ -61,12 +62,33 @@ export function getFriendlyErrorDetails(rawError: unknown): FriendlyError {
     };
   }
 
-  // 3. Subscription Required
-  if (lower.includes('active subscription required') || lower.includes('subscription')) {
+  // 3. Plan Limit Reached or Subscription Required
+  if (
+    lower.includes('plan limit') ||
+    lower.includes('limit reached') ||
+    lower.includes('upgrade to pro') ||
+    lower.includes('plan_limit_reached')
+  ) {
+    return {
+      title: 'Plan Limit Reached',
+      message: cleanStr,
+      suggestion: 'Visit Pricing to upgrade your subscription plan and connect more trading terminals.',
+      isPlanLimit: true
+    };
+  }
+
+  if (
+    lower.includes('active subscription required') ||
+    lower.includes('subscription required') ||
+    lower.includes('paywall_required')
+  ) {
     return {
       title: 'Subscription Required',
-      message: 'An active plan is required to link accounts and execute trades.',
-      suggestion: 'Please visit your billing settings to activate a plan.'
+      message: cleanStr.includes('An active subscription') 
+        ? cleanStr 
+        : 'An active plan is required to link accounts and execute automated trades.',
+      suggestion: 'Please visit the Pricing page to choose a plan and activate trade copying.',
+      isPlanLimit: true
     };
   }
 

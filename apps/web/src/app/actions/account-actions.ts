@@ -35,10 +35,12 @@ export async function createMt5Account(data: {
       (user.subscription && ['ACTIVE', 'TRIAL', 'INTERNAL_FREE'].includes(user.subscription.status));
 
     if (!hasActiveSubscription) {
-      return { success: false, error: 'Active subscription required' };
+      return { 
+        success: false, 
+        error: 'An active subscription is required to connect trading terminals. Please choose a plan on the Pricing page to unlock automated trade copying.',
+        code: 'PAYWALL_REQUIRED'
+      };
     }
-
-    const encryptedPassword = data.password ? encrypt(data.password) : undefined;
 
     // Check if account with same login, broker, server already exists
     const existing = await prisma.mt5Account.findFirst({
@@ -49,14 +51,60 @@ export async function createMt5Account(data: {
       }
     });
 
+    if (existing && existing.userId !== user.id && user.role !== 'ADMIN' && user.role !== 'OWNER') {
+      return {
+        success: false,
+        error: `Account ${data.login} on ${data.server} is already linked to another user account.`
+      };
+    }
+
+    // Plan Limits Enforcement (Basic: 1 Master / 3 Subs; Pro: 2 Masters / 10 Subs)
+    const isOwnerOrAdmin = user.role === 'ADMIN' || user.role === 'OWNER' || user.subscription?.status === 'INTERNAL_FREE';
+    if (!isOwnerOrAdmin) {
+      const planId = (user.subscription?.planId || 'basic').toLowerCase();
+      const maxMasters = planId === 'pro' ? 2 : 1;
+      const maxSubs = planId === 'pro' ? 10 : 3;
+
+      const userAccounts = await prisma.mt5Account.findMany({
+        where: { userId: user.id },
+        select: { id: true, role: true }
+      });
+
+      const isReconnectingExisting = existing && existing.userId === user.id;
+
+      if (!isReconnectingExisting) {
+        if (data.role === 'MASTER') {
+          const currentMasters = userAccounts.filter(a => a.role === 'MASTER').length;
+          if (currentMasters >= maxMasters) {
+            const limitMsg = planId === 'basic'
+              ? 'Basic Plan limit reached (maximum 1 Master account). Upgrade to Pro to connect up to 2 Master accounts.'
+              : 'Pro Plan limit reached (maximum 2 Master accounts). Please contact support for custom institutional capacity.';
+            return {
+              success: false,
+              error: limitMsg,
+              code: 'PLAN_LIMIT_REACHED'
+            };
+          }
+        } else if (data.role === 'SUB') {
+          const currentSubs = userAccounts.filter(a => a.role === 'SUB').length;
+          if (currentSubs >= maxSubs) {
+            const limitMsg = planId === 'basic'
+              ? 'Basic Plan limit reached (maximum 3 Sub accounts). Upgrade to Pro to connect up to 10 Sub accounts.'
+              : 'Pro Plan limit reached (maximum 10 Sub accounts). Please contact support for custom institutional capacity.';
+            return {
+              success: false,
+              error: limitMsg,
+              code: 'PLAN_LIMIT_REACHED'
+            };
+          }
+        }
+      }
+    }
+
+    const encryptedPassword = data.password ? encrypt(data.password) : undefined;
+
     let account;
     if (existing) {
-      if (existing.userId !== user.id && user.role !== 'ADMIN' && user.role !== 'OWNER') {
-        return {
-          success: false,
-          error: `Account ${data.login} on ${data.server} is already linked to another user account.`
-        };
-      }
 
       // Re-link & update existing account
       account = await prisma.mt5Account.update({
@@ -332,11 +380,26 @@ export async function toggleAccountActive(accountId: string, isActive: boolean) 
     }
 
     const user = await prisma.user.findUnique({
-      where: { email: session.user.email }
+      where: { email: session.user.email },
+      include: { subscription: true }
     });
 
     if (!user) {
       return { success: false, error: 'User not found' };
+    }
+
+    if (isActive) {
+      const hasActiveSubscription = user.role === 'ADMIN' ||
+        user.role === 'OWNER' ||
+        (user.subscription && ['ACTIVE', 'TRIAL', 'INTERNAL_FREE'].includes(user.subscription.status));
+
+      if (!hasActiveSubscription) {
+        return { 
+          success: false, 
+          error: 'An active subscription is required to resume automated trade copying. Please choose a plan on the Pricing page.',
+          code: 'PAYWALL_REQUIRED'
+        };
+      }
     }
 
     // Verify ownership

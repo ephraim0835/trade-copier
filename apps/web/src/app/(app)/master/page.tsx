@@ -5,6 +5,7 @@ import { MasterActions } from '@/components/master/master-actions';
 import { MasterStatusAlert } from '@/components/master/master-status-alert';
 import { getServerSession } from 'next-auth/next';
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +16,8 @@ export default async function MasterPage() {
   }
 
   const user = await prisma.user.findUnique({
-    where: { email: session.user.email }
+    where: { email: session.user.email },
+    include: { subscription: true }
   });
 
   if (!user) {
@@ -40,17 +42,36 @@ export default async function MasterPage() {
     masterAccount?.connectionStatus === 'ONLINE' && 
     (Math.abs(Date.now() - lastSeen) < 180_000);
 
+  const planId = (user.subscription?.planId || 'basic').toLowerCase();
+  const isAdmin = user.role === 'ADMIN' || user.role === 'OWNER';
+  const isInternalFree = user.subscription?.status === 'INTERNAL_FREE';
+  const maxMasters = isAdmin || isInternalFree ? 999 : (planId === 'pro' ? 2 : 1);
+  const mastersCount = masterAccount ? 1 : 0;
+
   return (
     <div className="flex-1 p-4 md:p-6 lg:p-12 flex flex-col gap-10 pb-32 overflow-y-auto custom-scrollbar relative">
       <header className="relative z-[60] flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <ShieldCheck className="w-6 h-6 text-primary" />
-            Master Source
-          </h1>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
+              <ShieldCheck className="w-6 h-6 text-primary" />
+              Master Source
+            </h1>
+            <span className="text-xs px-2.5 py-1 rounded-full bg-secondary text-foreground font-semibold border border-border/40">
+              {mastersCount} / {isAdmin || isInternalFree ? '∞' : maxMasters} Connected • {planId.toUpperCase()} Plan
+            </span>
+          </div>
           <p className="text-muted-foreground text-[13px] tracking-wide mt-2">
             The source account driving all portfolio executions.
           </p>
+          {mastersCount >= maxMasters && planId === 'basic' && !isAdmin && !isInternalFree && (
+            <div className="mt-2 text-xs flex items-center gap-1.5 text-amber-500 font-medium">
+              <span>Basic Plan allows 1 Master account.</span>
+              <Link href="/pricing" className="text-primary font-semibold hover:underline">
+                Upgrade to Pro for up to 2 Master accounts &rarr;
+              </Link>
+            </div>
+          )}
         </div>
         <MasterActions masterAccountId={masterAccount?.id} />
       </header>

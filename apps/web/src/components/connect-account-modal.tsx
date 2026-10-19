@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { X, Server, ShieldCheck, Key, User, CheckCircle2, AlertCircle, Loader2, ArrowRight, RefreshCw } from 'lucide-react';
+import { X, Server, ShieldCheck, Key, User, CheckCircle2, AlertCircle, Loader2, ArrowRight, RefreshCw, Crown } from 'lucide-react';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { createMt5Account, getAccountConnectionStatus } from '@/app/actions/account-actions';
 import { useRouter } from 'next/navigation';
@@ -439,7 +440,9 @@ export function ConnectAccountModal({ isOpen, onClose, defaultRole = 'SUB' }: Co
               <div className="flex flex-col gap-1.5">
                 <h3 className="font-bold text-xl text-foreground">{details.title}</h3>
                 <p className="text-xs text-muted-foreground">
-                  The terminal could not establish an active session with your broker.
+                  {details.isPlanLimit 
+                    ? 'Upgrade your plan to increase account capacity and connect more MT5 terminals.'
+                    : 'The terminal could not establish an active session with your broker.'}
                 </p>
               </div>
 
@@ -458,14 +461,25 @@ export function ConnectAccountModal({ isOpen, onClose, defaultRole = 'SUB' }: Co
               </div>
 
               <div className="flex flex-col gap-2 w-full">
-                <button 
-                  type="button"
-                  onClick={handleTryAgain}
-                  className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                  <span>Edit Credentials & Try Again</span>
-                </button>
+                {details.isPlanLimit ? (
+                  <Link
+                    href="/pricing"
+                    onClick={onClose}
+                    className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20"
+                  >
+                    <Crown className="w-4 h-4" />
+                    <span>View Pricing Plans & Upgrade</span>
+                  </Link>
+                ) : (
+                  <button 
+                    type="button"
+                    onClick={handleTryAgain}
+                    className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    <span>Edit Credentials & Try Again</span>
+                  </button>
+                )}
 
                 <button 
                   type="button"
