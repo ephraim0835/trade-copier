@@ -100,5 +100,5 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: '/login',
   },
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: process.env.NEXTAUTH_SECRET || process.env.JWT_ACCESS_SECRET || 'trade_copier_secure_nextauth_secret_2026',
 };
