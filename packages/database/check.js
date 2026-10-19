@@ -1,7 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 async function main() {
-  const accounts = await prisma.mt5Account.findMany();
-  console.log('Accounts:', accounts);
+  const tickets = await prisma.supportTicket.findMany();
+  console.log('Tickets count:', tickets.length);
 }
 main().catch(console.error).finally(() => prisma.$disconnect());

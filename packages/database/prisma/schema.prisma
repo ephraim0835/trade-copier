@@ -24,7 +24,8 @@ model User {
   accounts            Mt5Account[]
   subscription        Subscription?
   notifications       UserNotification[]
-  tickets             SupportTicket[]
+  tickets             SupportTicket[]    @relation("UserTickets")
+  assignedSupportTickets SupportTicket[] @relation("AssignedAdminTickets")
   botStopped          Boolean            @default(false)
 }
 
@@ -452,19 +453,22 @@ enum ConnectionStatus {
 }
 
 model SupportTicket {
-  id          String          @id @default(uuid())
-  userId      String
-  subject     String
-  status      String          @default("OPEN") // OPEN, IN_PROGRESS, RESOLVED, CLOSED
-  priority    String          @default("STANDARD") // STANDARD, PRIORITY, VIP
-  category    String          @default("GENERAL") // GENERAL, TECHNICAL, BILLING, BROKER
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages    TicketMessage[]
+  id              String          @id @default(uuid())
+  userId          String
+  subject         String
+  status          String          @default("OPEN") // OPEN, IN_PROGRESS, RESOLVED, CLOSED
+  priority        String          @default("STANDARD") // STANDARD, PRIORITY, VIP
+  category        String          @default("GENERAL") // GENERAL, TECHNICAL, BILLING, BROKER
+  assignedAdminId String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  user            User            @relation("UserTickets", fields: [userId], references: [id], onDelete: Cascade)
+  assignedAdmin   User?           @relation("AssignedAdminTickets", fields: [assignedAdminId], references: [id], onDelete: SetNull)
+  messages        TicketMessage[]
 
   @@index([userId])
   @@index([status])
+  @@index([assignedAdminId])
 }
 
 model TicketMessage {

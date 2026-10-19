@@ -18,6 +18,9 @@ interface CachedMasterAccount {
 
 interface CachedSubAccount {
   id: string;
+  userId?: string;
+  botStopped?: boolean;
+  subscriptionExpired?: boolean;
   isDemo: boolean;
   isActive: boolean;
   copySettings: CopySettings | null;
@@ -152,8 +155,14 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
           subAccount: {
             include: {
               copySettings: true,
-            }
-          }
+              user: {
+                select: {
+                  botStopped: true,
+                  subscription: true,
+                },
+              },
+            },
+          },
         },
       });
 
@@ -172,6 +181,15 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
         }
 
         const a = sub.subAccount;
+        const u = (a as any).user;
+        const subRecord = u?.subscription;
+        const now = Date.now();
+        const isExpired = subRecord ? (
+          subRecord.status === 'EXPIRED' ||
+          subRecord.status === 'CANCELED' ||
+          subRecord.status === 'PAST_DUE' ||
+          (subRecord.status === 'TRIAL' && subRecord.currentPeriodEnd && new Date(subRecord.currentPeriodEnd).getTime() < now)
+        ) : false;
         
         // Ensure copySettings is never null so trades are never skipped
         const baseSettings: any = a.copySettings || {
@@ -200,6 +218,9 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
 
         const cached: CachedSubAccount = {
           id: a.id,
+          userId: a.userId,
+          botStopped: u?.botStopped || false,
+          subscriptionExpired: isExpired,
           isDemo: a.isDemo,
           isActive: a.isActive,
           copySettings: mergedSettings,
@@ -474,6 +495,14 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
     for (const sub of subscribedSubs) {
       if (!sub.copySettings || !sub.isActive) continue;
       if (this.demoOnly && !sub.isDemo) continue;
+      if (sub.botStopped) {
+        this.logger.log(`[MasterSignal] Skipping sub ${sub.id}: Bot copying stopped by user`);
+        continue;
+      }
+      if (sub.subscriptionExpired) {
+        this.logger.warn(`[MasterSignal] Skipping sub ${sub.id}: Subscription expired or past due`);
+        continue;
+      }
 
       const riskProfile = this.buildRiskProfile(sub, masterInfo);
       const signalInput = {
