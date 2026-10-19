@@ -58,6 +58,12 @@ describe('AccountsService', () => {
   });
 
   it('updates telemetry successfully', async () => {
+    mockPrisma.mt5Account.findUnique.mockResolvedValue({
+      id: 'acc-1',
+      userId: 'user-1',
+      balance: 9000,
+      initialBalance: 9000,
+    });
     mockPrisma.mt5Account.update.mockResolvedValue({ id: 'acc-1' });
 
     const result = await service.updateTelemetry('acc-1', {

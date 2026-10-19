@@ -4,8 +4,17 @@ import { UpdateCopySettingsDto } from '../dto/update-copy-settings.dto';
 import { UpdateTelemetryDto } from '../dto/update-telemetry.dto';
 import { RealtimeService } from '../../realtime/realtime.service';
 
+interface CachedAccountState {
+  userId: string;
+  lastBalance?: number;
+  lastPersistAt: number;
+  initialBalanceSet: boolean;
+}
+
 @Injectable()
 export class AccountsService {
+  private accountCache = new Map<string, CachedAccountState>();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly realtimeService: RealtimeService
@@ -52,41 +61,77 @@ export class AccountsService {
       return { success: false, message: 'Terminal not connected to broker' };
     }
 
-    const currentAccount = await this.prisma.mt5Account.findUnique({
-      where: { id: accountId },
-      select: { initialBalance: true, userId: true },
-    });
+    // Retrieve or populate in-memory account cache for sub-millisecond SSE dispatch
+    let cached = this.accountCache.get(accountId);
+    if (!cached) {
+      const dbAcc = await this.prisma.mt5Account.findUnique({
+        where: { id: accountId },
+        select: { id: true, userId: true, balance: true, initialBalance: true },
+      });
 
-    const updateData: any = {
-      isActive: true,
-      connectionStatus: 'ONLINE',
-      provisioningError: null,
-      lastHeartbeatAt: new Date(),
-      balance: dto.balance,
-      equity: dto.equity,
-      margin: dto.margin,
-      freeMargin: dto.freeMargin,
-      floatingPl: dto.floatingPl,
-      currency: dto.currency,
-    };
+      if (!dbAcc) {
+        return { success: false, message: 'Account not found' };
+      }
 
-    if (currentAccount && (currentAccount.initialBalance === null || currentAccount.initialBalance === undefined) && typeof dto.balance === 'number' && dto.balance > 0) {
-      updateData.initialBalance = dto.balance;
+      cached = {
+        userId: dbAcc.userId,
+        lastBalance: dbAcc.balance ?? undefined,
+        lastPersistAt: 0,
+        initialBalanceSet: dbAcc.initialBalance !== null && dbAcc.initialBalance !== undefined,
+      };
+      this.accountCache.set(accountId, cached);
     }
 
-    const account = await this.prisma.mt5Account.update({
-      where: { id: accountId },
-      data: updateData,
-    });
-    
-    this.realtimeService.emit(account.userId, 'REFRESH', {
+    // [FAST-PATH] Emit SSE immediately to connected browser client (< 1ms in-memory dispatch)
+    this.realtimeService.emit(cached.userId, 'REFRESH', {
       type: 'TELEMETRY',
-      accountId: account.id,
+      accountId: accountId,
       floatingPl: dto.floatingPl,
       balance: dto.balance,
-      equity: dto.equity
+      equity: dto.equity,
     });
-    
+
+    // [RESOURCE-EFFICIENT PERSISTENCE]
+    // Persist to PostgreSQL only when:
+    // 1) First time / initial balance needs to be recorded
+    // 2) Balance changed (trade closed, deposit, withdrawal)
+    // 3) Periodic heartbeat checkpoint (every 15s)
+    const now = Date.now();
+    const balanceChanged = cached.lastBalance === undefined || 
+      (dto.balance !== undefined && Math.abs(dto.balance - cached.lastBalance) >= 0.01);
+    const needsInitialBalance = !cached.initialBalanceSet && typeof dto.balance === 'number' && dto.balance > 0;
+    const periodicPersistDue = (now - cached.lastPersistAt) >= 15000;
+
+    if (balanceChanged || needsInitialBalance || periodicPersistDue) {
+      cached.lastPersistAt = now;
+      if (dto.balance !== undefined) {
+        cached.lastBalance = dto.balance;
+      }
+
+      const updateData: any = {
+        isActive: true,
+        connectionStatus: 'ONLINE',
+        provisioningError: null,
+        lastHeartbeatAt: new Date(),
+        balance: dto.balance,
+        equity: dto.equity,
+        margin: dto.margin,
+        freeMargin: dto.freeMargin,
+        floatingPl: dto.floatingPl,
+        currency: dto.currency,
+      };
+
+      if (needsInitialBalance) {
+        updateData.initialBalance = dto.balance;
+        cached.initialBalanceSet = true;
+      }
+
+      await this.prisma.mt5Account.update({
+        where: { id: accountId },
+        data: updateData,
+      });
+    }
+
     return { success: true };
   }
 }
