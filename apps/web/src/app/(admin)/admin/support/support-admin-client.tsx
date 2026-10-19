@@ -479,7 +479,7 @@ export function SupportAdminClient({
                     {/* Snippet of last message */}
                     {lastMsg && (
                       <p className="text-[11px] text-muted-foreground line-clamp-1 italic">
-                        {lastMsg.senderRole === 'ADMIN' ? 'Staff: ' : 'User: '}
+                        {(lastMsg.senderRole === 'ADMIN' || lastMsg.senderRole === 'OWNER') && lastMsg.senderId !== t.userId ? 'Staff: ' : 'User: '}
                         {lastMsg.message}
                       </p>
                     )}
@@ -599,7 +599,7 @@ export function SupportAdminClient({
               {/* CONVERSATION THREAD */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[460px]">
                 {selectedTicket.messages.map((m) => {
-                  const isStaff = m.senderRole === 'ADMIN' || m.senderRole === 'OWNER';
+                  const isStaff = (m.senderRole === 'ADMIN' || m.senderRole === 'OWNER') && m.senderId !== selectedTicket.user.id;
 
                   return (
                     <div

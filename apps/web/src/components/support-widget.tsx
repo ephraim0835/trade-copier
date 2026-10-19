@@ -247,7 +247,7 @@ export function SupportWidget({
                 {/* Messages Thread */}
                 <div className="flex-1 p-4 overflow-y-auto custom-scrollbar flex flex-col gap-3">
                   {activeTicket.messages?.map((msg: any) => {
-                    const isUser = msg.senderRole === 'USER';
+                    const isUser = msg.senderRole === 'USER' || msg.senderId === activeTicket.userId;
                     return (
                       <div
                         key={msg.id}
@@ -255,7 +255,7 @@ export function SupportWidget({
                       >
                         <div className="flex items-center gap-1.5 mb-1 px-1">
                           <span className="text-[10px] font-bold text-muted-foreground">
-                            {isUser ? 'You' : 'Plaiz Support'}
+                            {isUser ? 'You' : (activeTicket.assignedAdmin?.name || 'Plaiz Support')}
                           </span>
                           <span className="text-[9px] text-muted-foreground/70">
                             {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

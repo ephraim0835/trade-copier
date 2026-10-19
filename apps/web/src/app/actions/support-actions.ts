@@ -39,7 +39,25 @@ export async function getUserSupportTickets() {
       orderBy: { updatedAt: 'desc' },
     });
 
-    return { success: true, tickets };
+    // Auto-heal any legacy messages authored by ticket owner to have senderRole = 'USER'
+    await prisma.ticketMessage.updateMany({
+      where: {
+        ticket: { userId: user.id },
+        senderId: user.id,
+        senderRole: { not: 'USER' },
+      },
+      data: { senderRole: 'USER' },
+    }).catch(() => {});
+
+    const sanitizedTickets = tickets.map(t => ({
+      ...t,
+      messages: t.messages.map(m => ({
+        ...m,
+        senderRole: m.senderId === t.userId ? 'USER' : m.senderRole,
+      })),
+    }));
+
+    return { success: true, tickets: sanitizedTickets };
   } catch (err: any) {
     console.error('Error fetching support tickets:', err);
     return { success: false, error: formatUserFriendlyError(err), tickets: [] };
@@ -121,7 +139,7 @@ export async function createSupportTicket(data: {
         messages: {
           create: {
             senderId: user.id,
-            senderRole: user.role === 'ADMIN' || user.role === 'OWNER' ? 'ADMIN' : 'USER',
+            senderRole: 'USER',
             message: data.message.trim(),
           },
         },
@@ -184,22 +202,27 @@ export async function sendTicketMessage(ticketId: string, message: string) {
       return { success: false, error: 'Ticket not found.' };
     }
 
-    const isAdmin = user.role === 'ADMIN' || user.role === 'OWNER';
-    if (ticket.userId !== user.id && !isAdmin) {
+    const isOwnerOrAdmin = user.role === 'ADMIN' || user.role === 'OWNER';
+    if (ticket.userId !== user.id && !isOwnerOrAdmin) {
       return { success: false, error: 'Access denied.' };
     }
+
+    // A user messaging on their OWN ticket is the customer (USER).
+    // An admin replying to someone else's ticket is acting as support staff (ADMIN).
+    const isCustomerReplying = ticket.userId === user.id;
+    const senderRole = isCustomerReplying ? 'USER' : 'ADMIN';
 
     const newMessage = await prisma.ticketMessage.create({
       data: {
         ticketId,
         senderId: user.id,
-        senderRole: isAdmin ? 'ADMIN' : 'USER',
+        senderRole,
         message: message.trim(),
       },
     });
 
-    // If an admin replied, mark as IN_PROGRESS if OPEN, and notify customer
-    if (isAdmin) {
+    // If support staff replied (not the customer themselves), mark as IN_PROGRESS if OPEN, and notify customer
+    if (!isCustomerReplying) {
       await prisma.supportTicket.update({
         where: { id: ticketId },
         data: {
@@ -385,10 +408,18 @@ export async function getAdminSupportTickets(options?: {
       prisma.supportTicket.count({ where: { assignedAdminId: null, status: { in: ['OPEN', 'IN_PROGRESS'] } } }),
     ]);
 
+    const sanitizedTickets = tickets.map(t => ({
+      ...t,
+      messages: t.messages.map(m => ({
+        ...m,
+        senderRole: m.senderId === t.user.id ? 'USER' : m.senderRole,
+      })),
+    }));
+
     return {
       success: true,
       currentAdminId: currentUser.id,
-      tickets,
+      tickets: sanitizedTickets,
       counts: {
         all: allCount,
         open: openCount,
