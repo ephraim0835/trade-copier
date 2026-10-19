@@ -50,6 +50,8 @@ export const viewport: Viewport = {
   userScalable: false,
 };
 
+import { CurrencyProvider } from '@/components/currency-provider';
+
 export default function RootLayout({
   children,
 }: {
@@ -59,12 +61,14 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.className} min-h-screen bg-background text-foreground antialiased relative overflow-x-hidden`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <PwaProvider>
-            {/* The rest of the app content will be injected here */}
-            {children}
-            <PwaInstallBanner />
-            <PwaIosPrompt />
-          </PwaProvider>
+          <CurrencyProvider>
+            <PwaProvider>
+              {/* The rest of the app content will be injected here */}
+              {children}
+              <PwaInstallBanner />
+              <PwaIosPrompt />
+            </PwaProvider>
+          </CurrencyProvider>
         </ThemeProvider>
       </body>
     </html>

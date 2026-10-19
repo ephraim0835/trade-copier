@@ -16,9 +16,17 @@ interface SettingsControlsProps {
     flutterwaveTxRef: string | null;
   } | null;
   role?: string;
+  mastersCount?: number;
+  subsCount?: number;
 }
 
-export function SettingsControls({ email, subscription, role }: SettingsControlsProps) {
+export function SettingsControls({ 
+  email, 
+  subscription, 
+  role,
+  mastersCount = 0,
+  subsCount = 0,
+}: SettingsControlsProps) {
   const { currency, setCurrency } = useCurrency();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -84,6 +92,10 @@ export function SettingsControls({ email, subscription, role }: SettingsControls
 
   if (!mounted) return null;
 
+  const currentPlan = (subscription?.planId || 'basic').toLowerCase();
+  const maxMasters = currentPlan === 'pro' ? 2 : 1;
+  const maxSubs = currentPlan === 'pro' ? 10 : 3;
+
   return (
     <div className="flex flex-col gap-10">
 
@@ -123,6 +135,35 @@ export function SettingsControls({ email, subscription, role }: SettingsControls
               <ArrowUpRight className="w-3.5 h-3.5 opacity-70" />
             </Link>
           )}
+        </div>
+
+        {/* Live Quota Capacity Meter */}
+        <div className="ml-0 md:ml-14 grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 bg-black/5 dark:bg-white/5 rounded-2xl border border-border/30">
+          <div>
+            <div className="flex justify-between items-center text-xs mb-1.5">
+              <span className="text-muted-foreground font-medium">Master Accounts</span>
+              <span className="font-bold text-foreground">{mastersCount} / {maxMasters} Used</span>
+            </div>
+            <div className="w-full bg-border/40 h-2 rounded-full overflow-hidden">
+              <div 
+                className={`h-full transition-all duration-300 ${mastersCount >= maxMasters ? 'bg-amber-500' : 'bg-primary'}`} 
+                style={{ width: `${Math.min(100, (mastersCount / maxMasters) * 100)}%` }} 
+              />
+            </div>
+          </div>
+
+          <div>
+            <div className="flex justify-between items-center text-xs mb-1.5">
+              <span className="text-muted-foreground font-medium">Sub Accounts</span>
+              <span className="font-bold text-foreground">{subsCount} / {maxSubs} Used</span>
+            </div>
+            <div className="w-full bg-border/40 h-2 rounded-full overflow-hidden">
+              <div 
+                className={`h-full transition-all duration-300 ${subsCount >= maxSubs ? 'bg-amber-500' : 'bg-primary'}`} 
+                style={{ width: `${Math.min(100, (subsCount / maxSubs) * 100)}%` }} 
+              />
+            </div>
+          </div>
         </div>
 
         {/* Current status card */}
@@ -168,7 +209,7 @@ export function SettingsControls({ email, subscription, role }: SettingsControls
               <Sparkles className="w-3 h-3" /> Recommended
             </div>
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-primary">Pro Unlimited</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-primary">Pro Plan</span>
               {subscription?.status === 'ACTIVE' && subscription?.planId === 'pro' && (
                 <span className="flex items-center gap-1 text-[11px] font-bold text-primary">
                   <CheckCircle2 className="w-3.5 h-3.5" /> Current Plan
@@ -182,7 +223,7 @@ export function SettingsControls({ email, subscription, role }: SettingsControls
               <span className="text-xs text-muted-foreground font-medium">/ month</span>
             </div>
             <p className="text-[11px] text-muted-foreground mb-4">
-              Unlimited Master & Sub Accounts. Dedicated low-latency bridge (&lt;15ms) + Advanced Equity Guard.
+              Up to 2 Master Accounts & 10 Sub Accounts. Dedicated low-latency bridge (&lt;15ms) + Advanced Equity Guard.
             </p>
             <CheckoutButton
               planId="pro"

@@ -125,13 +125,6 @@ export async function POST(req: NextRequest) {
         }
       });
 
-      if (appliedDiscount) {
-        await prisma.discountCode.update({
-          where: { id: appliedDiscount.id },
-          data: { usedCount: { increment: 1 } }
-        });
-      }
-
       return NextResponse.json({ link: data.data.link });
     } else {
       console.error("Flutterwave API Error:", data);

@@ -91,6 +91,13 @@ export async function POST(req: NextRequest) {
       }
     });
 
+    if (subscription.discountCodeId) {
+      await prisma.discountCode.update({
+        where: { id: subscription.discountCodeId },
+        data: { usedCount: { increment: 1 } },
+      }).catch((e) => console.error("Could not increment discount usedCount:", e));
+    }
+
     return NextResponse.json({
       success: true,
       subscription: {

@@ -1,0 +1,460 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { 
+  X, 
+  Check, 
+  Sparkles, 
+  ShieldCheck, 
+  CreditCard, 
+  Loader2, 
+  Tag, 
+  Lock, 
+  AlertCircle,
+  ArrowRight,
+  Zap
+} from 'lucide-react';
+import { useCurrency } from '@/components/currency-provider';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+
+interface CheckoutModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  initialPlanId?: 'basic' | 'pro';
+}
+
+export function CheckoutModal({
+  isOpen,
+  onClose,
+  initialPlanId = 'pro',
+}: CheckoutModalProps) {
+  const { data: session } = useSession();
+  const router = useRouter();
+  const { currency: globalCurrency, setCurrency: setGlobalCurrency } = useCurrency();
+
+  const [selectedPlan, setSelectedPlan] = useState<'basic' | 'pro'>(initialPlanId);
+  const [currency, setCurrency] = useState<'USD' | 'NGN'>(globalCurrency || 'USD');
+  const [discountCode, setDiscountCode] = useState('');
+  const [isValidatingCode, setIsValidatingCode] = useState(false);
+  const [appliedDiscount, setAppliedDiscount] = useState<{
+    code: string;
+    percentage: number;
+    savings: number;
+    finalAmount: number;
+  } | null>(null);
+  const [discountError, setDiscountError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  // Sync initialPlanId when changed
+  useEffect(() => {
+    setSelectedPlan(initialPlanId);
+  }, [initialPlanId]);
+
+  // Sync currency from global context
+  useEffect(() => {
+    if (globalCurrency) {
+      setCurrency(globalCurrency);
+    }
+  }, [globalCurrency]);
+
+  // Reset states on open/close
+  useEffect(() => {
+    if (!isOpen) {
+      setDiscountError(null);
+      setCheckoutError(null);
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  // Base pricing
+  const isNgn = currency === 'NGN';
+  const basePrices = {
+    basic: isNgn ? 39000 : 26,
+    pro: isNgn ? 58500 : 39,
+  };
+
+  const planQuota = {
+    basic: {
+      masters: '1 Master Account',
+      subs: 'Up to 3 Sub Accounts',
+      speed: '<50ms Execution',
+      name: 'Basic Plan',
+    },
+    pro: {
+      masters: 'Up to 2 Master Accounts',
+      subs: 'Up to 10 Sub Accounts',
+      speed: '<15ms Priority Execution',
+      name: 'Pro Plan',
+    },
+  };
+
+  const currentBasePrice = basePrices[selectedPlan];
+  const currentSavings = appliedDiscount ? Math.round((currentBasePrice * (appliedDiscount.percentage / 100)) * 100) / 100 : 0;
+  const finalPrice = Math.max(1, currentBasePrice - currentSavings);
+
+  const handleApplyDiscount = async () => {
+    if (!discountCode.trim()) {
+      setDiscountError('Please enter a coupon or promo code.');
+      return;
+    }
+
+    setIsValidatingCode(true);
+    setDiscountError(null);
+
+    try {
+      const res = await fetch('/api/billing/validate-discount', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: discountCode.trim().toUpperCase(),
+          planId: selectedPlan,
+          currency,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.valid) {
+        setAppliedDiscount(null);
+        setDiscountError(data.error || 'Invalid discount code.');
+      } else {
+        setAppliedDiscount({
+          code: data.code,
+          percentage: data.percentage,
+          savings: data.savings,
+          finalAmount: data.finalAmount,
+        });
+        setDiscountError(null);
+      }
+    } catch (err: any) {
+      setDiscountError(err.message || 'Failed to check discount code.');
+    } finally {
+      setIsValidatingCode(false);
+    }
+  };
+
+  const handleRemoveDiscount = () => {
+    setAppliedDiscount(null);
+    setDiscountCode('');
+    setDiscountError(null);
+  };
+
+  const handleCurrencySwitch = (newCurrency: 'USD' | 'NGN') => {
+    setCurrency(newCurrency);
+    setGlobalCurrency(newCurrency);
+    // If discount was applied, re-validate with new currency
+    if (appliedDiscount) {
+      setAppliedDiscount(null);
+    }
+  };
+
+  const handleProceedToPayment = async () => {
+    if (!session?.user?.email) {
+      // Redirect to login or signup
+      router.push(`/signup?redirect=/pricing`);
+      return;
+    }
+
+    setIsSubmitting(true);
+    setCheckoutError(null);
+
+    try {
+      const res = await fetch('/api/billing/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          planId: selectedPlan,
+          currency,
+          discountCode: appliedDiscount?.code || (discountCode.trim() ? discountCode.trim().toUpperCase() : undefined),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to initialize payment gateway.');
+      }
+
+      if (data.link) {
+        // Redirect directly to Flutterwave hosted checkout
+        window.location.href = data.link;
+      } else {
+        throw new Error('No payment checkout link returned.');
+      }
+    } catch (err: any) {
+      console.error('Checkout error:', err);
+      setCheckoutError(err.message || 'Payment provider is currently unavailable. Please try again shortly.');
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-in fade-in duration-200">
+      <div 
+        className="plaiz-card bg-card border border-border/60 max-w-lg w-full rounded-[28px] p-6 md:p-8 shadow-2xl relative overflow-hidden flex flex-col gap-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Glow accent */}
+        <div className="absolute -top-24 -right-24 w-48 h-48 bg-primary/20 blur-3xl rounded-full pointer-events-none" />
+
+        {/* Header */}
+        <div className="flex items-start justify-between relative z-10">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-primary/10 text-primary border border-primary/20 flex items-center gap-1">
+                <Sparkles className="w-3 h-3" /> Secure Checkout
+              </span>
+            </div>
+            <h2 className="text-xl md:text-2xl font-extrabold text-foreground tracking-tight">
+              Activate {planQuota[selectedPlan].name}
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Automated ultra-low latency trade copying across all your MT5 accounts.
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Plan Selector & Currency Switcher */}
+        <div className="flex flex-col gap-3 relative z-10">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Select Plan</span>
+            {/* Currency toggle */}
+            <div className="flex items-center bg-black/5 dark:bg-white/5 p-1 rounded-xl border border-border/40">
+              <button
+                type="button"
+                onClick={() => handleCurrencySwitch('USD')}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${
+                  currency === 'USD'
+                    ? 'bg-card text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                USD ($)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCurrencySwitch('NGN')}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${
+                  currency === 'NGN'
+                    ? 'bg-card text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                NGN (₦)
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            {/* Basic card option */}
+            <button
+              type="button"
+              onClick={() => setSelectedPlan('basic')}
+              className={`p-3.5 rounded-2xl border text-left transition-all ${
+                selectedPlan === 'basic'
+                  ? 'bg-primary/5 border-primary shadow-sm ring-1 ring-primary/30'
+                  : 'bg-card/40 border-border/40 hover:border-border/80'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-bold text-foreground">Basic Plan</span>
+                {selectedPlan === 'basic' && <Check className="w-3.5 h-3.5 text-primary" />}
+              </div>
+              <div className="text-sm font-extrabold text-foreground mb-1">
+                {isNgn ? '₦39,000' : '$26'}<span className="text-[10px] text-muted-foreground font-normal">/mo</span>
+              </div>
+              <div className="text-[10px] text-muted-foreground leading-tight">
+                1 Master • 3 Subs
+              </div>
+            </button>
+
+            {/* Pro card option */}
+            <button
+              type="button"
+              onClick={() => setSelectedPlan('pro')}
+              className={`p-3.5 rounded-2xl border text-left relative transition-all ${
+                selectedPlan === 'pro'
+                  ? 'bg-primary/10 border-primary shadow-sm ring-1 ring-primary/40'
+                  : 'bg-card/40 border-border/40 hover:border-border/80'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-bold text-primary flex items-center gap-1">
+                  Pro Plan <Sparkles className="w-2.5 h-2.5" />
+                </span>
+                {selectedPlan === 'pro' && <Check className="w-3.5 h-3.5 text-primary" />}
+              </div>
+              <div className="text-sm font-extrabold text-foreground mb-1">
+                {isNgn ? '₦58,500' : '$39'}<span className="text-[10px] text-muted-foreground font-normal">/mo</span>
+              </div>
+              <div className="text-[10px] text-muted-foreground leading-tight">
+                2 Masters • 10 Subs
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* Plan Quota Highlights */}
+        <div className="bg-black/5 dark:bg-white/5 p-3.5 rounded-2xl border border-border/30 text-xs flex flex-col gap-2 relative z-10">
+          <div className="font-semibold text-foreground flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">
+            <Zap className="w-3.5 h-3.5 text-primary" />
+            {planQuota[selectedPlan].name} Includes:
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-foreground font-medium text-[11px]">
+            <div className="flex items-center gap-1.5">
+              <Check className="w-3 h-3 text-emerald-500 shrink-0" />
+              <span>{planQuota[selectedPlan].masters}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Check className="w-3 h-3 text-emerald-500 shrink-0" />
+              <span>{planQuota[selectedPlan].subs}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Check className="w-3 h-3 text-emerald-500 shrink-0" />
+              <span>{planQuota[selectedPlan].speed}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Check className="w-3 h-3 text-emerald-500 shrink-0" />
+              <span>Equity Guard & Risk SL</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Promo / Discount Code Box */}
+        <div className="flex flex-col gap-2 relative z-10">
+          <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+            <Tag className="w-3.5 h-3.5 text-primary" /> Promo / Discount Code
+          </label>
+
+          {appliedDiscount ? (
+            <div className="flex items-center justify-between p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs">
+              <div className="flex items-center gap-2">
+                <Check className="w-4 h-4 text-emerald-500" />
+                <div>
+                  <span className="font-bold text-emerald-500 uppercase">{appliedDiscount.code}</span>
+                  <span className="text-muted-foreground ml-1.5">
+                    ({appliedDiscount.percentage}% off applied)
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleRemoveDiscount}
+                className="text-[11px] text-muted-foreground hover:text-foreground font-semibold hover:underline"
+              >
+                Remove
+              </button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={discountCode}
+                onChange={(e) => setDiscountCode(e.target.value.toUpperCase())}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleApplyDiscount();
+                  }
+                }}
+                placeholder="e.g. WELCOME20"
+                className="flex-1 bg-background border border-border/50 rounded-xl px-3.5 py-2.5 text-xs font-mono uppercase tracking-wider text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              <button
+                type="button"
+                onClick={handleApplyDiscount}
+                disabled={isValidatingCode || !discountCode.trim()}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold bg-secondary hover:bg-secondary/80 text-foreground border border-border/50 transition-all disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {isValidatingCode && <Loader2 className="w-3 h-3 animate-spin" />}
+                Apply
+              </button>
+            </div>
+          )}
+
+          {discountError && (
+            <p className="text-[11px] text-destructive flex items-center gap-1">
+              <AlertCircle className="w-3 h-3 shrink-0" /> {discountError}
+            </p>
+          )}
+        </div>
+
+        {/* Pricing Summary */}
+        <div className="border-t border-border/30 pt-3 flex flex-col gap-2 relative z-10">
+          <div className="flex justify-between items-center text-xs text-muted-foreground">
+            <span>Subtotal</span>
+            <span>{isNgn ? `₦${currentBasePrice.toLocaleString()}` : `$${currentBasePrice.toFixed(2)}`}</span>
+          </div>
+
+          {appliedDiscount && (
+            <div className="flex justify-between items-center text-xs text-emerald-500 font-medium">
+              <span>Promotional Discount ({appliedDiscount.percentage}%)</span>
+              <span>-{isNgn ? `₦${currentSavings.toLocaleString()}` : `$${currentSavings.toFixed(2)}`}</span>
+            </div>
+          )}
+
+          <div className="flex justify-between items-baseline pt-1">
+            <span className="text-sm font-bold text-foreground">Total Due Today</span>
+            <div className="flex items-baseline gap-1">
+              <span className="text-2xl font-black tracking-tight text-foreground">
+                {isNgn ? `₦${finalPrice.toLocaleString()}` : `$${finalPrice.toFixed(2)}`}
+              </span>
+              <span className="text-xs text-muted-foreground">/ month</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Error Message */}
+        {checkoutError && (
+          <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-xl text-xs text-destructive flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span className="leading-relaxed">{checkoutError}</span>
+          </div>
+        )}
+
+        {/* Action Button */}
+        <div className="flex flex-col gap-2.5 relative z-10">
+          <button
+            type="button"
+            onClick={handleProceedToPayment}
+            disabled={isSubmitting}
+            className="w-full py-3.5 px-4 rounded-2xl text-xs md:text-sm font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Connecting to Flutterwave...
+              </>
+            ) : (
+              <>
+                <Lock className="w-4 h-4" />
+                Proceed to Payment with Flutterwave
+                <ArrowRight className="w-4 h-4 ml-0.5" />
+              </>
+            )}
+          </button>
+
+          <div className="flex items-center justify-center gap-4 text-[10px] text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <CreditCard className="w-3 h-3" /> Cards, Bank Transfer, USSD
+            </span>
+            <span>•</span>
+            <span className="flex items-center gap-1">
+              <ShieldCheck className="w-3 h-3" /> 256-bit Encrypted
+            </span>
+            <span>•</span>
+            <span>Cancel anytime</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

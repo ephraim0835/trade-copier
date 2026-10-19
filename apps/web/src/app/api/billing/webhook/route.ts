@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
         const currentPeriodEnd = new Date();
         currentPeriodEnd.setMonth(currentPeriodEnd.getMonth() + 1);
 
-        await prisma.subscription.upsert({
+        const sub = await prisma.subscription.upsert({
           where: { userId: user.id },
           update: {
             status: "ACTIVE",
@@ -61,6 +61,13 @@ export async function POST(req: NextRequest) {
             planId
           }
         });
+
+        if (sub.discountCodeId) {
+          await prisma.discountCode.update({
+            where: { id: sub.discountCodeId },
+            data: { usedCount: { increment: 1 } },
+          }).catch((e) => console.error("Could not increment discount usedCount:", e));
+        }
 
         console.log(`Successfully activated subscription for user ${user.id} via Flutterwave`);
       }

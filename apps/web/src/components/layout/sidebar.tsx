@@ -12,7 +12,8 @@ import {
   Activity, 
   Settings, 
   UserCircle, 
-  Download 
+  Download,
+  CreditCard 
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePwa } from '../pwa-provider';
@@ -33,6 +34,7 @@ export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
     { name: 'Risk Engine', href: '/risk', icon: ShieldAlert },
     { name: 'Performance', href: '/performance', icon: LineChart },
     { name: 'Activity', href: '/activity', icon: Activity },
+    { name: 'Pricing & Plans', href: '/pricing', icon: CreditCard },
     { name: 'Settings', href: '/settings', icon: Settings },
   ];
 

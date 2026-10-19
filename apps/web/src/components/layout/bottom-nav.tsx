@@ -17,6 +17,7 @@ import {
   X,
   Server,
   DollarSign,
+  CreditCard,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -30,10 +31,11 @@ const PRIMARY_ITEMS = [
 
 // Items in the "More" slide-up sheet
 const SHEET_ITEMS = [
-  { name: 'Risk Engine',  href: '/risk',         icon: ShieldAlert },
-  { name: 'Performance',  href: '/performance',  icon: LineChart },
-  { name: 'Activity',     href: '/activity',     icon: Activity },
-  { name: 'Settings',     href: '/settings',     icon: Settings },
+  { name: 'Risk Engine',     href: '/risk',         icon: ShieldAlert },
+  { name: 'Performance',     href: '/performance',  icon: LineChart },
+  { name: 'Activity',        href: '/activity',     icon: Activity },
+  { name: 'Pricing & Plans', href: '/pricing',      icon: CreditCard },
+  { name: 'Settings',        href: '/settings',     icon: Settings },
 ];
 
 const ADMIN_ITEM = { name: 'Admin',  href: '/admin', icon: Shield };

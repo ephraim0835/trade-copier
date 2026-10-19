@@ -13,8 +13,16 @@ export default async function SettingsPage() {
   const { prisma } = await import('@/lib/prisma');
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },
-    include: { subscription: true }
+    include: { 
+      subscription: true,
+      accounts: {
+        select: { id: true, role: true }
+      }
+    }
   });
+
+  const mastersCount = user?.accounts ? user.accounts.filter(a => a.role === 'MASTER').length : 0;
+  const subsCount = user?.accounts ? user.accounts.filter(a => a.role === 'SUB').length : 0;
 
   return (
     <div className="flex-1 p-4 md:p-6 lg:p-12 flex flex-col gap-10 pb-32 overflow-y-auto custom-scrollbar relative">
@@ -41,6 +49,8 @@ export default async function SettingsPage() {
               flutterwaveTxRef: user.subscription.flutterwaveTxRef,
             } : null}
             role={user?.role || 'USER'}
+            mastersCount={mastersCount}
+            subsCount={subsCount}
           />
         </section>
       </div>
