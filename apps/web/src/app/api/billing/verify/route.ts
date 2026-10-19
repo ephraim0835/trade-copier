@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Determine plan
-    const metaPlan = verifiedData.meta?.planId || user.subscription?.planId || "basic";
+    const metaPlan = verifiedData.meta?.planId || user.subscription?.planId || "starter";
     const currentPeriodEnd = new Date();
     currentPeriodEnd.setMonth(currentPeriodEnd.getMonth() + 1);
 

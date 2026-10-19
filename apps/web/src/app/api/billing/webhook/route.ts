@@ -37,7 +37,16 @@ export async function POST(req: NextRequest) {
         // Look for the user's subscription or create it if missing
         const metaPlan = payload.data?.meta?.planId;
         const isNgn = (currency || "").toUpperCase() === "NGN";
-        const planId = metaPlan || (amount >= (isNgn ? 50000 : 35) ? "pro" : "basic");
+        let planId = metaPlan;
+        if (!planId) {
+          if (amount >= (isNgn ? 100000 : 70)) {
+            planId = "elite";
+          } else if (amount >= (isNgn ? 50000 : 35)) {
+            planId = "pro";
+          } else {
+            planId = "starter";
+          }
+        }
         
         // Let's define the current period end as 1 month from now
         const currentPeriodEnd = new Date();

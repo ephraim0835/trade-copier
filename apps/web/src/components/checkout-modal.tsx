@@ -12,16 +12,19 @@ import {
   Lock, 
   AlertCircle,
   ArrowRight,
-  Zap
+  Zap,
+  MessageCircle
 } from 'lucide-react';
 import { useCurrency } from '@/components/currency-provider';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 
+export type PlanTier = 'starter' | 'pro' | 'elite' | 'basic';
+
 interface CheckoutModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialPlanId?: 'basic' | 'pro';
+  initialPlanId?: PlanTier;
 }
 
 export function CheckoutModal({
@@ -33,7 +36,13 @@ export function CheckoutModal({
   const router = useRouter();
   const { currency: globalCurrency, setCurrency: setGlobalCurrency } = useCurrency();
 
-  const [selectedPlan, setSelectedPlan] = useState<'basic' | 'pro'>(initialPlanId);
+  const normalizePlan = (p: PlanTier): 'starter' | 'pro' | 'elite' => {
+    if (p === 'basic' || p === 'starter') return 'starter';
+    if (p === 'elite') return 'elite';
+    return 'pro';
+  };
+
+  const [selectedPlan, setSelectedPlan] = useState<'starter' | 'pro' | 'elite'>(normalizePlan(initialPlanId));
   const [currency, setCurrency] = useState<'USD' | 'NGN'>(globalCurrency || 'USD');
   const [discountCode, setDiscountCode] = useState('');
   const [isValidatingCode, setIsValidatingCode] = useState(false);
@@ -47,19 +56,16 @@ export function CheckoutModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
-  // Sync initialPlanId when changed
   useEffect(() => {
-    setSelectedPlan(initialPlanId);
+    setSelectedPlan(normalizePlan(initialPlanId));
   }, [initialPlanId]);
 
-  // Sync currency from global context
   useEffect(() => {
     if (globalCurrency) {
       setCurrency(globalCurrency);
     }
   }, [globalCurrency]);
 
-  // Reset states on open/close
   useEffect(() => {
     if (!isOpen) {
       setDiscountError(null);
@@ -69,30 +75,44 @@ export function CheckoutModal({
 
   if (!isOpen) return null;
 
-  // Base pricing
   const isNgn = currency === 'NGN';
   const basePrices = {
-    basic: isNgn ? 39000 : 26,
-    pro: isNgn ? 58500 : 39,
+    starter: isNgn ? 38000 : 25,
+    pro: isNgn ? 68000 : 45,
+    elite: isNgn ? 135000 : 89,
   };
 
   const planQuota = {
-    basic: {
+    starter: {
+      name: 'Starter Plan',
       masters: '1 Master Account',
       subs: 'Up to 3 Sub Accounts',
-      speed: '<50ms Execution',
-      name: 'Basic Plan',
+      speed: '<50ms Cloud Routing',
+      hasDrawdownGuard: false,
+      prioritySupport: false,
     },
     pro: {
-      masters: 'Up to 2 Master Accounts',
-      subs: 'Up to 10 Sub Accounts',
-      speed: '<15ms Priority Execution',
       name: 'Pro Plan',
+      masters: 'Up to 3 Master Accounts',
+      subs: 'Up to 10 Sub Accounts',
+      speed: '<15ms Priority Bridge',
+      hasDrawdownGuard: true,
+      prioritySupport: true,
+    },
+    elite: {
+      name: 'Elite Plan',
+      masters: 'Up to 5 Master Accounts',
+      subs: 'Up to 25 Sub Accounts',
+      speed: '<10ms Priority Dedicated',
+      hasDrawdownGuard: true,
+      prioritySupport: true,
     },
   };
 
   const currentBasePrice = basePrices[selectedPlan];
-  const currentSavings = appliedDiscount ? Math.round((currentBasePrice * (appliedDiscount.percentage / 100)) * 100) / 100 : 0;
+  const currentSavings = appliedDiscount 
+    ? Math.round((currentBasePrice * (appliedDiscount.percentage / 100)) * 100) / 100 
+    : 0;
   const finalPrice = Math.max(1, currentBasePrice - currentSavings);
 
   const handleApplyDiscount = async () => {
@@ -144,7 +164,6 @@ export function CheckoutModal({
   const handleCurrencySwitch = (newCurrency: 'USD' | 'NGN') => {
     setCurrency(newCurrency);
     setGlobalCurrency(newCurrency);
-    // If discount was applied, re-validate with new currency
     if (appliedDiscount) {
       setAppliedDiscount(null);
     }
@@ -152,7 +171,6 @@ export function CheckoutModal({
 
   const handleProceedToPayment = async () => {
     if (!session?.user?.email) {
-      // Redirect to login or signup
       router.push(`/signup?redirect=/pricing`);
       return;
     }
@@ -178,7 +196,6 @@ export function CheckoutModal({
       }
 
       if (data.link) {
-        // Redirect directly to Flutterwave hosted checkout
         window.location.href = data.link;
       } else {
         throw new Error('No payment checkout link returned.');
@@ -193,7 +210,7 @@ export function CheckoutModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-in fade-in duration-200">
       <div 
-        className="plaiz-card bg-card border border-border/60 max-w-lg w-full rounded-[28px] p-6 md:p-8 shadow-2xl relative overflow-hidden flex flex-col gap-6"
+        className="plaiz-card bg-card border border-border/60 max-w-lg w-full rounded-[28px] p-6 md:p-8 shadow-2xl relative overflow-hidden flex flex-col gap-5 max-h-[95vh] overflow-y-auto custom-scrollbar"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Glow accent */}
@@ -208,7 +225,7 @@ export function CheckoutModal({
               </span>
             </div>
             <h2 className="text-xl md:text-2xl font-extrabold text-foreground tracking-tight">
-              Activate {planQuota[selectedPlan].name}
+              Upgrade to {planQuota[selectedPlan].name}
             </h2>
             <p className="text-xs text-muted-foreground mt-0.5">
               Automated ultra-low latency trade copying across all your MT5 accounts.
@@ -223,10 +240,9 @@ export function CheckoutModal({
         </div>
 
         {/* Plan Selector & Currency Switcher */}
-        <div className="flex flex-col gap-3 relative z-10">
+        <div className="flex flex-col gap-2.5 relative z-10">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Select Plan</span>
-            {/* Currency toggle */}
+            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Select Plan Tier</span>
             <div className="flex items-center bg-black/5 dark:bg-white/5 p-1 rounded-xl border border-border/40">
               <button
                 type="button"
@@ -253,56 +269,70 @@ export function CheckoutModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            {/* Basic card option */}
+          <div className="grid grid-cols-3 gap-2">
+            {/* Starter Option */}
             <button
               type="button"
-              onClick={() => setSelectedPlan('basic')}
-              className={`p-3.5 rounded-2xl border text-left transition-all ${
-                selectedPlan === 'basic'
+              onClick={() => setSelectedPlan('starter')}
+              className={`p-3 rounded-2xl border text-left transition-all ${
+                selectedPlan === 'starter'
                   ? 'bg-primary/5 border-primary shadow-sm ring-1 ring-primary/30'
                   : 'bg-card/40 border-border/40 hover:border-border/80'
               }`}
             >
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-bold text-foreground">Basic Plan</span>
-                {selectedPlan === 'basic' && <Check className="w-3.5 h-3.5 text-primary" />}
+              <div className="text-xs font-bold text-foreground truncate">Starter</div>
+              <div className="text-sm font-extrabold text-foreground mt-0.5">
+                {isNgn ? '₦38k' : '$25'}<span className="text-[9px] text-muted-foreground font-normal">/mo</span>
               </div>
-              <div className="text-sm font-extrabold text-foreground mb-1">
-                {isNgn ? '₦39,000' : '$26'}<span className="text-[10px] text-muted-foreground font-normal">/mo</span>
-              </div>
-              <div className="text-[10px] text-muted-foreground leading-tight">
-                1 Master • 3 Subs
+              <div className="text-[10px] text-muted-foreground mt-0.5 leading-tight">
+                1 M • 3 Subs
               </div>
             </button>
 
-            {/* Pro card option */}
+            {/* Pro Option */}
             <button
               type="button"
               onClick={() => setSelectedPlan('pro')}
-              className={`p-3.5 rounded-2xl border text-left relative transition-all ${
+              className={`p-3 rounded-2xl border text-left relative transition-all ${
                 selectedPlan === 'pro'
                   ? 'bg-primary/10 border-primary shadow-sm ring-1 ring-primary/40'
                   : 'bg-card/40 border-border/40 hover:border-border/80'
               }`}
             >
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-bold text-primary flex items-center gap-1">
-                  Pro Plan <Sparkles className="w-2.5 h-2.5" />
-                </span>
-                {selectedPlan === 'pro' && <Check className="w-3.5 h-3.5 text-primary" />}
+              <div className="text-xs font-bold text-primary flex items-center justify-between">
+                <span>Pro</span>
+                <Sparkles className="w-2.5 h-2.5" />
               </div>
-              <div className="text-sm font-extrabold text-foreground mb-1">
-                {isNgn ? '₦58,500' : '$39'}<span className="text-[10px] text-muted-foreground font-normal">/mo</span>
+              <div className="text-sm font-extrabold text-foreground mt-0.5">
+                {isNgn ? '₦68k' : '$45'}<span className="text-[9px] text-muted-foreground font-normal">/mo</span>
               </div>
-              <div className="text-[10px] text-muted-foreground leading-tight">
-                2 Masters • 10 Subs
+              <div className="text-[10px] text-muted-foreground mt-0.5 leading-tight">
+                3 M • 10 Subs
+              </div>
+            </button>
+
+            {/* Elite Option */}
+            <button
+              type="button"
+              onClick={() => setSelectedPlan('elite')}
+              className={`p-3 rounded-2xl border text-left transition-all ${
+                selectedPlan === 'elite'
+                  ? 'bg-primary/10 border-primary shadow-sm ring-1 ring-primary/40'
+                  : 'bg-card/40 border-border/40 hover:border-border/80'
+              }`}
+            >
+              <div className="text-xs font-bold text-foreground truncate">Elite</div>
+              <div className="text-sm font-extrabold text-foreground mt-0.5">
+                {isNgn ? '₦135k' : '$89'}<span className="text-[9px] text-muted-foreground font-normal">/mo</span>
+              </div>
+              <div className="text-[10px] text-muted-foreground mt-0.5 leading-tight">
+                5 M • 25 Subs
               </div>
             </button>
           </div>
         </div>
 
-        {/* Plan Quota Highlights */}
+        {/* Plan Features & Perks */}
         <div className="bg-black/5 dark:bg-white/5 p-3.5 rounded-2xl border border-border/30 text-xs flex flex-col gap-2 relative z-10">
           <div className="font-semibold text-foreground flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">
             <Zap className="w-3.5 h-3.5 text-primary" />
@@ -319,17 +349,34 @@ export function CheckoutModal({
             </div>
             <div className="flex items-center gap-1.5">
               <Check className="w-3 h-3 text-emerald-500 shrink-0" />
-              <span>{planQuota[selectedPlan].speed}</span>
+              <span>Symbol Auto-Mapper</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Check className="w-3 h-3 text-emerald-500 shrink-0" />
-              <span>Equity Guard & Risk SL</span>
+              <span>All 4 Risk Multipliers</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Check className="w-3 h-3 text-emerald-500 shrink-0" />
+              <span>{planQuota[selectedPlan].speed}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {planQuota[selectedPlan].hasDrawdownGuard ? (
+                <>
+                  <Check className="w-3 h-3 text-emerald-500 shrink-0" />
+                  <span className="text-primary font-semibold">Prop Firm Drawdown Guard</span>
+                </>
+              ) : (
+                <>
+                  <Check className="w-3 h-3 text-emerald-500 shrink-0" />
+                  <span>Emergency Kill-Switch</span>
+                </>
+              )}
             </div>
           </div>
         </div>
 
         {/* Promo / Discount Code Box */}
-        <div className="flex flex-col gap-2 relative z-10">
+        <div className="flex flex-col gap-1.5 relative z-10">
           <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
             <Tag className="w-3.5 h-3.5 text-primary" /> Promo / Discount Code
           </label>

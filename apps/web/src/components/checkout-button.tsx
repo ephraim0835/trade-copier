@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { CheckoutModal } from "@/components/checkout-modal";
+import { CheckoutModal, PlanTier } from "@/components/checkout-modal";
 
 interface CheckoutButtonProps {
-  planId: "basic" | "pro";
+  planId?: PlanTier;
   className?: string;
   children: React.ReactNode;
 }

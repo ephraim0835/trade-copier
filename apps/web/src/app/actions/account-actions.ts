@@ -42,6 +42,16 @@ export async function createMt5Account(data: {
       };
     }
 
+    // Check if 5-day free trial has expired
+    const isTrial = user.subscription?.status === 'TRIAL' || user.subscription?.planId === 'trial';
+    if (isTrial && user.subscription?.currentPeriodEnd && new Date() > new Date(user.subscription.currentPeriodEnd)) {
+      return {
+        success: false,
+        error: 'Your 5-day free trial has expired. Please select a plan on the Pricing page to continue copying trades.',
+        code: 'PAYWALL_REQUIRED'
+      };
+    }
+
     // Check if account with same login, broker, server already exists
     const existing = await prisma.mt5Account.findFirst({
       where: {
@@ -58,12 +68,27 @@ export async function createMt5Account(data: {
       };
     }
 
-    // Plan Limits Enforcement (Basic: 1 Master / 3 Subs; Pro: 2 Masters / 10 Subs)
+    // Plan Limits Enforcement (Trial: 1/1, Starter: 1/3, Pro: 3/10, Elite: 5/25)
     const isOwnerOrAdmin = user.role === 'ADMIN' || user.role === 'OWNER' || user.subscription?.status === 'INTERNAL_FREE';
     if (!isOwnerOrAdmin) {
-      const planId = (user.subscription?.planId || 'basic').toLowerCase();
-      const maxMasters = planId === 'pro' ? 2 : 1;
-      const maxSubs = planId === 'pro' ? 10 : 3;
+      const planId = (user.subscription?.planId || (isTrial ? 'trial' : 'starter')).toLowerCase();
+      let maxMasters = 1;
+      let maxSubs = 3;
+
+      if (isTrial || planId === 'trial') {
+        maxMasters = 1;
+        maxSubs = 1;
+      } else if (planId === 'pro') {
+        maxMasters = 3;
+        maxSubs = 10;
+      } else if (planId === 'elite') {
+        maxMasters = 5;
+        maxSubs = 25;
+      } else {
+        // starter or legacy basic
+        maxMasters = 1;
+        maxSubs = 3;
+      }
 
       const userAccounts = await prisma.mt5Account.findMany({
         where: { userId: user.id },
@@ -76,9 +101,16 @@ export async function createMt5Account(data: {
         if (data.role === 'MASTER') {
           const currentMasters = userAccounts.filter(a => a.role === 'MASTER').length;
           if (currentMasters >= maxMasters) {
-            const limitMsg = planId === 'basic'
-              ? 'Basic Plan limit reached (maximum 1 Master account). Upgrade to Pro to connect up to 2 Master accounts.'
-              : 'Pro Plan limit reached (maximum 2 Master accounts). Please contact support for custom institutional capacity.';
+            let limitMsg = '';
+            if (isTrial || planId === 'trial') {
+              limitMsg = 'Free Trial limit reached (maximum 1 Master account). Upgrade to Starter, Pro, or Elite to connect more Master accounts.';
+            } else if (planId === 'starter' || planId === 'basic') {
+              limitMsg = 'Starter Plan limit reached (maximum 1 Master account). Upgrade to Pro to connect up to 3 Master accounts.';
+            } else if (planId === 'pro') {
+              limitMsg = 'Pro Plan limit reached (maximum 3 Master accounts). Upgrade to Elite to connect up to 5 Master accounts.';
+            } else {
+              limitMsg = 'Elite Plan limit reached (maximum 5 Master accounts). Please contact support for custom institutional capacity.';
+            }
             return {
               success: false,
               error: limitMsg,
@@ -88,9 +120,16 @@ export async function createMt5Account(data: {
         } else if (data.role === 'SUB') {
           const currentSubs = userAccounts.filter(a => a.role === 'SUB').length;
           if (currentSubs >= maxSubs) {
-            const limitMsg = planId === 'basic'
-              ? 'Basic Plan limit reached (maximum 3 Sub accounts). Upgrade to Pro to connect up to 10 Sub accounts.'
-              : 'Pro Plan limit reached (maximum 10 Sub accounts). Please contact support for custom institutional capacity.';
+            let limitMsg = '';
+            if (isTrial || planId === 'trial') {
+              limitMsg = 'Free Trial limit reached (maximum 1 Sub account). Upgrade to Starter, Pro, or Elite to connect more Sub accounts.';
+            } else if (planId === 'starter' || planId === 'basic') {
+              limitMsg = 'Starter Plan limit reached (maximum 3 Sub accounts). Upgrade to Pro to connect up to 10 Sub accounts.';
+            } else if (planId === 'pro') {
+              limitMsg = 'Pro Plan limit reached (maximum 10 Sub accounts). Upgrade to Elite to connect up to 25 Sub accounts.';
+            } else {
+              limitMsg = 'Elite Plan limit reached (maximum 25 Sub accounts). Please contact support for custom institutional capacity.';
+            }
             return {
               success: false,
               error: limitMsg,
@@ -397,6 +436,16 @@ export async function toggleAccountActive(accountId: string, isActive: boolean) 
         return { 
           success: false, 
           error: 'An active subscription is required to resume automated trade copying. Please choose a plan on the Pricing page.',
+          code: 'PAYWALL_REQUIRED'
+        };
+      }
+
+      // Check if 5-day free trial has expired
+      const isTrial = user.subscription?.status === 'TRIAL' || user.subscription?.planId === 'trial';
+      if (isTrial && user.subscription?.currentPeriodEnd && new Date() > new Date(user.subscription.currentPeriodEnd)) {
+        return {
+          success: false,
+          error: 'Your 5-day free trial has expired. Please select a plan on the Pricing page to resume trade copying.',
           code: 'PAYWALL_REQUIRED'
         };
       }

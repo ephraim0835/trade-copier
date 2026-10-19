@@ -18,12 +18,15 @@ export async function POST(req: NextRequest) {
     let planName = "";
     const selectedCurrency = (currency === "NGN") ? "NGN" : "USD";
 
-    if (planId === "basic") {
-      amount = selectedCurrency === "NGN" ? 39000 : 26;
-      planName = "Basic Plan";
+    if (planId === "starter" || planId === "basic") {
+      amount = selectedCurrency === "NGN" ? 38000 : 25;
+      planName = "Starter Plan";
     } else if (planId === "pro") {
-      amount = selectedCurrency === "NGN" ? 58500 : 39;
+      amount = selectedCurrency === "NGN" ? 68000 : 45;
       planName = "Pro Plan";
+    } else if (planId === "elite") {
+      amount = selectedCurrency === "NGN" ? 135000 : 89;
+      planName = "Elite Plan";
     } else {
       return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
     }

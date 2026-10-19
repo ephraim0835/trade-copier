@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { CheckoutButton } from "@/components/checkout-button";
 
+import { PlanTier } from "@/components/checkout-modal";
+
 interface PricingActionProps {
   plan: {
     id: string;
@@ -40,7 +42,7 @@ export function PricingAction({ plan }: PricingActionProps) {
   if (isLoggedIn) {
     return (
       <CheckoutButton 
-        planId={plan.id as "basic" | "pro"} 
+        planId={plan.id as PlanTier} 
         className={`plaiz-btn w-full py-3 justify-center ${plan.popular ? 'plaiz-btn-primary relative z-10' : 'plaiz-btn-secondary'}`}
       >
         Select Plan

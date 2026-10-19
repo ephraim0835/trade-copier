@@ -19,7 +19,8 @@ import {
   Activity,
   CheckCircle2,
   XCircle,
-  HelpCircle
+  HelpCircle,
+  Sparkles
 } from 'lucide-react';
 import { useCurrency } from '@/components/currency-provider';
 import Link from 'next/link';
@@ -64,8 +65,10 @@ export function RevenueClient({ users, discounts }: RevenueClientProps) {
 
   // Plan standard pricing (in USD)
   const PLAN_PRICES_USD: Record<string, number> = {
-    basic: 26,
-    pro: 39,
+    starter: 25,
+    basic: 25,
+    pro: 45,
+    elite: 89,
   };
 
   // Convert USD amount to active display currency
@@ -95,10 +98,12 @@ export function RevenueClient({ users, discounts }: RevenueClientProps) {
     let internalFreeSubscribers = 0;
     let expiredSubscribers = 0;
 
-    let basicPlanCount = 0;
+    let starterPlanCount = 0;
     let proPlanCount = 0;
-    let basicMrrUsd = 0;
+    let elitePlanCount = 0;
+    let starterMrrUsd = 0;
     let proMrrUsd = 0;
+    let eliteMrrUsd = 0;
 
     const now = new Date();
     const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -108,8 +113,8 @@ export function RevenueClient({ users, discounts }: RevenueClientProps) {
       const sub = u.subscription;
       if (!sub) return;
 
-      const planKey = (sub.planId || 'basic').toLowerCase();
-      const basePrice = PLAN_PRICES_USD[planKey] || 26;
+      const planKey = (sub.planId || 'starter').toLowerCase();
+      const basePrice = PLAN_PRICES_USD[planKey] || 25;
       const discountPct = sub.discountPercentage || 0;
       const effectivePrice = basePrice * ((100 - discountPct) / 100);
 
@@ -117,12 +122,15 @@ export function RevenueClient({ users, discounts }: RevenueClientProps) {
         activeSubscribers++;
         mrrUsd += effectivePrice;
 
-        if (planKey === 'pro') {
+        if (planKey === 'elite') {
+          elitePlanCount++;
+          eliteMrrUsd += effectivePrice;
+        } else if (planKey === 'pro') {
           proPlanCount++;
           proMrrUsd += effectivePrice;
         } else {
-          basicPlanCount++;
-          basicMrrUsd += effectivePrice;
+          starterPlanCount++;
+          starterMrrUsd += effectivePrice;
         }
 
         // Check if renewing in the next 7 days
@@ -152,10 +160,12 @@ export function RevenueClient({ users, discounts }: RevenueClientProps) {
       trialSubscribers,
       internalFreeSubscribers,
       expiredSubscribers,
-      basicPlanCount,
+      starterPlanCount,
       proPlanCount,
-      basicMrrUsd,
+      elitePlanCount,
+      starterMrrUsd,
       proMrrUsd,
+      eliteMrrUsd,
       arpuUsd,
       conversionRate,
       renewingSoonCount,
@@ -307,21 +317,44 @@ export function RevenueClient({ users, discounts }: RevenueClientProps) {
             Breakdown of active subscription revenue contribution by tier.
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+            {/* Starter Plan Box */}
+            <div className="p-4 rounded-xl bg-card border border-border/50 flex flex-col justify-between relative overflow-hidden">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <span className="font-bold text-sm text-foreground">Starter ($25)</span>
+                </div>
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500">
+                  {metrics.starterPlanCount}
+                </span>
+              </div>
+              <div className="text-xl font-bold num-tabular text-foreground">
+                {formatMoney(metrics.starterMrrUsd)}
+                <span className="text-xs font-normal text-muted-foreground ml-1">/ mo</span>
+              </div>
+              <div className="w-full bg-secondary rounded-full h-1.5 mt-3 overflow-hidden">
+                <div 
+                  className="bg-emerald-500 h-1.5 rounded-full" 
+                  style={{ width: `${metrics.mrrUsd > 0 ? (metrics.starterMrrUsd / metrics.mrrUsd) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
+
             {/* Pro Plan Box */}
             <div className="p-4 rounded-xl bg-card border border-border/50 flex flex-col justify-between relative overflow-hidden">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <Crown className="w-4 h-4 text-amber-400" />
-                  <span className="font-bold text-sm text-foreground">Pro Plan ($39/mo)</span>
+                  <span className="font-bold text-sm text-foreground">Pro ($45)</span>
                 </div>
                 <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                  {metrics.proPlanCount} Subscribers
+                  {metrics.proPlanCount}
                 </span>
               </div>
-              <div className="text-2xl font-bold num-tabular text-foreground">
+              <div className="text-xl font-bold num-tabular text-foreground">
                 {formatMoney(metrics.proMrrUsd)}
-                <span className="text-xs font-normal text-muted-foreground ml-1">/ month</span>
+                <span className="text-xs font-normal text-muted-foreground ml-1">/ mo</span>
               </div>
               <div className="w-full bg-secondary rounded-full h-1.5 mt-3 overflow-hidden">
                 <div 
@@ -331,25 +364,25 @@ export function RevenueClient({ users, discounts }: RevenueClientProps) {
               </div>
             </div>
 
-            {/* Basic Plan Box */}
+            {/* Elite Plan Box */}
             <div className="p-4 rounded-xl bg-card border border-border/50 flex flex-col justify-between relative overflow-hidden">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                  <span className="font-bold text-sm text-foreground">Basic Plan ($26/mo)</span>
+                  <Sparkles className="w-4 h-4 text-purple-400" />
+                  <span className="font-bold text-sm text-foreground">Elite ($89)</span>
                 </div>
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500">
-                  {metrics.basicPlanCount} Subscribers
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-500">
+                  {metrics.elitePlanCount}
                 </span>
               </div>
-              <div className="text-2xl font-bold num-tabular text-foreground">
-                {formatMoney(metrics.basicMrrUsd)}
-                <span className="text-xs font-normal text-muted-foreground ml-1">/ month</span>
+              <div className="text-xl font-bold num-tabular text-foreground">
+                {formatMoney(metrics.eliteMrrUsd)}
+                <span className="text-xs font-normal text-muted-foreground ml-1">/ mo</span>
               </div>
               <div className="w-full bg-secondary rounded-full h-1.5 mt-3 overflow-hidden">
                 <div 
-                  className="bg-emerald-500 h-1.5 rounded-full" 
-                  style={{ width: `${metrics.mrrUsd > 0 ? (metrics.basicMrrUsd / metrics.mrrUsd) * 100 : 0}%` }}
+                  className="bg-purple-500 h-1.5 rounded-full" 
+                  style={{ width: `${metrics.mrrUsd > 0 ? (metrics.eliteMrrUsd / metrics.mrrUsd) * 100 : 0}%` }}
                 />
               </div>
             </div>

@@ -38,11 +38,13 @@ export async function POST(req: NextRequest) {
     // Calculate base amounts
     const isNgn = currency === "NGN";
     let basePrice = 0;
-    if (planId === "basic") {
-      basePrice = isNgn ? 39000 : 26;
+    if (planId === "starter" || planId === "basic") {
+      basePrice = isNgn ? 38000 : 25;
+    } else if (planId === "elite") {
+      basePrice = isNgn ? 135000 : 89;
     } else {
       // Default to pro
-      basePrice = isNgn ? 58500 : 39;
+      basePrice = isNgn ? 68000 : 45;
     }
 
     const discountMultiplier = (100 - discount.percentage) / 100;

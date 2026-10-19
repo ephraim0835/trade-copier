@@ -2,7 +2,7 @@
 
 import { useCurrency } from '@/components/currency-provider';
 import { useTheme } from 'next-themes';
-import { Globe, Moon, Sun, Monitor, Check, Mail, Lock, ShieldCheck, Key, CreditCard, Sparkles, CheckCircle2, ArrowUpRight, BarChart3, Clock } from 'lucide-react';
+import { Globe, Moon, Sun, Monitor, Check, Mail, Lock, ShieldCheck, Key, CreditCard, Sparkles, CheckCircle2, ArrowUpRight, BarChart3, Clock, MessageCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { CheckoutButton } from '@/components/checkout-button';
@@ -92,9 +92,24 @@ export function SettingsControls({
 
   if (!mounted) return null;
 
-  const currentPlan = (subscription?.planId || 'basic').toLowerCase();
-  const maxMasters = currentPlan === 'pro' ? 2 : 1;
-  const maxSubs = currentPlan === 'pro' ? 10 : 3;
+  const isTrial = subscription?.status === 'TRIAL' || subscription?.planId === 'trial';
+  const currentPlan = (subscription?.planId || (isTrial ? 'trial' : 'starter')).toLowerCase();
+  
+  let maxMasters = 1;
+  let maxSubs = 3;
+  if (isTrial || currentPlan === 'trial') {
+    maxMasters = 1;
+    maxSubs = 1;
+  } else if (currentPlan === 'pro') {
+    maxMasters = 3;
+    maxSubs = 10;
+  } else if (currentPlan === 'elite') {
+    maxMasters = 5;
+    maxSubs = 25;
+  } else {
+    maxMasters = 1;
+    maxSubs = 3;
+  }
 
   return (
     <div className="flex flex-col gap-10">
@@ -113,6 +128,10 @@ export function SettingsControls({
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
                     Active • {(subscription.planId || 'PRO').toUpperCase()}
                   </span>
+                ) : isTrial ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                    5-Day Free Trial
+                  </span>
                 ) : (
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase bg-amber-500/10 text-amber-500 border border-amber-500/20">
                     Free Tier / Inactive
@@ -120,7 +139,7 @@ export function SettingsControls({
                 )}
               </div>
               <p className="text-[12px] text-muted-foreground mt-1 max-w-lg leading-relaxed">
-                Seamlessly power your automated trade execution. Subscriptions are billed monthly with instant activation via Flutterwave (Cards, Bank Transfer, USSD).
+                Automated 24/7 cloud execution across all your MT5 accounts. Subscriptions are billed monthly with instant automated activation via Flutterwave.
               </p>
             </div>
           </div>
@@ -136,6 +155,26 @@ export function SettingsControls({
             </Link>
           )}
         </div>
+
+        {/* 5-Day Trial Alert banner if active */}
+        {isTrial && subscription?.currentPeriodEnd && (
+          <div className="ml-0 md:ml-14 flex items-center justify-between p-3.5 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-2xl text-xs font-semibold">
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 shrink-0" />
+              <span>
+                5-Day Free Trial Active • Period ends on{' '}
+                {new Date(subscription.currentPeriodEnd).toLocaleDateString(undefined, {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric'
+                })}
+              </span>
+            </div>
+            <Link href="/pricing" className="text-primary hover:underline font-bold shrink-0">
+              Pick Plan &rarr;
+            </Link>
+          </div>
+        )}
 
         {/* Live Quota Capacity Meter */}
         <div className="ml-0 md:ml-14 grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 bg-black/5 dark:bg-white/5 rounded-2xl border border-border/30">
@@ -166,75 +205,112 @@ export function SettingsControls({
           </div>
         </div>
 
-        {/* Current status card */}
-        <div className="ml-0 md:ml-14 grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Plan 1: Basic */}
-          <div className={`p-5 rounded-2xl border transition-all ${
-            subscription?.status === 'ACTIVE' && subscription?.planId === 'basic'
+        {/* Plans Grid: Starter, Pro, Elite */}
+        <div className="ml-0 md:ml-14 grid grid-cols-1 md:grid-cols-3 gap-3.5">
+          {/* Plan 1: Starter */}
+          <div className={`p-4 rounded-2xl border flex flex-col justify-between transition-all ${
+            subscription?.status === 'ACTIVE' && (subscription?.planId === 'starter' || subscription?.planId === 'basic')
               ? 'bg-primary/5 border-primary shadow-sm'
               : 'bg-card/40 border-border/40 hover:border-border/80'
           }`}>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Basic Plan</span>
-              {subscription?.status === 'ACTIVE' && subscription?.planId === 'basic' && (
-                <span className="flex items-center gap-1 text-[11px] font-bold text-primary">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Current Plan
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Starter</span>
+                {subscription?.status === 'ACTIVE' && (subscription?.planId === 'starter' || subscription?.planId === 'basic') && (
+                  <span className="flex items-center gap-1 text-[10px] font-bold text-primary">
+                    <CheckCircle2 className="w-3 h-3" /> Current
+                  </span>
+                )}
+              </div>
+              <div className="flex items-baseline gap-1 mb-1.5">
+                <span className="text-xl font-black tracking-tight text-foreground">
+                  {currency === 'NGN' ? '₦38,000' : '$25'}
                 </span>
-              )}
+                <span className="text-[11px] text-muted-foreground font-medium">/mo</span>
+              </div>
+              <p className="text-[11px] text-muted-foreground mb-3 leading-relaxed">
+                1 Master & 3 Subs. Full Symbol Mapper & all 4 Risk Multipliers.
+              </p>
             </div>
-            <div className="flex items-baseline gap-1 mb-2">
-              <span className="text-2xl font-black tracking-tight text-foreground">
-                {currency === 'NGN' ? '₦39,000' : '$26'}
-              </span>
-              <span className="text-xs text-muted-foreground font-medium">/ month</span>
-            </div>
-            <p className="text-[11px] text-muted-foreground mb-4">
-              1 Master Account & 3 Sub Accounts. Standard cloud routing with 50ms execution speed.
-            </p>
             <CheckoutButton
-              planId="basic"
-              className="w-full py-2.5 px-4 rounded-xl text-xs font-bold transition-all bg-secondary hover:bg-secondary/80 text-foreground border border-border/50"
+              planId="starter"
+              className="w-full py-2 px-3 rounded-xl text-xs font-bold transition-all bg-secondary hover:bg-secondary/80 text-foreground border border-border/50"
             >
-              {subscription?.status === 'ACTIVE' && subscription?.planId === 'basic' ? 'Renew Basic Plan' : 'Select Basic Plan'}
+              {subscription?.status === 'ACTIVE' && (subscription?.planId === 'starter' || subscription?.planId === 'basic') ? 'Renew Starter' : 'Select Starter'}
             </CheckoutButton>
           </div>
 
           {/* Plan 2: Pro */}
-          <div className={`p-5 rounded-2xl border relative transition-all ${
+          <div className={`p-4 rounded-2xl border relative flex flex-col justify-between transition-all ${
             subscription?.status === 'ACTIVE' && subscription?.planId === 'pro'
               ? 'bg-primary/10 border-primary shadow-sm'
               : 'bg-card/60 border-primary/30 hover:border-primary/60'
           }`}>
-            <div className="absolute -top-2.5 right-4 bg-primary text-primary-foreground text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
-              <Sparkles className="w-3 h-3" /> Recommended
+            <div className="absolute -top-2.5 right-3 bg-primary text-primary-foreground text-[9px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
+              <Sparkles className="w-2.5 h-2.5" /> Popular
             </div>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-primary">Pro Plan</span>
-              {subscription?.status === 'ACTIVE' && subscription?.planId === 'pro' && (
-                <span className="flex items-center gap-1 text-[11px] font-bold text-primary">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Current Plan
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-primary">Pro Plan</span>
+                {subscription?.status === 'ACTIVE' && subscription?.planId === 'pro' && (
+                  <span className="flex items-center gap-1 text-[10px] font-bold text-primary">
+                    <CheckCircle2 className="w-3 h-3" /> Current
+                  </span>
+                )}
+              </div>
+              <div className="flex items-baseline gap-1 mb-1.5">
+                <span className="text-xl font-black tracking-tight text-foreground">
+                  {currency === 'NGN' ? '₦68,000' : '$45'}
                 </span>
-              )}
+                <span className="text-[11px] text-muted-foreground font-medium">/mo</span>
+              </div>
+              <p className="text-[11px] text-muted-foreground mb-3 leading-relaxed">
+                Up to 3 Masters & 10 Subs. Prop Firm Drawdown Guard & &lt;15ms routing.
+              </p>
             </div>
-            <div className="flex items-baseline gap-1 mb-2">
-              <span className="text-2xl font-black tracking-tight text-foreground">
-                {currency === 'NGN' ? '₦58,500' : '$39'}
-              </span>
-              <span className="text-xs text-muted-foreground font-medium">/ month</span>
-            </div>
-            <p className="text-[11px] text-muted-foreground mb-4">
-              Up to 2 Master Accounts & 10 Sub Accounts. Dedicated low-latency bridge (&lt;15ms) + Advanced Equity Guard.
-            </p>
             <CheckoutButton
               planId="pro"
-              className="w-full py-2.5 px-4 rounded-xl text-xs font-bold transition-all bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/20"
+              className="w-full py-2 px-3 rounded-xl text-xs font-bold transition-all bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/20"
             >
-              {subscription?.status === 'ACTIVE' && subscription?.planId === 'pro' ? 'Renew Pro Plan' : 'Upgrade to Pro'}
+              {subscription?.status === 'ACTIVE' && subscription?.planId === 'pro' ? 'Renew Pro' : 'Upgrade to Pro'}
+            </CheckoutButton>
+          </div>
+
+          {/* Plan 3: Elite */}
+          <div className={`p-4 rounded-2xl border flex flex-col justify-between transition-all ${
+            subscription?.status === 'ACTIVE' && subscription?.planId === 'elite'
+              ? 'bg-primary/10 border-primary shadow-sm'
+              : 'bg-card/40 border-border/40 hover:border-border/80'
+          }`}>
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-foreground">Elite</span>
+                {subscription?.status === 'ACTIVE' && subscription?.planId === 'elite' && (
+                  <span className="flex items-center gap-1 text-[10px] font-bold text-primary">
+                    <CheckCircle2 className="w-3 h-3" /> Current
+                  </span>
+                )}
+              </div>
+              <div className="flex items-baseline gap-1 mb-1.5">
+                <span className="text-xl font-black tracking-tight text-foreground">
+                  {currency === 'NGN' ? '₦135,000' : '$89'}
+                </span>
+                <span className="text-[11px] text-muted-foreground font-medium">/mo</span>
+              </div>
+              <p className="text-[11px] text-muted-foreground mb-3 leading-relaxed">
+                Up to 5 Masters & 25 Subs. &lt;10ms ultra-execution & VIP Priority Desk.
+              </p>
+            </div>
+            <CheckoutButton
+              planId="elite"
+              className="w-full py-2 px-3 rounded-xl text-xs font-bold transition-all bg-secondary hover:bg-secondary/80 text-foreground border border-border/50"
+            >
+              {subscription?.status === 'ACTIVE' && subscription?.planId === 'elite' ? 'Renew Elite' : 'Upgrade to Elite'}
             </CheckoutButton>
           </div>
         </div>
 
-        {subscription?.currentPeriodEnd && (
+        {subscription?.currentPeriodEnd && !isTrial && (
           <div className="ml-0 md:ml-14 flex items-center gap-2 text-xs text-muted-foreground bg-black/5 dark:bg-white/5 p-3 rounded-xl border border-border/20">
             <Clock className="w-4 h-4 text-primary shrink-0" />
             <span>
@@ -250,6 +326,38 @@ export function SettingsControls({
             </span>
           </div>
         )}
+
+        {/* Support Channels & Priority Status */}
+        <div className="ml-0 md:ml-14 grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+          <div className="p-3.5 bg-card/60 rounded-2xl border border-border/40 text-xs flex items-start gap-3">
+            <div className="w-8 h-8 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
+              <MessageCircle className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="font-bold text-foreground">WhatsApp Community Support</div>
+              <p className="text-muted-foreground text-[11px] mt-0.5 leading-relaxed">
+                Join our official WhatsApp group for instant announcements and community trader discussions.
+              </p>
+            </div>
+          </div>
+
+          <div className="p-3.5 bg-card/60 rounded-2xl border border-border/40 text-xs flex items-start gap-3">
+            <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="font-bold text-foreground flex items-center gap-1.5">
+                In-App Live Support Desk
+                {(currentPlan === 'pro' || currentPlan === 'elite') && (
+                  <span className="px-1.5 py-0.2 bg-primary/20 text-primary text-[9px] uppercase font-bold rounded">VIP Priority</span>
+                )}
+              </div>
+              <p className="text-muted-foreground text-[11px] mt-0.5 leading-relaxed">
+                Direct in-app messaging with admin. {currentPlan === 'pro' || currentPlan === 'elite' ? 'Your messages are automatically pushed to the top of our queue.' : 'Standard queue response.'}
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* CURRENCY PREFERENCE */}

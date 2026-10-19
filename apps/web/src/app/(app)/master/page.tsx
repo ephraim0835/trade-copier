@@ -42,10 +42,24 @@ export default async function MasterPage() {
     masterAccount?.connectionStatus === 'ONLINE' && 
     (Math.abs(Date.now() - lastSeen) < 180_000);
 
-  const planId = (user.subscription?.planId || 'basic').toLowerCase();
+  const isTrial = user.subscription?.status === 'TRIAL' || user.subscription?.planId === 'trial';
+  const planId = (user.subscription?.planId || (isTrial ? 'trial' : 'starter')).toLowerCase();
   const isAdmin = user.role === 'ADMIN' || user.role === 'OWNER';
   const isInternalFree = user.subscription?.status === 'INTERNAL_FREE';
-  const maxMasters = isAdmin || isInternalFree ? 999 : (planId === 'pro' ? 2 : 1);
+  
+  let maxMasters = 1;
+  if (isAdmin || isInternalFree) {
+    maxMasters = 999;
+  } else if (isTrial || planId === 'trial') {
+    maxMasters = 1;
+  } else if (planId === 'pro') {
+    maxMasters = 3;
+  } else if (planId === 'elite') {
+    maxMasters = 5;
+  } else {
+    maxMasters = 1;
+  }
+
   const mastersCount = masterAccount ? 1 : 0;
 
   return (
@@ -58,17 +72,17 @@ export default async function MasterPage() {
               Master Source
             </h1>
             <span className="text-xs px-2.5 py-1 rounded-full bg-secondary text-foreground font-semibold border border-border/40">
-              {mastersCount} / {isAdmin || isInternalFree ? '∞' : maxMasters} Connected • {planId.toUpperCase()} Plan
+              {mastersCount} / {isAdmin || isInternalFree ? '∞' : maxMasters} Connected • {isTrial ? '5-DAY TRIAL' : planId.toUpperCase()} Plan
             </span>
           </div>
           <p className="text-muted-foreground text-[13px] tracking-wide mt-2">
             The source account driving all portfolio executions.
           </p>
-          {mastersCount >= maxMasters && planId === 'basic' && !isAdmin && !isInternalFree && (
+          {mastersCount >= maxMasters && !isAdmin && !isInternalFree && (
             <div className="mt-2 text-xs flex items-center gap-1.5 text-amber-500 font-medium">
-              <span>Basic Plan allows 1 Master account.</span>
+              <span>{isTrial ? 'Free Trial' : (planId === 'pro' ? 'Pro' : 'Starter')} limit reached ({mastersCount}/{maxMasters}).</span>
               <Link href="/pricing" className="text-primary font-semibold hover:underline">
-                Upgrade to Pro for up to 2 Master accounts &rarr;
+                Upgrade to {planId === 'pro' ? 'Elite for up to 5 Master accounts' : 'Pro for up to 3 Master accounts'} &rarr;
               </Link>
             </div>
           )}

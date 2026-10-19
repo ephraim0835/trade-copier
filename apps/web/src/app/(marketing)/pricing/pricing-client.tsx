@@ -13,7 +13,9 @@ import {
   ChevronDown, 
   ChevronUp, 
   CreditCard,
-  ArrowRight
+  ArrowRight,
+  MessageCircle,
+  Clock
 } from 'lucide-react';
 import { useCurrency } from '@/components/currency-provider';
 import { PricingAction } from '@/components/pricing-action';
@@ -26,51 +28,53 @@ export function PricingClient() {
 
   const pricingPlans = [
     {
-      id: "basic",
-      name: "Basic",
+      id: "starter",
+      name: "Starter",
       description: "For individual traders running a focused copy setup.",
-      priceUSD: 26,
-      priceNGN: 39000,
+      priceUSD: 25,
+      priceNGN: 38000,
       mastersLimit: "1 Master Account",
       subsLimit: "Up to 3 Sub Accounts",
-      speed: "<50ms Routing",
+      speed: "<50ms Cloud Routing",
       features: [
         { text: "1 Master Account", included: true },
         { text: "Up to 3 Sub Accounts", included: true },
+        { text: "Automatic Symbol Mapper (all brokers)", included: true },
         { text: "Cross-Broker MT5 Execution", included: true },
-        { text: "Standard Risk Management & SL/TP", included: true },
-        { text: "Real-Time Trade Copying", included: true },
-        { text: "Dashboard & Activity Telemetry", included: true },
-        { text: "Managed VPS Infrastructure", included: true },
-        { text: "Standard Support", included: true },
-        { text: "Priority VPS Bridge Routing", included: false },
-        { text: "Advanced Equity Guard & Trailing SL", included: false },
+        { text: "All 4 Risk Multipliers (Fixed, Balance, Equity, Risk %)", included: true },
+        { text: "All Order Types (Market, Limit, Stop)", included: true },
+        { text: "Emergency Kill-Switch (Close All)", included: true },
+        { text: "Real-Time Floating PnL Stream (<1s)", included: true },
+        { text: "In-App Chat & WhatsApp Community", included: true },
+        { text: "Priority Bridge Routing (<15ms)", included: false },
+        { text: "Prop Firm Drawdown Guard", included: false },
       ],
       cta: "Get Started",
-      ctaUrl: "/signup?plan=basic",
+      ctaUrl: "/signup?plan=starter",
       popular: false,
       status: "active"
     },
     {
       id: "pro",
       name: "Pro",
-      description: "For serious traders managing a multi-broker portfolio.",
-      priceUSD: 39,
-      priceNGN: 58500,
-      mastersLimit: "Up to 2 Master Accounts",
+      description: "For serious prop firm challengers & multi-account traders.",
+      priceUSD: 45,
+      priceNGN: 68000,
+      mastersLimit: "Up to 3 Master Accounts",
       subsLimit: "Up to 10 Sub Accounts",
       speed: "<15ms Dedicated Bridge",
       features: [
-        { text: "Up to 2 Master Accounts", included: true },
+        { text: "Up to 3 Master Accounts", included: true },
         { text: "Up to 10 Sub Accounts", included: true },
+        { text: "Automatic Symbol Mapper (all brokers)", included: true },
         { text: "Cross-Broker MT5 Execution", included: true },
-        { text: "Priority VPS Bridge Routing (<15ms)", included: true },
-        { text: "Advanced Equity Guard & Trailing SL", included: true },
-        { text: "Custom Lot Multipliers & Fixed Lots", included: true },
-        { text: "Pending & Stop Order Synchronization", included: true },
-        { text: "Live Floating PnL Stream (<1s)", included: true },
-        { text: "Higher VPS Resource Allocation", included: true },
-        { text: "Priority Support", included: true }
+        { text: "All 4 Risk Multipliers (Fixed, Balance, Equity, Risk %)", included: true },
+        { text: "All Order Types (Market, Limit, Stop)", included: true },
+        { text: "Priority Bridge Routing (<15ms)", included: true },
+        { text: "Prop Firm Drawdown Guard (Daily Max Loss)", included: true },
+        { text: "Priority In-App Chat (Top of Support Queue)", included: true },
+        { text: "Independent Master & Sub Pairing", included: true },
+        { text: "Higher VPS Hardware Allocation", included: true }
       ],
       cta: "Start with Pro",
       ctaUrl: "/signup?plan=pro",
@@ -78,49 +82,54 @@ export function PricingClient() {
       status: "active"
     },
     {
-      id: "enterprise",
-      name: "Enterprise",
-      description: "Custom architecture for funds and high-frequency setups.",
-      priceUSD: null,
-      priceNGN: null,
-      mastersLimit: "Unlimited Masters",
-      subsLimit: "Custom Sub Allocations",
-      speed: "<5ms Bare-Metal Routing",
+      id: "elite",
+      name: "Elite",
+      description: "For fund managers, syndicates, and high-volume copy masters.",
+      priceUSD: 89,
+      priceNGN: 135000,
+      mastersLimit: "Up to 5 Master Accounts",
+      subsLimit: "Up to 25 Sub Accounts",
+      speed: "<10ms Priority Dedicated",
       features: [
-        { text: "Unlimited Master Accounts", included: true },
-        { text: "Custom Sub Account Capacity", included: true },
-        { text: "Dedicated Private VPS Hardware", included: true },
-        { text: "Ultra-Low Latency Direct Cross-Connect", included: true },
-        { text: "Custom Bridge Logic & API Access", included: true },
-        { text: "24/7 Dedicated Account Manager", included: true },
+        { text: "Up to 5 Master Accounts", included: true },
+        { text: "Up to 25 Sub Accounts", included: true },
+        { text: "Automatic Symbol Mapper (all brokers)", included: true },
+        { text: "Cross-Broker MT5 Execution", included: true },
+        { text: "All 4 Risk Multipliers (Fixed, Balance, Equity, Risk %)", included: true },
+        { text: "All Order Types (Market, Limit, Stop)", included: true },
+        { text: "Priority Dedicated VPS Hardware (<10ms)", included: true },
+        { text: "Prop Firm Drawdown Guard (Daily Max Loss)", included: true },
+        { text: "VIP Priority In-App Chat + Direct WhatsApp Desk", included: true },
+        { text: "Independent Multi-Master Pairing", included: true },
+        { text: "Custom Institutional Capacity", included: true }
       ],
-      cta: "Talk to Us",
-      ctaUrl: "mailto:support@plaiz-markets.online",
+      cta: "Start with Elite",
+      ctaUrl: "/signup?plan=elite",
       popular: false,
-      status: "coming_later"
+      status: "active"
     }
   ];
 
   const faqs = [
     {
-      q: "Can I copy between different MT5 brokers?",
-      a: "Yes! Plaiz Markets supports complete cross-broker copying. Your Master account can be with Exness, while your Sub accounts can be with FTMO, IC Markets, Tickmill, or any other broker supporting MetaTrader 5."
+      q: "How does the 5-Day Free Trial work?",
+      a: "Every new account automatically receives a 5-Day Free Trial with 1 Master and 1 Sub account. You can test live execution, symbol mapping, and risk controls across any MT5 broker with zero commitment before picking a plan."
     },
     {
-      q: "How fast is trade execution?",
-      a: "Our Pro plan uses dedicated bridge routing running directly on low-latency infrastructure, syncing market orders, limit orders, and stop orders in under 15ms. Live dashboard telemetry updates in under 1 second without draining resources."
+      q: "Is the Symbol Auto-Mapper included on all plans?",
+      a: "Yes! Every single plan (including the Free Trial) gets the full automatic symbol mapper. Whether your broker uses EURUSD, EURUSD.m, EURUSD.pro, or GOLD vs XAUUSD, trades translate seamlessly with zero configuration."
     },
     {
-      q: "How do plan account limits work?",
-      a: "Basic allows 1 Master account and up to 3 Sub accounts. Pro allows up to 2 Master accounts and up to 10 Sub accounts. You can upgrade or downgrade between plans at any time with immediate prorated access."
+      q: "What risk calculation options do I have?",
+      a: "All plans include all 4 risk sizing options: Fixed Lots (flat lot size), Balance Multiplier (scaled to balance ratio), Equity Multiplier (scaled to floating equity), and Risk % per trade (calculated using your Stop Loss distance)."
     },
     {
-      q: "What payment methods are supported?",
-      a: "Payments are processed securely via Flutterwave. We accept all major Credit and Debit Cards (Visa, Mastercard, Verve), direct Bank Transfers, and USSD for instant automated activation."
+      q: "How does customer support work?",
+      a: "All traders have access to our community WhatsApp group and our direct in-app live chat. For Pro and Elite subscribers, support requests are flagged with priority status and pushed to the top of our queue for fastest response."
     },
     {
-      q: "Do I need to keep my computer or laptop running?",
-      a: "No! All trade execution and account connections run 24/7 on our managed VPS infrastructure. You can close your browser or mobile phone anytime—your trades will copy seamlessly around the clock."
+      q: "Can I connect different MT5 brokers together?",
+      a: "Yes. Plaiz Markets connects seamlessly across all MetaTrader 5 brokers globally (Exness, FTMO, IC Markets, Tickmill, FundedNext, etc.)."
     }
   ];
 
@@ -135,15 +144,15 @@ export function PricingClient() {
 
       {/* Hero Header */}
       <div className="container mx-auto max-w-7xl px-4 pt-24 text-center mb-12">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20 mb-6">
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>Transparent Trading Infrastructure Pricing</span>
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 mb-6 shadow-sm">
+          <Clock className="w-3.5 h-3.5" />
+          <span>New Users Get a 5-Day Free Trial (1 Master + 1 Sub) • Zero Commitment</span>
         </div>
         <h1 className="text-4xl md:text-6xl font-extrabold tracking-tighter mb-6">
           Simple, Transparent <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent-foreground">Pricing.</span>
         </h1>
         <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
-          Choose the plan that fits your trading volume and portfolio size. All plans include automated 24/7 cloud execution with zero VPS management required.
+          Built for prop firm challengers and professional portfolio managers. Automated 24/7 cloud execution with zero VPS maintenance.
         </p>
 
         {/* Currency Switcher */}
@@ -202,34 +211,22 @@ export function PricingClient() {
                     <Sparkles className="w-3 h-3" /> Most Popular
                   </span>
                 )}
-                {plan.status === 'coming_later' && (
-                  <span className="bg-muted text-muted-foreground text-[10px] uppercase tracking-widest font-bold px-2.5 py-1 rounded-full">
-                    Coming Soon
-                  </span>
-                )}
               </div>
               <p className="text-muted-foreground text-sm">{plan.description}</p>
             </div>
             
             <div className={`mb-6 ${plan.popular ? 'relative z-10' : ''}`}>
-              {plan.priceUSD !== null ? (
-                <div className="flex flex-col">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-5xl font-extrabold tracking-tight">
-                      {isNgn ? `₦${plan.priceNGN?.toLocaleString()}` : `$${plan.priceUSD}`}
-                    </span>
-                    <span className="text-muted-foreground text-sm font-medium">/month</span>
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    Billed monthly • Instant activation
-                  </div>
+              <div className="flex flex-col">
+                <div className="flex items-baseline gap-1">
+                  <span className="text-5xl font-extrabold tracking-tight">
+                    {isNgn ? `₦${plan.priceNGN?.toLocaleString()}` : `$${plan.priceUSD}`}
+                  </span>
+                  <span className="text-muted-foreground text-sm font-medium">/month</span>
                 </div>
-              ) : (
-                <div className="flex flex-col h-[72px] justify-center">
-                  <span className="text-4xl font-extrabold text-muted-foreground opacity-60">Custom</span>
-                  <span className="text-xs text-muted-foreground mt-1">Tailored for funds and trading firms</span>
+                <div className="text-xs text-muted-foreground mt-1">
+                  Billed monthly • Instant activation via Flutterwave
                 </div>
-              )}
+              </div>
             </div>
 
             {/* Quota Badges */}
@@ -243,12 +240,12 @@ export function PricingClient() {
                 <span>{plan.subsLimit}</span>
               </div>
               <div className="flex justify-between items-center font-semibold text-primary">
-                <span className="text-muted-foreground">Latency:</span>
+                <span className="text-muted-foreground">Speed:</span>
                 <span>{plan.speed}</span>
               </div>
             </div>
             
-            <ul className={`flex flex-col gap-3.5 mb-10 flex-1 ${plan.popular ? 'relative z-10' : ''}`}>
+            <ul className={`flex flex-col gap-3 mb-10 flex-1 ${plan.popular ? 'relative z-10' : ''}`}>
               {plan.features.map((feature, i) => (
                 <li key={i} className={`flex items-start gap-3 ${!feature.included ? 'opacity-40' : ''}`}>
                   {feature.included ? (
@@ -270,68 +267,68 @@ export function PricingClient() {
       <div className="container mx-auto max-w-5xl px-4 mb-24">
         <div className="text-center mb-10">
           <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight mb-2">Compare Plan Capabilities</h2>
-          <p className="text-sm text-muted-foreground">Comprehensive overview of what is included in each subscription tier.</p>
+          <p className="text-sm text-muted-foreground">Every tier includes our full trading engine. Upgrades scale your account capacity and priority routing.</p>
         </div>
 
-        <div className="plaiz-card bg-card/60 rounded-3xl border border-border/40 overflow-hidden">
+        <div className="plaiz-card bg-card/60 rounded-3xl border border-border/40 overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-border/40 bg-black/5 dark:bg-white/5">
-                  <th className="py-4 px-6 font-bold text-foreground">Feature</th>
-                  <th className="py-4 px-6 font-bold text-foreground">Basic</th>
-                  <th className="py-4 px-6 font-bold text-primary">Pro (Recommended)</th>
-                  <th className="py-4 px-6 font-bold text-foreground">Enterprise</th>
+                  <th className="py-4 px-6 font-bold text-foreground">Trading Feature</th>
+                  <th className="py-4 px-6 font-bold text-foreground">Starter ($25)</th>
+                  <th className="py-4 px-6 font-bold text-primary">Pro ($45)</th>
+                  <th className="py-4 px-6 font-bold text-foreground">Elite ($89)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/20 text-xs">
                 <tr>
                   <td className="py-3.5 px-6 font-semibold text-foreground">Master Account Capacity</td>
                   <td className="py-3.5 px-6 text-muted-foreground">1 Master</td>
-                  <td className="py-3.5 px-6 font-bold text-primary">Up to 2 Masters</td>
-                  <td className="py-3.5 px-6 text-muted-foreground">Unlimited</td>
+                  <td className="py-3.5 px-6 font-bold text-primary">Up to 3 Masters</td>
+                  <td className="py-3.5 px-6 font-semibold text-foreground">Up to 5 Masters</td>
                 </tr>
                 <tr>
                   <td className="py-3.5 px-6 font-semibold text-foreground">Sub Account Capacity</td>
                   <td className="py-3.5 px-6 text-muted-foreground">Up to 3 Subs</td>
                   <td className="py-3.5 px-6 font-bold text-primary">Up to 10 Subs</td>
-                  <td className="py-3.5 px-6 text-muted-foreground">Custom allocation</td>
+                  <td className="py-3.5 px-6 font-semibold text-foreground">Up to 25 Subs</td>
                 </tr>
                 <tr>
-                  <td className="py-3.5 px-6 font-semibold text-foreground">Execution Latency</td>
-                  <td className="py-3.5 px-6 text-muted-foreground">&lt;50ms Cloud Routing</td>
-                  <td className="py-3.5 px-6 font-bold text-primary">&lt;15ms Dedicated Bridge</td>
-                  <td className="py-3.5 px-6 text-muted-foreground">&lt;5ms Bare Metal</td>
-                </tr>
-                <tr>
-                  <td className="py-3.5 px-6 font-semibold text-foreground">Cross-Broker MetaTrader 5</td>
+                  <td className="py-3.5 px-6 font-semibold text-foreground">Automatic Symbol Mapper</td>
                   <td className="py-3.5 px-6"><Check className="w-4 h-4 text-emerald-500" /></td>
                   <td className="py-3.5 px-6"><Check className="w-4 h-4 text-emerald-500" /></td>
                   <td className="py-3.5 px-6"><Check className="w-4 h-4 text-emerald-500" /></td>
                 </tr>
                 <tr>
-                  <td className="py-3.5 px-6 font-semibold text-foreground">Pending & Stop Orders Sync</td>
+                  <td className="py-3.5 px-6 font-semibold text-foreground">All 4 Risk Multipliers</td>
                   <td className="py-3.5 px-6"><Check className="w-4 h-4 text-emerald-500" /></td>
                   <td className="py-3.5 px-6"><Check className="w-4 h-4 text-emerald-500" /></td>
                   <td className="py-3.5 px-6"><Check className="w-4 h-4 text-emerald-500" /></td>
                 </tr>
                 <tr>
-                  <td className="py-3.5 px-6 font-semibold text-foreground">Advanced Equity Guard</td>
-                  <td className="py-3.5 px-6 text-muted-foreground"><X className="w-4 h-4 text-muted-foreground/50" /></td>
-                  <td className="py-3.5 px-6"><Check className="w-4 h-4 text-emerald-500" /></td>
-                  <td className="py-3.5 px-6"><Check className="w-4 h-4 text-emerald-500" /></td>
-                </tr>
-                <tr>
-                  <td className="py-3.5 px-6 font-semibold text-foreground">Managed 24/7 Cloud VPS</td>
+                  <td className="py-3.5 px-6 font-semibold text-foreground">All Order Types (Market/Limit/Stop)</td>
                   <td className="py-3.5 px-6"><Check className="w-4 h-4 text-emerald-500" /></td>
                   <td className="py-3.5 px-6"><Check className="w-4 h-4 text-emerald-500" /></td>
                   <td className="py-3.5 px-6"><Check className="w-4 h-4 text-emerald-500" /></td>
                 </tr>
                 <tr>
-                  <td className="py-3.5 px-6 font-semibold text-foreground">Support Level</td>
-                  <td className="py-3.5 px-6 text-muted-foreground">Standard Email</td>
-                  <td className="py-3.5 px-6 font-bold text-primary">Priority Assistance</td>
-                  <td className="py-3.5 px-6 text-muted-foreground">Dedicated Manager</td>
+                  <td className="py-3.5 px-6 font-semibold text-foreground">Execution Latency</td>
+                  <td className="py-3.5 px-6 text-muted-foreground">&lt;50ms Cloud Routing</td>
+                  <td className="py-3.5 px-6 font-bold text-primary">&lt;15ms Priority Bridge</td>
+                  <td className="py-3.5 px-6 font-semibold text-foreground">&lt;10ms Dedicated</td>
+                </tr>
+                <tr>
+                  <td className="py-3.5 px-6 font-semibold text-foreground">Prop Firm Drawdown Guard</td>
+                  <td className="py-3.5 px-6 text-muted-foreground"><X className="w-4 h-4 text-muted-foreground/40" /></td>
+                  <td className="py-3.5 px-6"><Check className="w-4 h-4 text-emerald-500" /></td>
+                  <td className="py-3.5 px-6"><Check className="w-4 h-4 text-emerald-500" /></td>
+                </tr>
+                <tr>
+                  <td className="py-3.5 px-6 font-semibold text-foreground">Customer Support</td>
+                  <td className="py-3.5 px-6 text-muted-foreground">In-App Chat & WhatsApp</td>
+                  <td className="py-3.5 px-6 font-bold text-primary">Priority In-App Chat (Top of Queue)</td>
+                  <td className="py-3.5 px-6 font-semibold text-foreground">VIP Priority Desk</td>
                 </tr>
               </tbody>
             </table>
@@ -343,7 +340,7 @@ export function PricingClient() {
       <div className="container mx-auto max-w-3xl px-4">
         <div className="text-center mb-8">
           <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight mb-2">Frequently Asked Questions</h2>
-          <p className="text-sm text-muted-foreground">Everything you need to know about our subscriptions and trading infrastructure.</p>
+          <p className="text-sm text-muted-foreground">Transparent answers to all your questions about our copy engine.</p>
         </div>
 
         <div className="flex flex-col gap-3">

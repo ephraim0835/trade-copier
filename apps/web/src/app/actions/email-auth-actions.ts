@@ -12,12 +12,21 @@ export async function registerUser(email: string, passwordPlain: string, name: s
 
     const passwordHash = await argon2.hash(passwordPlain);
 
+    const trialEndsAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+
     const user = await prisma.user.create({
       data: {
         email,
         password: passwordHash,
         name,
         role: 'USER',
+        subscription: {
+          create: {
+            status: 'TRIAL',
+            planId: 'trial',
+            currentPeriodEnd: trialEndsAt,
+          },
+        },
       },
     });
     

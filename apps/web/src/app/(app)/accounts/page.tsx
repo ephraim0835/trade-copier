@@ -39,10 +39,24 @@ export default async function AccountsPage() {
     orderBy: { createdAt: 'desc' }
   });
 
-  const planId = (user.subscription?.planId || 'basic').toLowerCase();
+  const isTrial = user.subscription?.status === 'TRIAL' || user.subscription?.planId === 'trial';
+  const planId = (user.subscription?.planId || (isTrial ? 'trial' : 'starter')).toLowerCase();
   const isAdmin = user.role === 'ADMIN' || user.role === 'OWNER';
   const isInternalFree = user.subscription?.status === 'INTERNAL_FREE';
-  const maxSubs = isAdmin || isInternalFree ? 999 : (planId === 'pro' ? 10 : 3);
+  
+  let maxSubs = 3;
+  if (isAdmin || isInternalFree) {
+    maxSubs = 999;
+  } else if (isTrial || planId === 'trial') {
+    maxSubs = 1;
+  } else if (planId === 'pro') {
+    maxSubs = 10;
+  } else if (planId === 'elite') {
+    maxSubs = 25;
+  } else {
+    maxSubs = 3;
+  }
+
   const isAtSubLimit = !isAdmin && !isInternalFree && accounts.length >= maxSubs;
 
   return (
@@ -52,17 +66,17 @@ export default async function AccountsPage() {
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-3xl font-bold tracking-tight">Sub Accounts</h1>
             <span className="text-xs px-2.5 py-1 rounded-full bg-secondary text-foreground font-semibold border border-border/40">
-              {accounts.length} / {isAdmin || isInternalFree ? '∞' : maxSubs} Used • {planId.toUpperCase()} Plan
+              {accounts.length} / {isAdmin || isInternalFree ? '∞' : maxSubs} Used • {isTrial ? '5-DAY TRIAL' : planId.toUpperCase()} Plan
             </span>
           </div>
           <p className="text-muted-foreground mt-2">
             Manage risk settings, monitoring, and execution overrides for your connected trading terminals.
           </p>
-          {isAtSubLimit && planId === 'basic' && (
+          {isAtSubLimit && (
             <div className="mt-2 text-xs flex items-center gap-1.5 text-amber-500 font-medium">
-              <span>Basic Plan capacity reached (3/3).</span>
+              <span>{isTrial ? 'Free Trial' : (planId === 'pro' ? 'Pro' : 'Starter')} limit reached ({accounts.length}/{maxSubs}).</span>
               <Link href="/pricing" className="text-primary font-semibold hover:underline">
-                Upgrade to Pro for up to 10 Sub accounts &rarr;
+                Upgrade to {planId === 'pro' ? 'Elite for up to 25 accounts' : 'Pro for up to 10 accounts'} &rarr;
               </Link>
             </div>
           )}
