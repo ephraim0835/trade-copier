@@ -24,6 +24,8 @@ model User {
   accounts            Mt5Account[]
   subscription        Subscription?
   notifications       UserNotification[]
+  tickets             SupportTicket[]
+  botStopped          Boolean            @default(false)
 }
 
 
@@ -104,6 +106,9 @@ model CopySettings {
   requireTp                Boolean    @default(false)
   missingSlTimeoutSec      Int        @default(60)
   maxRecoveryRRDegradation Float      @default(0.5)
+  riskType                 String     @default("RISK_PERCENT") // RISK_PERCENT, FIXED_LOT, BALANCE_MULTIPLIER, EQUITY_MULTIPLIER
+  fixedLotSize             Float      @default(0.01)
+  lotMultiplier            Float      @default(1.0)
   createdAt                DateTime   @default(now())
   updatedAt                DateTime   @updatedAt
   mt5Account               Mt5Account @relation(fields: [mt5AccountId], references: [id])
@@ -444,4 +449,32 @@ enum ConnectionStatus {
   ONLINE
   FAILED
   OFFLINE
+}
+
+model SupportTicket {
+  id          String          @id @default(uuid())
+  userId      String
+  subject     String
+  status      String          @default("OPEN") // OPEN, IN_PROGRESS, RESOLVED, CLOSED
+  priority    String          @default("STANDARD") // STANDARD, PRIORITY, VIP
+  category    String          @default("GENERAL") // GENERAL, TECHNICAL, BILLING, BROKER
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages    TicketMessage[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model TicketMessage {
+  id         String        @id @default(uuid())
+  ticketId   String
+  senderId   String
+  senderRole String        @default("USER") // USER, ADMIN, OWNER
+  message    String
+  createdAt  DateTime      @default(now())
+  ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
 }

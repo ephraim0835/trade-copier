@@ -30,15 +30,19 @@ export async function updateUserRole(userId: string, role: Role) {
   revalidatePath('/admin/users');
 }
 
-export async function grantInternalSubscription(userId: string) {
+export async function grantInternalSubscription(userId: string, planId: 'starter' | 'pro' | 'elite' = 'pro') {
   await checkAdmin();
   
   await prisma.subscription.upsert({
     where: { userId },
-    update: { status: SubscriptionStatus.INTERNAL_FREE },
+    update: { 
+      status: SubscriptionStatus.INTERNAL_FREE,
+      planId: planId,
+    },
     create: {
       userId,
-      status: SubscriptionStatus.INTERNAL_FREE
+      status: SubscriptionStatus.INTERNAL_FREE,
+      planId: planId,
     }
   });
   

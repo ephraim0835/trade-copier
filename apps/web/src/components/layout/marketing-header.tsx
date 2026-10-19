@@ -7,12 +7,25 @@ import { ThemeToggle } from '@/components/theme-toggle';
 
 import { usePathname } from 'next/navigation';
 
+import { useSession } from 'next-auth/react';
+
 export function MarketingHeader() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const pathname = usePathname();
+  const { status } = useSession();
 
   // Highlight exact match, but since Features/Infrastructure are hashes on "/", we just highlight Pricing when on /pricing.
   const isPricing = pathname === '/pricing';
+
+  const scrollToSection = (id: string) => {
+    if (pathname === '/') {
+      const el = document.getElementById(id);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+    setIsMenuOpen(false);
+  };
 
   return (
     <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-4xl">
@@ -26,19 +39,37 @@ export function MarketingHeader() {
         
         {/* Center: Desktop Nav */}
         <nav className="hidden md:flex items-center gap-8 text-[13px] font-medium text-muted-foreground">
-          <Link href="/#features" className={`transition-colors ${!isPricing ? 'text-foreground font-semibold' : 'hover:text-foreground'}`}>Features</Link>
-          <Link href="/#infrastructure" className={`transition-colors ${!isPricing ? 'text-foreground font-semibold' : 'hover:text-foreground'}`}>Infrastructure</Link>
+          <Link 
+            href="/#features" 
+            onClick={() => scrollToSection('features')}
+            className={`transition-colors ${!isPricing ? 'text-foreground font-semibold' : 'hover:text-foreground'}`}
+          >
+            Features
+          </Link>
+          <Link 
+            href="/#infrastructure" 
+            onClick={() => scrollToSection('infrastructure')}
+            className={`transition-colors ${!isPricing ? 'text-foreground font-semibold' : 'hover:text-foreground'}`}
+          >
+            Infrastructure
+          </Link>
           <Link href="/pricing" className={`transition-colors ${isPricing ? 'text-foreground font-semibold' : 'hover:text-foreground'}`}>Pricing</Link>
         </nav>
         
         {/* Right: Actions */}
         <div className="flex items-center gap-3 sm:gap-4">
           <ThemeToggle />
-          <Link href="/login" className="text-[13px] font-medium hover:text-primary transition-colors hidden sm:inline-block">
-            Sign in
-          </Link>
+          {status === 'authenticated' ? (
+            <Link href="/dashboard" className="text-[13px] font-semibold text-primary hover:underline transition-colors hidden sm:inline-block">
+              Dashboard
+            </Link>
+          ) : (
+            <Link href="/login" className="text-[13px] font-medium hover:text-primary transition-colors hidden sm:inline-block">
+              Sign in
+            </Link>
+          )}
           <Link href="/dashboard" className="plaiz-btn plaiz-btn-primary rounded-full px-4 sm:px-5 py-1.5 text-[12px] sm:text-[13px]">
-            Get Started
+            {status === 'authenticated' ? 'Open Dashboard' : 'Get Started'}
           </Link>
           
           {/* Mobile Hamburger Toggle */}
@@ -55,14 +86,32 @@ export function MarketingHeader() {
       {isMenuOpen && (
         <div className="md:hidden absolute top-[110%] left-0 w-full bg-background border border-border rounded-2xl shadow-xl p-4 flex flex-col gap-4">
           <nav className="flex flex-col gap-3 text-sm font-medium">
-            <Link href="/#features" className={`transition-colors px-2 py-1 ${!isPricing ? 'text-primary font-semibold' : 'hover:text-primary'}`} onClick={() => setIsMenuOpen(false)}>Features</Link>
-            <Link href="/#infrastructure" className={`transition-colors px-2 py-1 ${!isPricing ? 'text-primary font-semibold' : 'hover:text-primary'}`} onClick={() => setIsMenuOpen(false)}>Infrastructure</Link>
+            <Link 
+              href="/#features" 
+              className={`transition-colors px-2 py-1 ${!isPricing ? 'text-primary font-semibold' : 'hover:text-primary'}`} 
+              onClick={() => scrollToSection('features')}
+            >
+              Features
+            </Link>
+            <Link 
+              href="/#infrastructure" 
+              className={`transition-colors px-2 py-1 ${!isPricing ? 'text-primary font-semibold' : 'hover:text-primary'}`} 
+              onClick={() => scrollToSection('infrastructure')}
+            >
+              Infrastructure
+            </Link>
             <Link href="/pricing" className={`transition-colors px-2 py-1 ${isPricing ? 'text-primary font-semibold' : 'hover:text-primary'}`} onClick={() => setIsMenuOpen(false)}>Pricing</Link>
           </nav>
           <div className="flex flex-col gap-2 pt-3 border-t border-border/50 sm:hidden">
-             <Link href="/login" className="text-center font-medium hover:text-primary transition-colors py-2" onClick={() => setIsMenuOpen(false)}>
-               Sign in
-             </Link>
+             {status === 'authenticated' ? (
+               <Link href="/dashboard" className="text-center font-semibold text-primary hover:underline transition-colors py-2" onClick={() => setIsMenuOpen(false)}>
+                 Dashboard
+               </Link>
+             ) : (
+               <Link href="/login" className="text-center font-medium hover:text-primary transition-colors py-2" onClick={() => setIsMenuOpen(false)}>
+                 Sign in
+               </Link>
+             )}
           </div>
         </div>
       )}

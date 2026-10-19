@@ -174,9 +174,12 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
         const a = sub.subAccount;
         
         // Ensure copySettings is never null so trades are never skipped
-        const baseSettings = a.copySettings || {
+        const baseSettings: any = a.copySettings || {
           id: 'default',
           mt5AccountId: a.id,
+          riskType: 'RISK_PERCENT',
+          fixedLotSize: 0.01,
+          lotMultiplier: 1.0,
           riskPercentage: 1.0,
           roundingTolerancePct: 2.0,
           dailyRiskEnabled: false,
@@ -313,6 +316,112 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Evaluates trade volume based on the 4 Risk Multipliers:
+   * 1. RISK_PERCENT: Calculated from Stop Loss distance with multi-currency conversion
+   * 2. FIXED_LOT: Flat specified volume
+   * 3. BALANCE_MULTIPLIER: Scaled proportionally to balance ratio with multiplier
+   * 4. EQUITY_MULTIPLIER: Scaled proportionally to floating equity ratio with multiplier
+   */
+  public computeSubVolume(
+    sub: CachedSubAccount,
+    masterInfo: CachedMasterAccount | undefined,
+    masterVolume: number,
+    symbol: string,
+    orderType: string,
+    priceOpen: number,
+    sl: number,
+  ): number {
+    const copySettings: any = sub.copySettings || {};
+    const riskType = copySettings.riskType || 'RISK_PERCENT';
+
+    // 1. FIXED_LOT mode
+    if (riskType === 'FIXED_LOT') {
+      const fixedLot = copySettings.fixedLotSize || 0.01;
+      return Math.max(0.01, Math.min(100.0, Number(Number(fixedLot).toFixed(2))));
+    }
+
+    const masterCurrency = masterInfo?.currency || 'USD';
+    const masterInitial = masterInfo?.initialBalance || masterInfo?.balance || 10000;
+    const masterCapitalUSD = this.currencyService.toUSD(masterInitial, masterCurrency);
+
+    const subBase = (sub.initialBalance && sub.initialBalance > 0)
+      ? sub.initialBalance
+      : (sub.balance > 0 ? sub.balance : (sub.equity > 0 ? sub.equity : 10000));
+    const subCapitalUSD = this.currencyService.toUSD(subBase, sub.currency);
+
+    // 2. BALANCE_MULTIPLIER mode
+    if (riskType === 'BALANCE_MULTIPLIER') {
+      const multiplier = copySettings.lotMultiplier || 1.0;
+      const capitalRatio = masterCapitalUSD > 0 ? (subCapitalUSD / masterCapitalUSD) : 1.0;
+      let vol = Number((masterVolume * capitalRatio * multiplier).toFixed(2));
+      return Math.max(0.01, Math.min(100.0, vol));
+    }
+
+    // 3. EQUITY_MULTIPLIER mode
+    if (riskType === 'EQUITY_MULTIPLIER') {
+      const multiplier = copySettings.lotMultiplier || 1.0;
+      const subEquity = sub.equity > 0 ? sub.equity : subBase;
+      const subEquityUSD = this.currencyService.toUSD(subEquity, sub.currency);
+      const masterEquity = masterInfo?.balance || 10000;
+      const masterEquityUSD = this.currencyService.toUSD(masterEquity, masterCurrency);
+      const equityRatio = masterEquityUSD > 0 ? (subEquityUSD / masterEquityUSD) : 1.0;
+      let vol = Number((masterVolume * equityRatio * multiplier).toFixed(2));
+      return Math.max(0.01, Math.min(100.0, vol));
+    }
+
+    // 4. RISK_PERCENT mode: Calculate lot size from Stop Loss distance
+    const riskPct = copySettings.riskPercentage ?? 1.0;
+    const riskAmountUSD = subCapitalUSD * (riskPct / 100);
+    const slDistance = (sl > 0 && priceOpen > 0) ? Math.abs(priceOpen - sl) : 0;
+
+    if (slDistance > 0) {
+      const cleanSym = symbol.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      let lossPerLotUSD = 0;
+
+      if (cleanSym.includes('XAU') || cleanSym.includes('GOLD')) {
+        // Gold: 1 standard lot = 100 oz. $1 price move = $100 loss per lot.
+        lossPerLotUSD = slDistance * 100;
+      } else if (cleanSym.includes('XAG') || cleanSym.includes('SILVER')) {
+        // Silver: 1 standard lot = 5,000 oz. $1 price move = $5,000 loss per lot.
+        lossPerLotUSD = slDistance * 5000;
+      } else if (cleanSym.includes('BTC') || cleanSym.includes('BITCOIN')) {
+        // Crypto: 1 lot = 1 coin.
+        lossPerLotUSD = slDistance * 1;
+      } else if (cleanSym.includes('US30') || cleanSym.includes('DJ30') || cleanSym.includes('NAS') || cleanSym.includes('SPX')) {
+        // Indices CFDs: Typically $1 per index point per lot
+        lossPerLotUSD = slDistance * 1;
+      } else {
+        // Standard Forex pairs
+        if (cleanSym.endsWith('USD')) {
+          // Quote is USD (e.g. EURUSD, GBPUSD, AUDUSD): 1 pip (0.0001) = $10 / lot
+          lossPerLotUSD = slDistance * 100000;
+        } else if (cleanSym.startsWith('USD')) {
+          // Base is USD (e.g. USDJPY, USDCAD): loss in USD = (slDistance / priceOpen) * 100,000
+          lossPerLotUSD = priceOpen > 0 ? (slDistance / priceOpen) * 100000 : slDistance * 100000;
+        } else {
+          // Cross currency pairs
+          lossPerLotUSD = priceOpen > 0 ? (slDistance / priceOpen) * 100000 : slDistance * 100000;
+        }
+      }
+
+      if (lossPerLotUSD > 0) {
+        let calculatedLots = riskAmountUSD / lossPerLotUSD;
+        let roundedLots = Number(calculatedLots.toFixed(2));
+        if (roundedLots < 0.01) roundedLots = 0.01;
+        if (roundedLots > 100.0) roundedLots = 100.0;
+        return roundedLots;
+      }
+    }
+
+    // Fallback if no SL provided: proportional scaling to balance
+    const capitalRatio = masterCapitalUSD > 0 ? (subCapitalUSD / masterCapitalUSD) : 1;
+    let fallbackVol = Number((masterVolume * capitalRatio).toFixed(2));
+    if (fallbackVol < 0.01) fallbackVol = 0.01;
+    if (fallbackVol > 100.0) fallbackVol = 100.0;
+    return fallbackVol;
+  }
+
+  /**
    * HOT PATH: processOpen
    * 0 synchronous Supabase queries. In-memory risk evaluation -> HotDispatchService -> Async persistence.
    */
@@ -381,16 +490,18 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
 
       const decision = this.riskEngine.evaluateTrade(signalInput, riskProfile, symbolSpecs);
       
-      // Proportional volume calculation based on initial balance in USD
-      const subBase = (sub.initialBalance && sub.initialBalance > 0) ? sub.initialBalance : (sub.balance > 0 ? sub.balance : (sub.equity > 0 ? sub.equity : 10000));
-      const subCapitalUSD = this.currencyService.toUSD(subBase, sub.currency);
-      const capitalRatio = masterCapitalUSD > 0 ? (subCapitalUSD / masterCapitalUSD) : 1;
-      const riskRatio = (sub.copySettings?.riskPercentage ?? 1.0) / masterRiskPct;
-      let scaledVolume = Number((dto.volume * capitalRatio * riskRatio).toFixed(2));
-      if (scaledVolume < 0.01) scaledVolume = 0.01;
-      if (scaledVolume > 100.0) scaledVolume = 100.0;
+      // Authoritative multi-currency and Stop Loss volume calculation across all 4 modes
+      const calculatedVolume = this.computeSubVolume(
+        sub,
+        masterInfo,
+        dto.volume,
+        dto.symbol,
+        dto.type,
+        dto.priceOpen || 0,
+        dto.sl ?? 0
+      );
 
-      const finalVolume = (decision.executedVol && decision.executedVol > 0) ? decision.executedVol : scaledVolume;
+      const finalVolume = (decision.executedVol && decision.executedVol > 0) ? decision.executedVol : calculatedVolume;
       const tradeCopyId = crypto.randomUUID();
 
       const inFlightCopy: InFlightTradeCopy = {
@@ -426,7 +537,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
           symbol: dto.symbol,
           orderType: dto.type,
           volume: finalVolume,
-          intendedRisk: decision.intendedRisk,
+          intendedRisk: 0, // Authoritative volume calculated by Node.js; pass 0 so EA does not miscalculate due to broker tick currency differences
           price: dto.priceOpen || 0,
           sl: dto.sl ?? 0,
           tp: dto.tp ?? 0,
@@ -529,8 +640,20 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
 
           const decision = this.riskEngine.evaluateTrade(signalInput, profile, specs);
           if (decision.state === CopyState.APPROVED) {
+            const masterInfo = this.masterAccountsCache.get(masterAccountId);
+            const computedVol = this.computeSubVolume(
+              sub,
+              masterInfo,
+              signal.volume,
+              signal.symbol,
+              signal.type,
+              signal.priceOpen,
+              dto.sl
+            );
+            const finalVol = (decision.executedVol && decision.executedVol > 0) ? decision.executedVol : computedVol;
+
             copy.state = CopyState.APPROVED;
-            copy.requestedVolume = decision.executedVol;
+            copy.requestedVolume = finalVol;
 
             const commandId = `cmd-open-${copy.id}-${dto.sequenceNumber}`;
             const hotCmd: HotCommandData = {
@@ -543,8 +666,8 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
               status: CommandStatus.CREATED,
               symbol: signal.symbol,
               orderType: signal.type as any,
-              volume: decision.executedVol,
-              intendedRisk: decision.intendedRisk,
+              volume: finalVol,
+              intendedRisk: 0,
               price: 0,
               sl: dto.sl,
               tp: dto.tp ?? signal.tp,

@@ -31,8 +31,8 @@ export function PricingClient() {
       id: "starter",
       name: "Starter",
       description: "For individual traders running a focused copy setup.",
-      priceUSD: 25,
-      priceNGN: 38000,
+      priceUSD: 29,
+      priceNGN: 44000,
       mastersLimit: "1 Master Account",
       subsLimit: "Up to 3 Sub Accounts",
       speed: "<50ms Cloud Routing",
@@ -58,8 +58,8 @@ export function PricingClient() {
       id: "pro",
       name: "Pro",
       description: "For serious prop firm challengers & multi-account traders.",
-      priceUSD: 45,
-      priceNGN: 68000,
+      priceUSD: 49,
+      priceNGN: 75000,
       mastersLimit: "Up to 3 Master Accounts",
       subsLimit: "Up to 10 Sub Accounts",
       speed: "<15ms Dedicated Bridge",
@@ -85,8 +85,8 @@ export function PricingClient() {
       id: "elite",
       name: "Elite",
       description: "For fund managers, syndicates, and high-volume copy masters.",
-      priceUSD: 89,
-      priceNGN: 135000,
+      priceUSD: 99,
+      priceNGN: 150000,
       mastersLimit: "Up to 5 Master Accounts",
       subsLimit: "Up to 25 Sub Accounts",
       speed: "<10ms Priority Dedicated",
@@ -276,9 +276,9 @@ export function PricingClient() {
               <thead>
                 <tr className="border-b border-border/40 bg-black/5 dark:bg-white/5">
                   <th className="py-4 px-6 font-bold text-foreground">Trading Feature</th>
-                  <th className="py-4 px-6 font-bold text-foreground">Starter ($25)</th>
-                  <th className="py-4 px-6 font-bold text-primary">Pro ($45)</th>
-                  <th className="py-4 px-6 font-bold text-foreground">Elite ($89)</th>
+                  <th className="py-4 px-6 font-bold text-foreground">Starter ($29)</th>
+                  <th className="py-4 px-6 font-bold text-primary">Pro ($49)</th>
+                  <th className="py-4 px-6 font-bold text-foreground">Elite ($99)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/20 text-xs">

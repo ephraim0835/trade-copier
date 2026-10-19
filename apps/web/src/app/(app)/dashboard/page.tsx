@@ -14,6 +14,7 @@ import { redirect } from 'next/navigation';
 import { PrismaClient } from '@trade-copier/database';
 import { AutoRefresh } from '@/components/auto-refresh';
 import { formatUserFriendlyError } from '@/lib/error-formatter';
+import { BotControlSwitch } from '@/components/dashboard/bot-control-switch';
 
 export const dynamic = 'force-dynamic';
 
@@ -204,7 +205,13 @@ export default async function DashboardOverview() {
         </div>
         
         {/* Top Right Utilities */}
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3">
+          {accounts.length > 0 && (
+            <BotControlSwitch
+              initialBotStopped={user.botStopped ?? false}
+              activeAccountsCount={activeSubs}
+            />
+          )}
           <a href="/?ref=dashboard" className="flex items-center gap-1.5 lg:gap-2 px-3 h-9 rounded-full bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors border border-border/50 text-muted-foreground hover:text-foreground">
             <Globe className="w-3.5 h-3.5 lg:w-4 lg:h-4" />
             <span className="hidden lg:block text-[11px] font-semibold tracking-wide uppercase">Website</span>

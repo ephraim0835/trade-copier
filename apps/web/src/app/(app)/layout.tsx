@@ -6,6 +6,7 @@ import { AuthProvider } from '@/components/auth-provider';
 import { CurrencyProvider } from '@/components/currency-provider';
 import { SubscriptionProvider } from '@/components/subscription-provider';
 import { PaywallBanner } from '@/components/paywall-banner';
+import { SupportWidget } from '@/components/support-widget';
 import { redirect } from 'next/navigation';
 
 export default async function AppLayout({
@@ -65,6 +66,7 @@ export default async function AppLayout({
                     {children}
                   </div>
                 </main>
+                <SupportWidget />
                 <BottomNav isAdmin={user.role === 'ADMIN' || user.role === 'OWNER'} />
               </div>
             </div>

@@ -31,6 +31,9 @@ export function UserEditModal({ user, onClose }: UserEditModalProps) {
 
   const isInternalFree = user.subscription?.status === 'INTERNAL_FREE';
   const isAdmin = user.role === 'ADMIN' || user.role === 'OWNER';
+  const [selectedPlan, setSelectedPlan] = useState<'starter' | 'pro' | 'elite'>(
+    (user.subscription?.planId as 'starter' | 'pro' | 'elite') || 'pro'
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
@@ -74,9 +77,31 @@ export function UserEditModal({ user, onClose }: UserEditModalProps) {
               {loading ? <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /> : null}
             </button>
 
+            {!isInternalFree && (
+              <div className="flex flex-col gap-1.5 p-3 rounded-xl bg-black/5 dark:bg-white/5 border border-border/30">
+                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Select Complimentary Plan</span>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(['starter', 'pro', 'elite'] as const).map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setSelectedPlan(p)}
+                      className={`py-1.5 px-2 rounded-lg text-xs font-bold capitalize transition-all ${
+                        selectedPlan === p
+                          ? 'bg-purple-500 text-white shadow-sm'
+                          : 'bg-card text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <button 
               disabled={loading}
-              onClick={() => handleAction(() => isInternalFree ? revokeSubscription(user.id) : grantInternalSubscription(user.id))}
+              onClick={() => handleAction(() => isInternalFree ? revokeSubscription(user.id) : grantInternalSubscription(user.id, selectedPlan))}
               className="flex items-center justify-between p-4 rounded-xl border border-border/30 hover:border-purple-500/50 hover:bg-purple-500/5 transition-all group"
             >
               <div className="flex items-center gap-3">
@@ -84,8 +109,8 @@ export function UserEditModal({ user, onClose }: UserEditModalProps) {
                   <CreditCard className="w-5 h-5" />
                 </div>
                 <div className="text-left">
-                  <p className="font-semibold">{isInternalFree ? 'Revoke Free Access' : 'Grant Free Access'}</p>
-                  <p className="text-xs text-muted-foreground">{isInternalFree ? 'Remove internal free subscription' : 'Bypass Stripe for this user'}</p>
+                  <p className="font-semibold">{isInternalFree ? 'Revoke Free Access' : `Grant Free ${selectedPlan.toUpperCase()} Access`}</p>
+                  <p className="text-xs text-muted-foreground">{isInternalFree ? 'Remove internal free subscription' : `Unlocks ${selectedPlan === 'elite' ? '5 Masters / 25 Subs' : selectedPlan === 'pro' ? '3 Masters / 10 Subs' : '1 Master / 3 Subs'}`}</p>
                 </div>
               </div>
               {loading ? <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /> : null}

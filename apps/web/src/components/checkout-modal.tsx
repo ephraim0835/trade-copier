@@ -77,9 +77,9 @@ export function CheckoutModal({
 
   const isNgn = currency === 'NGN';
   const basePrices = {
-    starter: isNgn ? 38000 : 25,
-    pro: isNgn ? 68000 : 45,
-    elite: isNgn ? 135000 : 89,
+    starter: isNgn ? 44000 : 29,
+    pro: isNgn ? 75000 : 49,
+    elite: isNgn ? 150000 : 99,
   };
 
   const planQuota = {
@@ -282,7 +282,7 @@ export function CheckoutModal({
             >
               <div className="text-xs font-bold text-foreground truncate">Starter</div>
               <div className="text-sm font-extrabold text-foreground mt-0.5">
-                {isNgn ? '₦38k' : '$25'}<span className="text-[9px] text-muted-foreground font-normal">/mo</span>
+                {isNgn ? '₦44k' : '$29'}<span className="text-[9px] text-muted-foreground font-normal">/mo</span>
               </div>
               <div className="text-[10px] text-muted-foreground mt-0.5 leading-tight">
                 1 M • 3 Subs
@@ -304,7 +304,7 @@ export function CheckoutModal({
                 <Sparkles className="w-2.5 h-2.5" />
               </div>
               <div className="text-sm font-extrabold text-foreground mt-0.5">
-                {isNgn ? '₦68k' : '$45'}<span className="text-[9px] text-muted-foreground font-normal">/mo</span>
+                {isNgn ? '₦75k' : '$49'}<span className="text-[9px] text-muted-foreground font-normal">/mo</span>
               </div>
               <div className="text-[10px] text-muted-foreground mt-0.5 leading-tight">
                 3 M • 10 Subs
@@ -323,7 +323,7 @@ export function CheckoutModal({
             >
               <div className="text-xs font-bold text-foreground truncate">Elite</div>
               <div className="text-sm font-extrabold text-foreground mt-0.5">
-                {isNgn ? '₦135k' : '$89'}<span className="text-[9px] text-muted-foreground font-normal">/mo</span>
+                {isNgn ? '₦150k' : '$99'}<span className="text-[9px] text-muted-foreground font-normal">/mo</span>
               </div>
               <div className="text-[10px] text-muted-foreground mt-0.5 leading-tight">
                 5 M • 25 Subs

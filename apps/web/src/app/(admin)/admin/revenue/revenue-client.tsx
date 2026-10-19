@@ -65,10 +65,10 @@ export function RevenueClient({ users, discounts }: RevenueClientProps) {
 
   // Plan standard pricing (in USD)
   const PLAN_PRICES_USD: Record<string, number> = {
-    starter: 25,
-    basic: 25,
-    pro: 45,
-    elite: 89,
+    starter: 29,
+    basic: 29,
+    pro: 49,
+    elite: 99,
   };
 
   // Convert USD amount to active display currency
@@ -323,7 +323,7 @@ export function RevenueClient({ users, discounts }: RevenueClientProps) {
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                  <span className="font-bold text-sm text-foreground">Starter ($25)</span>
+                  <span className="font-bold text-sm text-foreground">Starter ($29)</span>
                 </div>
                 <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500">
                   {metrics.starterPlanCount}
@@ -346,7 +346,7 @@ export function RevenueClient({ users, discounts }: RevenueClientProps) {
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <Crown className="w-4 h-4 text-amber-400" />
-                  <span className="font-bold text-sm text-foreground">Pro ($45)</span>
+                  <span className="font-bold text-sm text-foreground">Pro ($49)</span>
                 </div>
                 <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
                   {metrics.proPlanCount}
@@ -369,7 +369,7 @@ export function RevenueClient({ users, discounts }: RevenueClientProps) {
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-purple-400" />
-                  <span className="font-bold text-sm text-foreground">Elite ($89)</span>
+                  <span className="font-bold text-sm text-foreground">Elite ($99)</span>
                 </div>
                 <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-500">
                   {metrics.elitePlanCount}

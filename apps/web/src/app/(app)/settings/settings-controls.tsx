@@ -123,18 +123,22 @@ export function SettingsControls({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-[15px] font-semibold text-foreground">Subscription & Billing</h3>
+                <h3 className="text-[15px] font-semibold text-foreground">Subscription & Plan Status</h3>
                 {subscription?.status === 'ACTIVE' ? (
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
                     Active • {(subscription.planId || 'PRO').toUpperCase()}
+                  </span>
+                ) : subscription?.status === 'INTERNAL_FREE' ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                    Complimentary • {(subscription.planId || 'PRO').toUpperCase()}
                   </span>
                 ) : isTrial ? (
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
                     5-Day Free Trial
                   </span>
                 ) : (
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase bg-amber-500/10 text-amber-500 border border-amber-500/20">
-                    Free Tier / Inactive
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase bg-destructive/10 text-destructive border border-destructive/20">
+                    No Active Plan / Unsubscribed
                   </span>
                 )}
               </div>
@@ -156,25 +160,75 @@ export function SettingsControls({
           )}
         </div>
 
-        {/* 5-Day Trial Alert banner if active */}
-        {isTrial && subscription?.currentPeriodEnd && (
-          <div className="ml-0 md:ml-14 flex items-center justify-between p-3.5 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-2xl text-xs font-semibold">
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 shrink-0" />
-              <span>
-                5-Day Free Trial Active • Period ends on{' '}
-                {new Date(subscription.currentPeriodEnd).toLocaleDateString(undefined, {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric'
-                })}
-              </span>
+        {/* PROMINENT CURRENT MEMBERSHIP CARD */}
+        <div className="ml-0 md:ml-14 p-5 rounded-2xl bg-card border border-border/60 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${
+              subscription?.status === 'ACTIVE' || subscription?.status === 'INTERNAL_FREE'
+                ? 'bg-emerald-500/10 text-emerald-500'
+                : isTrial
+                ? 'bg-blue-500/10 text-blue-500'
+                : 'bg-destructive/10 text-destructive'
+            }`}>
+              {subscription?.status === 'ACTIVE' || subscription?.status === 'INTERNAL_FREE' ? (
+                <CheckCircle2 className="w-5 h-5" />
+              ) : isTrial ? (
+                <Clock className="w-5 h-5" />
+              ) : (
+                <ShieldCheck className="w-5 h-5" />
+              )}
             </div>
-            <Link href="/pricing" className="text-primary hover:underline font-bold shrink-0">
-              Pick Plan &rarr;
-            </Link>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Current Membership</span>
+                <span className="font-extrabold text-sm text-foreground">
+                  {subscription?.status === 'ACTIVE'
+                    ? (currentPlan === 'elite' ? 'Elite Plan ($99/mo)' : currentPlan === 'pro' ? 'Pro Plan ($49/mo)' : 'Starter Plan ($29/mo)')
+                    : subscription?.status === 'INTERNAL_FREE'
+                    ? `Complimentary ${currentPlan.toUpperCase()} (Full Admin Access)`
+                    : isTrial
+                    ? '5-Day Free Trial (1 Master + 1 Sub)'
+                    : 'No Active Plan / Unsubscribed'}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {currentPlan === 'elite'
+                  ? 'Capacity: Up to 5 Masters & 25 Followers • <10ms Ultra-Execution • VIP Support'
+                  : currentPlan === 'pro'
+                  ? 'Capacity: Up to 3 Masters & 10 Followers • <15ms Priority Bridge • Drawdown Guard'
+                  : isTrial
+                  ? 'Capacity: 1 Master & 1 Follower • Full Symbol Mapper & Risk Multipliers'
+                  : subscription?.status === 'ACTIVE'
+                  ? 'Capacity: 1 Master & 3 Followers • Full Symbol Mapper & Risk Multipliers'
+                  : 'Trade copying is currently paused. Select a plan below to activate automated routing.'}
+              </p>
+              {subscription?.currentPeriodEnd && (
+                <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1 font-medium">
+                  <Clock className="w-3 h-3 text-primary" />
+                  {isTrial ? 'Trial expires on: ' : 'Next renewal on: '}
+                  <strong className="text-foreground">
+                    {new Date(subscription.currentPeriodEnd).toLocaleDateString(undefined, {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                  </strong>
+                </p>
+              )}
+            </div>
           </div>
-        )}
+
+          <div className="shrink-0 flex items-center gap-2">
+            {(!subscription || !['ACTIVE', 'INTERNAL_FREE'].includes(subscription.status)) && (
+              <Link
+                href="/pricing"
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md shadow-primary/20"
+              >
+                Choose a Plan &rarr;
+              </Link>
+            )}
+          </div>
+        </div>
 
         {/* Live Quota Capacity Meter */}
         <div className="ml-0 md:ml-14 grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 bg-black/5 dark:bg-white/5 rounded-2xl border border-border/30">
@@ -205,7 +259,7 @@ export function SettingsControls({
           </div>
         </div>
 
-        {/* Plans Grid: Starter, Pro, Elite */}
+        {/* Plans Grid: Starter ($29), Pro ($49), Elite ($99) */}
         <div className="ml-0 md:ml-14 grid grid-cols-1 md:grid-cols-3 gap-3.5">
           {/* Plan 1: Starter */}
           <div className={`p-4 rounded-2xl border flex flex-col justify-between transition-all ${
@@ -224,7 +278,7 @@ export function SettingsControls({
               </div>
               <div className="flex items-baseline gap-1 mb-1.5">
                 <span className="text-xl font-black tracking-tight text-foreground">
-                  {currency === 'NGN' ? '₦38,000' : '$25'}
+                  {currency === 'NGN' ? '₦44,000' : '$29'}
                 </span>
                 <span className="text-[11px] text-muted-foreground font-medium">/mo</span>
               </div>
@@ -260,7 +314,7 @@ export function SettingsControls({
               </div>
               <div className="flex items-baseline gap-1 mb-1.5">
                 <span className="text-xl font-black tracking-tight text-foreground">
-                  {currency === 'NGN' ? '₦68,000' : '$45'}
+                  {currency === 'NGN' ? '₦75,000' : '$49'}
                 </span>
                 <span className="text-[11px] text-muted-foreground font-medium">/mo</span>
               </div>
@@ -293,7 +347,7 @@ export function SettingsControls({
               </div>
               <div className="flex items-baseline gap-1 mb-1.5">
                 <span className="text-xl font-black tracking-tight text-foreground">
-                  {currency === 'NGN' ? '₦135,000' : '$89'}
+                  {currency === 'NGN' ? '₦150,000' : '$99'}
                 </span>
                 <span className="text-[11px] text-muted-foreground font-medium">/mo</span>
               </div>

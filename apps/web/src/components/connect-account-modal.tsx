@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { X, Server, ShieldCheck, Key, User, CheckCircle2, AlertCircle, Loader2, ArrowRight, RefreshCw, Crown } from 'lucide-react';
+import { X, Server, ShieldCheck, ShieldAlert, Key, User, CheckCircle2, AlertCircle, Loader2, ArrowRight, RefreshCw, Crown } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { createMt5Account, getAccountConnectionStatus } from '@/app/actions/account-actions';
@@ -231,6 +231,17 @@ export function ConnectAccountModal({ isOpen, onClose, defaultRole = 'SUB' }: Co
                   ⚠ Live accounts execute real trades. Ensure risk parameters fit your balance.
                 </p>
               )}
+            </div>
+
+            {/* Prop Firm Compliance Advisory */}
+            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex items-start gap-2.5 text-xs">
+              <ShieldAlert className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+              <div className="flex flex-col gap-1">
+                <span className="font-bold text-amber-500">Prop Firm Compliance Advisory</span>
+                <p className="text-muted-foreground text-[11px] leading-relaxed">
+                  Copy trading is <strong>not permitted by all prop firms</strong>. Most firms that do permit copying only allow it between accounts owned by the <strong>exact same individual</strong>. Never connect accounts from firms that strictly forbid trade copying. Always verify your firm&apos;s rules before connecting.
+                </p>
+              </div>
             </div>
 
             <div className="flex flex-col gap-4">

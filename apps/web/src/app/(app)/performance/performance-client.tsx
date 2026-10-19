@@ -201,13 +201,13 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
   }, [filteredTrades, currency, exchangeRate]);
 
   // Chart Data preparation: group snapshots or synthesize from trade trajectory
-  const chartData = useMemo(() => {
+  const chartData = useMemo<{ date: string; timestamp: number; value: number }[]>(() => {
     // Filter snapshots for selected accounts
     const activeSnapshots = snapshots.filter(s => selectedAccountIds.has(s.mt5AccountId));
 
     if (activeSnapshots.length >= 2) {
       // Group by hour
-      const grouped = activeSnapshots.reduce((acc: any, curr) => {
+      const grouped = activeSnapshots.reduce<Record<string, { date: string; timestamp: number; value: number }>>((acc, curr) => {
         const d = new Date(curr.timestamp);
         const hourKey = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()} ${d.getHours()}:00`;
         if (!acc[hourKey]) {
@@ -221,7 +221,7 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
         return acc;
       }, {});
 
-      const sorted = Object.values(grouped).sort((a: any, b: any) => a.timestamp - b.timestamp);
+      const sorted = Object.values(grouped).sort((a, b) => a.timestamp - b.timestamp);
       if (sorted.length >= 2) {
         return sorted;
       }

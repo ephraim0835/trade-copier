@@ -488,6 +488,85 @@ export async function toggleAccountActive(accountId: string, isActive: boolean) 
 }
 
 /**
+ * Master Bot Switch: Pause or Resume trade copying across all user terminals.
+ */
+export async function toggleBotStatus(active: boolean) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      include: { subscription: true }
+    });
+
+    if (!user) {
+      return { success: false, error: 'User not found' };
+    }
+
+    if (active) {
+      const hasActiveSubscription = user.role === 'ADMIN' ||
+        user.role === 'OWNER' ||
+        (user.subscription && ['ACTIVE', 'TRIAL', 'INTERNAL_FREE'].includes(user.subscription.status));
+
+      if (!hasActiveSubscription) {
+        return { 
+          success: false, 
+          error: 'An active subscription is required to resume the trade copier bot. Please choose a plan on the Pricing page.',
+          code: 'PAYWALL_REQUIRED'
+        };
+      }
+
+      // Check if 5-day free trial has expired
+      const isTrial = user.subscription?.status === 'TRIAL' || user.subscription?.planId === 'trial';
+      if (isTrial && user.subscription?.currentPeriodEnd && new Date() > new Date(user.subscription.currentPeriodEnd)) {
+        return {
+          success: false,
+          error: 'Your 5-day free trial has expired. Please select a plan on the Pricing page to resume trade copying.',
+          code: 'PAYWALL_REQUIRED'
+        };
+      }
+    }
+
+    // 1. Update user record
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { botStopped: !active },
+    });
+
+    // 2. Set all sub-accounts active state accordingly
+    await prisma.mt5Account.updateMany({
+      where: { userId: user.id, role: 'SUB' },
+      data: { isActive: active },
+    });
+
+    // 3. Notify VPS engine immediately
+    try {
+      await prisma.vpsEnvironment.updateMany({
+        data: {
+          lastCommand: active ? 'RESUME' : 'PAUSE',
+          commandStatus: 'PENDING',
+          commandAt: new Date(),
+        },
+      });
+    } catch (cmdErr) {
+      console.warn('Could not notify VPS environment:', cmdErr);
+    }
+
+    revalidatePath('/dashboard');
+    revalidatePath('/accounts');
+    revalidatePath('/master');
+
+    return { success: true, botStopped: !active };
+  } catch (error: any) {
+    console.error('Error toggling bot status:', error);
+    return { success: false, error: formatUserFriendlyError(error) };
+  }
+}
+
+/**
  * Poll live connection & provisioning status for an MT5 account.
  */
 export async function getAccountConnectionStatus(accountId: string) {
@@ -637,6 +716,9 @@ export async function updateAccountRiskSettings(
   accountId: string,
   data: {
     displayName?: string | null;
+    riskType?: string;
+    fixedLotSize?: number;
+    lotMultiplier?: number;
     riskPercentage?: number;
     roundingTolerancePct?: number;
     dailyRiskEnabled?: boolean;
@@ -684,6 +766,9 @@ export async function updateAccountRiskSettings(
     }
 
     const cleanData: any = {};
+    if (copySettingsData.riskType !== undefined) cleanData.riskType = String(copySettingsData.riskType);
+    if (copySettingsData.fixedLotSize !== undefined) cleanData.fixedLotSize = Number(copySettingsData.fixedLotSize);
+    if (copySettingsData.lotMultiplier !== undefined) cleanData.lotMultiplier = Number(copySettingsData.lotMultiplier);
     if (copySettingsData.riskPercentage !== undefined) cleanData.riskPercentage = Number(copySettingsData.riskPercentage);
     if (copySettingsData.roundingTolerancePct !== undefined) cleanData.roundingTolerancePct = Number(copySettingsData.roundingTolerancePct);
     if (copySettingsData.dailyRiskEnabled !== undefined) cleanData.dailyRiskEnabled = Boolean(copySettingsData.dailyRiskEnabled);

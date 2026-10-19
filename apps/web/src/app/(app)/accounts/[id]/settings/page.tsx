@@ -21,6 +21,9 @@ export default async function AccountSettingsPage({ params }: { params: Promise<
   const clientSettings = {
     displayName: account.displayName,
     ...(account.copySettings || {
+      riskType: 'RISK_PERCENT',
+      fixedLotSize: 0.01,
+      lotMultiplier: 1.0,
       riskPercentage: 1.0,
       roundingTolerancePct: 2.0,
       dailyRiskEnabled: false,
