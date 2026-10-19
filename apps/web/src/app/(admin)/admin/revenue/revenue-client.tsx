@@ -240,7 +240,7 @@ export function RevenueClient({ users, discounts }: RevenueClientProps) {
             </div>
             <div className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground">
               <span className="font-semibold text-emerald-500">{metrics.activeSubscribers} paying</span>
-              <span>across Basic & Pro plans</span>
+              <span>across Starter, Pro & Elite plans</span>
             </div>
           </div>
         </div>
@@ -594,11 +594,13 @@ export function RevenueClient({ users, discounts }: RevenueClientProps) {
                       <td className="px-6 py-4 font-sans">
                         {sub?.planId ? (
                           <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                            planKey === 'pro'
+                            planKey === 'elite'
+                              ? 'bg-purple-500/10 text-purple-500 border border-purple-500/20'
+                              : planKey === 'pro'
                               ? 'bg-primary/10 text-primary border border-primary/20'
                               : 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
                           }`}>
-                            {planKey === 'pro' ? 'Pro Plan' : 'Basic Plan'}
+                            {planKey === 'elite' ? 'Elite Plan' : planKey === 'pro' ? 'Pro Plan' : 'Starter Plan'}
                           </span>
                         ) : (
                           <span className="text-muted-foreground text-[11px]">No Plan</span>
