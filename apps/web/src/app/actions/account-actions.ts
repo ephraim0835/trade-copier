@@ -6,6 +6,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { encrypt } from '@/lib/encryption';
 import { formatUserFriendlyError } from '@/lib/error-formatter';
+import { getTrialGraceStatus, enforceTrialGraceCleanup } from '@/lib/trial-grace';
 
 export async function createMt5Account(data: {
   login: string;
@@ -30,24 +31,15 @@ export async function createMt5Account(data: {
       return { success: false, error: 'User not found' };
     }
 
-    const hasActiveSubscription = user.role === 'ADMIN' ||
-      user.role === 'OWNER' ||
-      (user.subscription && ['ACTIVE', 'TRIAL', 'INTERNAL_FREE'].includes(user.subscription.status));
+    // Automatically enforce 3-day grace period cleanup if expired
+    await enforceTrialGraceCleanup(user.id);
 
-    if (!hasActiveSubscription) {
+    const trialGrace = getTrialGraceStatus(user);
+    const isTrial = trialGrace.isTrial;
+    if (!trialGrace.canConnectAccounts) {
       return { 
         success: false, 
-        error: 'An active subscription is required to connect trading terminals. Please choose a plan on the Pricing page to unlock automated trade copying.',
-        code: 'PAYWALL_REQUIRED'
-      };
-    }
-
-    // Check if 5-day free trial has expired
-    const isTrial = user.subscription?.status === 'TRIAL' || user.subscription?.planId === 'trial';
-    if (isTrial && user.subscription?.currentPeriodEnd && new Date() > new Date(user.subscription.currentPeriodEnd)) {
-      return {
-        success: false,
-        error: 'Your 5-day free trial has expired. Please select a plan on the Pricing page to continue copying trades.',
+        error: trialGrace.bannerMessage || 'Your 5-day free trial has expired. You cannot connect new accounts. Please select a plan on the Pricing page.',
         code: 'PAYWALL_REQUIRED'
       };
     }
@@ -428,24 +420,12 @@ export async function toggleAccountActive(accountId: string, isActive: boolean) 
     }
 
     if (isActive) {
-      const hasActiveSubscription = user.role === 'ADMIN' ||
-        user.role === 'OWNER' ||
-        (user.subscription && ['ACTIVE', 'TRIAL', 'INTERNAL_FREE'].includes(user.subscription.status));
-
-      if (!hasActiveSubscription) {
+      await enforceTrialGraceCleanup(user.id);
+      const trialGrace = getTrialGraceStatus(user);
+      if (!trialGrace.canCopyTrades) {
         return { 
           success: false, 
-          error: 'An active subscription is required to resume automated trade copying. Please choose a plan on the Pricing page.',
-          code: 'PAYWALL_REQUIRED'
-        };
-      }
-
-      // Check if 5-day free trial has expired
-      const isTrial = user.subscription?.status === 'TRIAL' || user.subscription?.planId === 'trial';
-      if (isTrial && user.subscription?.currentPeriodEnd && new Date() > new Date(user.subscription.currentPeriodEnd)) {
-        return {
-          success: false,
-          error: 'Your 5-day free trial has expired. Please select a plan on the Pricing page to resume trade copying.',
+          error: trialGrace.bannerMessage || 'Your trial has expired. Please select a plan on the Pricing page to resume trade copying.',
           code: 'PAYWALL_REQUIRED'
         };
       }
@@ -507,24 +487,12 @@ export async function toggleBotStatus(active: boolean) {
     }
 
     if (active) {
-      const hasActiveSubscription = user.role === 'ADMIN' ||
-        user.role === 'OWNER' ||
-        (user.subscription && ['ACTIVE', 'TRIAL', 'INTERNAL_FREE'].includes(user.subscription.status));
-
-      if (!hasActiveSubscription) {
+      await enforceTrialGraceCleanup(user.id);
+      const trialGrace = getTrialGraceStatus(user);
+      if (!trialGrace.canCopyTrades) {
         return { 
           success: false, 
-          error: 'An active subscription is required to resume the trade copier bot. Please choose a plan on the Pricing page.',
-          code: 'PAYWALL_REQUIRED'
-        };
-      }
-
-      // Check if 5-day free trial has expired
-      const isTrial = user.subscription?.status === 'TRIAL' || user.subscription?.planId === 'trial';
-      if (isTrial && user.subscription?.currentPeriodEnd && new Date() > new Date(user.subscription.currentPeriodEnd)) {
-        return {
-          success: false,
-          error: 'Your 5-day free trial has expired. Please select a plan on the Pricing page to resume trade copying.',
+          error: trialGrace.bannerMessage || 'Your trial has expired. Please select a plan on the Pricing page to resume trade copying.',
           code: 'PAYWALL_REQUIRED'
         };
       }

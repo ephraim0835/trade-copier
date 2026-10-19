@@ -4,6 +4,7 @@ import { MasterSignalDto, MasterModifyDto, MasterCloseDto, MasterTriggerDto } fr
 import { PrismaService } from '../../../database/prisma.service';
 import { RiskEngineService } from '../../risk-engine/services/risk-engine.service';
 import { CurrencyService } from '../../risk-engine/services/currency.service';
+import { LotCalculatorService } from '../../risk-engine/services/lot-calculator.service';
 import { HotDispatchService, HotCommandData } from './hot-dispatch.service';
 import { AsyncPersistenceService } from './async-persistence.service';
 import { CommandType, CommandStatus, CopyState, Mt5Account, CopySettings } from '@prisma/client';
@@ -73,6 +74,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
   private readonly activeSignalsByTicket = new Map<string, InFlightTradeSignal>();
 
   private readonly demoOnly: boolean;
+  private readonly lotCalculator: LotCalculatorService;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -81,8 +83,10 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
     private readonly hotDispatch: HotDispatchService,
     private readonly asyncPersistence: AsyncPersistenceService,
     private readonly configService: ConfigService,
+    injectedLotCalculator?: LotCalculatorService,
   ) {
-    this.demoOnly = this.configService.get<string>('DEMO_ONLY') === 'true';
+    this.demoOnly = this.configService?.get<string>('DEMO_ONLY') === 'true';
+    this.lotCalculator = injectedLotCalculator || new LotCalculatorService(this.currencyService);
   }
 
   async onModuleInit() {
@@ -353,93 +357,37 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
     sl: number,
   ): number {
     const copySettings: any = sub.copySettings || {};
-    const riskType = copySettings.riskType || 'RISK_PERCENT';
-
-    // 1. FIXED_LOT mode
-    if (riskType === 'FIXED_LOT') {
-      const fixedLot = copySettings.fixedLotSize || 0.01;
-      return Math.max(0.01, Math.min(100.0, Number(Number(fixedLot).toFixed(2))));
-    }
-
-    const masterCurrency = masterInfo?.currency || 'USD';
-    const masterInitial = masterInfo?.initialBalance || masterInfo?.balance || 10000;
-    const masterCapitalUSD = this.currencyService.toUSD(masterInitial, masterCurrency);
-
-    const subBase = (sub.initialBalance && sub.initialBalance > 0)
-      ? sub.initialBalance
-      : (sub.balance > 0 ? sub.balance : (sub.equity > 0 ? sub.equity : 10000));
-    const subCapitalUSD = this.currencyService.toUSD(subBase, sub.currency);
-
-    // 2. BALANCE_MULTIPLIER mode
-    if (riskType === 'BALANCE_MULTIPLIER') {
-      const multiplier = copySettings.lotMultiplier || 1.0;
-      const capitalRatio = masterCapitalUSD > 0 ? (subCapitalUSD / masterCapitalUSD) : 1.0;
-      let vol = Number((masterVolume * capitalRatio * multiplier).toFixed(2));
-      return Math.max(0.01, Math.min(100.0, vol));
-    }
-
-    // 3. EQUITY_MULTIPLIER mode
-    if (riskType === 'EQUITY_MULTIPLIER') {
-      const multiplier = copySettings.lotMultiplier || 1.0;
-      const subEquity = sub.equity > 0 ? sub.equity : subBase;
-      const subEquityUSD = this.currencyService.toUSD(subEquity, sub.currency);
-      const masterEquity = masterInfo?.balance || 10000;
-      const masterEquityUSD = this.currencyService.toUSD(masterEquity, masterCurrency);
-      const equityRatio = masterEquityUSD > 0 ? (subEquityUSD / masterEquityUSD) : 1.0;
-      let vol = Number((masterVolume * equityRatio * multiplier).toFixed(2));
-      return Math.max(0.01, Math.min(100.0, vol));
-    }
-
-    // 4. RISK_PERCENT mode: Calculate lot size from Stop Loss distance
-    const riskPct = copySettings.riskPercentage ?? 1.0;
-    const riskAmountUSD = subCapitalUSD * (riskPct / 100);
-    const slDistance = (sl > 0 && priceOpen > 0) ? Math.abs(priceOpen - sl) : 0;
-
-    if (slDistance > 0) {
-      const cleanSym = symbol.toUpperCase().replace(/[^A-Z0-9]/g, '');
-      let lossPerLotUSD = 0;
-
-      if (cleanSym.includes('XAU') || cleanSym.includes('GOLD')) {
-        // Gold: 1 standard lot = 100 oz. $1 price move = $100 loss per lot.
-        lossPerLotUSD = slDistance * 100;
-      } else if (cleanSym.includes('XAG') || cleanSym.includes('SILVER')) {
-        // Silver: 1 standard lot = 5,000 oz. $1 price move = $5,000 loss per lot.
-        lossPerLotUSD = slDistance * 5000;
-      } else if (cleanSym.includes('BTC') || cleanSym.includes('BITCOIN')) {
-        // Crypto: 1 lot = 1 coin.
-        lossPerLotUSD = slDistance * 1;
-      } else if (cleanSym.includes('US30') || cleanSym.includes('DJ30') || cleanSym.includes('NAS') || cleanSym.includes('SPX')) {
-        // Indices CFDs: Typically $1 per index point per lot
-        lossPerLotUSD = slDistance * 1;
-      } else {
-        // Standard Forex pairs
-        if (cleanSym.endsWith('USD')) {
-          // Quote is USD (e.g. EURUSD, GBPUSD, AUDUSD): 1 pip (0.0001) = $10 / lot
-          lossPerLotUSD = slDistance * 100000;
-        } else if (cleanSym.startsWith('USD')) {
-          // Base is USD (e.g. USDJPY, USDCAD): loss in USD = (slDistance / priceOpen) * 100,000
-          lossPerLotUSD = priceOpen > 0 ? (slDistance / priceOpen) * 100000 : slDistance * 100000;
-        } else {
-          // Cross currency pairs
-          lossPerLotUSD = priceOpen > 0 ? (slDistance / priceOpen) * 100000 : slDistance * 100000;
-        }
+    const result = this.lotCalculator.calculateLotSize(
+      {
+        balance: sub.balance,
+        equity: sub.equity,
+        freeMargin: sub.freeMargin,
+        currency: sub.currency,
+      },
+      masterInfo ? {
+        balance: masterInfo.balance,
+        currency: masterInfo.currency,
+      } : undefined,
+      {
+        riskType: copySettings.riskType,
+        riskPercentage: copySettings.riskPercentage,
+        fixedLotSize: copySettings.fixedLotSize,
+        lotMultiplier: copySettings.lotMultiplier,
+      },
+      {
+        symbol,
+        orderType,
+        masterVolume,
+        entryPrice: priceOpen,
+        stopLoss: sl,
       }
+    );
 
-      if (lossPerLotUSD > 0) {
-        let calculatedLots = riskAmountUSD / lossPerLotUSD;
-        let roundedLots = Number(calculatedLots.toFixed(2));
-        if (roundedLots < 0.01) roundedLots = 0.01;
-        if (roundedLots > 100.0) roundedLots = 100.0;
-        return roundedLots;
-      }
+    if (result.warnings && result.warnings.length > 0) {
+      this.logger.debug(`[LotCalc] ${symbol} for sub ${sub.id}: ${result.warnings.join('; ')} -> Result: ${result.finalVolume} lots`);
     }
 
-    // Fallback if no SL provided: proportional scaling to balance
-    const capitalRatio = masterCapitalUSD > 0 ? (subCapitalUSD / masterCapitalUSD) : 1;
-    let fallbackVol = Number((masterVolume * capitalRatio).toFixed(2));
-    if (fallbackVol < 0.01) fallbackVol = 0.01;
-    if (fallbackVol > 100.0) fallbackVol = 100.0;
-    return fallbackVol;
+    return result.finalVolume;
   }
 
   /**

@@ -80,11 +80,13 @@ export function getFriendlyErrorDetails(rawError: unknown): FriendlyError {
   if (
     lower.includes('active subscription required') ||
     lower.includes('subscription required') ||
-    lower.includes('paywall_required')
+    lower.includes('paywall_required') ||
+    lower.includes('trial has expired') ||
+    lower.includes('grace period')
   ) {
     return {
-      title: 'Subscription Required',
-      message: cleanStr.includes('An active subscription') 
+      title: lower.includes('grace period') ? 'Trial Expired (Grace Period)' : (lower.includes('trial') ? 'Trial Expired' : 'Subscription Required'),
+      message: cleanStr.includes('trial') || cleanStr.includes('subscription')
         ? cleanStr 
         : 'An active plan is required to link accounts and execute automated trades.',
       suggestion: 'Please visit the Pricing page to choose a plan and activate trade copying.',

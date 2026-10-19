@@ -46,16 +46,20 @@ export default async function AppLayout({
     redirect('/login');
   }
 
+  const { getTrialGraceStatus, enforceTrialGraceCleanup } = await import('@/lib/trial-grace');
+  await enforceTrialGraceCleanup(user.id);
+  const trialGrace = getTrialGraceStatus(user);
+
   const hasActiveSubscription = user.role === 'ADMIN' ||
     user.role === 'OWNER' ||
-    (user.subscription && ['ACTIVE', 'TRIAL', 'INTERNAL_FREE'].includes(user.subscription.status)) || false;
+    trialGrace.canConnectAccounts;
 
   const isAdmin = user.role === 'ADMIN' || user.role === 'OWNER';
 
   return (
     <CurrencyProvider>
       <AuthProvider session={session}>
-        <SubscriptionProvider isActive={hasActiveSubscription} isAdmin={isAdmin}>
+        <SubscriptionProvider isActive={hasActiveSubscription} isAdmin={isAdmin} trialGrace={trialGrace}>
           <RealtimeProvider>
             <div className="flex flex-col min-h-screen relative">
               <div className="flex flex-1 relative">

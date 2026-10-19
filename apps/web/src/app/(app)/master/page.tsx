@@ -6,6 +6,8 @@ import { MasterStatusAlert } from '@/components/master/master-status-alert';
 import { getServerSession } from 'next-auth/next';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import { getTrialGraceStatus, enforceTrialGraceCleanup } from '@/lib/trial-grace';
+import { TrialGraceBanner } from '@/components/trial-grace-banner';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +25,10 @@ export default async function MasterPage() {
   if (!user) {
     redirect('/login');
   }
+
+  // Enforce 3-day grace period cleanup if expired
+  await enforceTrialGraceCleanup(user.id);
+  const trialGrace = getTrialGraceStatus(user);
 
   const masterAccount = await prisma.mt5Account.findFirst({
     where: { role: 'MASTER', userId: user.id }
@@ -64,6 +70,7 @@ export default async function MasterPage() {
 
   return (
     <div className="flex-1 p-4 md:p-6 lg:p-12 flex flex-col gap-10 pb-32 overflow-y-auto custom-scrollbar relative">
+      <TrialGraceBanner status={trialGrace} />
       <header className="relative z-[60] flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
           <div className="flex flex-wrap items-center gap-3">

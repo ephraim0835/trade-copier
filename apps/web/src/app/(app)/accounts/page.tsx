@@ -7,6 +7,8 @@ import { AccountActions } from '@/components/accounts/account-actions';
 import { SubAccountCard } from '@/components/accounts/sub-account-card';
 import { AlertCircle } from 'lucide-react';
 import { PrismaClient } from '@trade-copier/database';
+import { getTrialGraceStatus, enforceTrialGraceCleanup } from '@/lib/trial-grace';
+import { TrialGraceBanner } from '@/components/trial-grace-banner';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -26,6 +28,10 @@ export default async function AccountsPage() {
   if (!user) {
     redirect('/login');
   }
+
+  // Enforce 3-day grace period cleanup if expired
+  await enforceTrialGraceCleanup(user.id);
+  const trialGrace = getTrialGraceStatus(user);
 
   const accounts = await prisma.mt5Account.findMany({
     where: { role: 'SUB', userId: user.id },
@@ -61,6 +67,8 @@ export default async function AccountsPage() {
 
   return (
     <div className="flex-1 p-6 lg:p-8 space-y-8 overflow-y-auto">
+      <TrialGraceBanner status={trialGrace} />
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-3">

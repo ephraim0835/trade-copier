@@ -15,6 +15,8 @@ import { PrismaClient } from '@trade-copier/database';
 import { AutoRefresh } from '@/components/auto-refresh';
 import { formatUserFriendlyError } from '@/lib/error-formatter';
 import { BotControlSwitch } from '@/components/dashboard/bot-control-switch';
+import { TrialGraceBanner } from '@/components/trial-grace-banner';
+import { getTrialGraceStatus, enforceTrialGraceCleanup } from '@/lib/trial-grace';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,7 +34,8 @@ export default async function DashboardOverview() {
   while (retries > 0) {
     try {
       user = await prisma.user.findUnique({
-        where: { email: session.user.email }
+        where: { email: session.user.email },
+        include: { subscription: true }
       });
       break;
     } catch (err) {
@@ -50,6 +53,10 @@ export default async function DashboardOverview() {
   if (!user) {
     redirect('/login');
   }
+
+  // Enforce 3-day grace period cleanup if expired
+  await enforceTrialGraceCleanup(user.id);
+  const trialGrace = getTrialGraceStatus(user);
 
   // ==========================================
   // BACKEND DATA FETCHING (TENANT ISOLATED)
@@ -254,6 +261,9 @@ export default async function DashboardOverview() {
           </Link>
         </div>
       )}
+
+      {/* 3-DAY TRIAL GRACE PERIOD BANNER */}
+      <TrialGraceBanner status={trialGrace} />
 
       {/* MAIN COMPOSITION */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 lg:gap-12 relative z-10 mt-2">
