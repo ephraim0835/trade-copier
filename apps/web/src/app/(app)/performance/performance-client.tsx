@@ -31,6 +31,7 @@ export interface PerformanceAccount {
   server?: string | null;
   balance: number;
   equity: number;
+  initialBalance?: number;
   currency: string;
 }
 
@@ -200,50 +201,89 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
     };
   }, [filteredTrades, currency, exchangeRate]);
 
-  // Chart Data preparation: group snapshots or synthesize from trade trajectory
+  // Chart Data preparation: accurate multi-account timeline replay
   const chartData = useMemo<{ date: string; timestamp: number; value: number }[]>(() => {
     // Filter snapshots for selected accounts
-    const activeSnapshots = snapshots.filter(s => selectedAccountIds.has(s.mt5AccountId));
+    const activeSnapshots = snapshots
+      .filter(s => selectedAccountIds.has(s.mt5AccountId))
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+    if (filteredAccounts.length === 0) return [];
+
+    // Map each account to its initial starting baseline equity
+    const currentEquities = new Map<string, number>();
+    filteredAccounts.forEach(acc => {
+      const firstSnap = activeSnapshots.find(s => s.mt5AccountId === acc.id);
+      const initVal = acc.initialBalance || (firstSnap ? (firstSnap.equity || firstSnap.balance) : (acc.equity || acc.balance || 0));
+      currentEquities.set(acc.id, initVal);
+    });
+
+    const getPortfolioTotal = () => {
+      let total = 0;
+      filteredAccounts.forEach(acc => {
+        const val = currentEquities.get(acc.id) || 0;
+        total += convertAmount(val, acc.currency || 'USD');
+      });
+      return Math.round(total * 100) / 100;
+    };
 
     if (activeSnapshots.length >= 2) {
-      // Group by hour
-      const grouped = activeSnapshots.reduce<Record<string, { date: string; timestamp: number; value: number }>>((acc, curr) => {
-        const d = new Date(curr.timestamp);
-        const hourKey = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()} ${d.getHours()}:00`;
-        if (!acc[hourKey]) {
-          acc[hourKey] = {
-            date: d.toLocaleString('default', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
-            timestamp: d.getTime(),
-            value: 0
-          };
-        }
-        acc[hourKey].value += convertAmount(curr.equity || curr.balance || 0, accountCurrencyMap.get(curr.mt5AccountId) || 'USD');
-        return acc;
-      }, {});
+      const initialTotal = getPortfolioTotal();
+      const firstTs = new Date(activeSnapshots[0].timestamp).getTime();
 
-      const sorted = Object.values(grouped).sort((a, b) => a.timestamp - b.timestamp);
+      // Bucket snapshots by hour, recording the latest closing valuation per hour
+      const hourlyState = new Map<string, { date: string; timestamp: number; value: number }>();
+
+      // Baseline starting point 1 hour before first snapshot
+      const baselineTime = firstTs - 3600000;
+      const baselineDate = new Date(baselineTime);
+      const baselineKey = `${baselineDate.getFullYear()}-${baselineDate.getMonth() + 1}-${baselineDate.getDate()} ${baselineDate.getHours()}:00`;
+      hourlyState.set(baselineKey, {
+        date: baselineDate.toLocaleString('default', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        timestamp: baselineTime,
+        value: initialTotal,
+      });
+
+      // Process chronologically: update account state and record bucket valuation
+      activeSnapshots.forEach(s => {
+        const d = new Date(s.timestamp);
+        const hourKey = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()} ${d.getHours()}:00`;
+
+        currentEquities.set(s.mt5AccountId, s.equity || s.balance || 0);
+        const currentTotal = getPortfolioTotal();
+
+        hourlyState.set(hourKey, {
+          date: d.toLocaleString('default', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+          timestamp: d.getTime(),
+          value: currentTotal,
+        });
+      });
+
+      // Add current live portfolio state
+      const now = Date.now();
+      let liveTotal = 0;
+      filteredAccounts.forEach(acc => {
+        liveTotal += convertAmount(acc.equity || acc.balance || 0, acc.currency || 'USD');
+      });
+      liveTotal = Math.round(liveTotal * 100) / 100;
+
+      const sorted = Array.from(hourlyState.values()).sort((a, b) => a.timestamp - b.timestamp);
+
+      // Append live point if it's newer than the last recorded point
+      if (sorted.length > 0 && now - sorted[sorted.length - 1].timestamp > 60000) {
+        sorted.push({
+          date: new Date(now).toLocaleString('default', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+          timestamp: now,
+          value: liveTotal,
+        });
+      }
+
       if (sorted.length >= 2) {
         return sorted;
       }
-
-      // If hourly grouping collapsed into 1 point, fall back to individual snapshots
-      const rawSorted = activeSnapshots
-        .map(s => {
-          const d = new Date(s.timestamp);
-          return {
-            date: d.toLocaleString('default', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
-            timestamp: d.getTime(),
-            value: Math.round(convertAmount(s.equity || s.balance || 0, accountCurrencyMap.get(s.mt5AccountId) || 'USD') * 100) / 100
-          };
-        })
-        .sort((a, b) => a.timestamp - b.timestamp);
-
-      if (rawSorted.length >= 2) {
-        return rawSorted;
-      }
     }
 
-    // If snapshots are fewer than 2, synthesize curve from current equity + closed trades
+    // Fallback: If snapshots are fewer than 2, synthesize curve from current equity + closed trades
     if (totalEquity > 0) {
       const now = Date.now();
       const points: { date: string; timestamp: number; value: number }[] = [];
@@ -300,7 +340,7 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
     }
 
     return [];
-  }, [snapshots, selectedAccountIds, totalEquity, tradeStats.netProfit, filteredTrades]);
+  }, [snapshots, selectedAccountIds, filteredAccounts, totalEquity, tradeStats.netProfit, filteredTrades, currency, exchangeRate]);
 
   return (
     <div className="flex-1 p-4 md:p-6 lg:p-8 space-y-6 overflow-y-auto custom-scrollbar max-w-7xl mx-auto w-full">
@@ -375,11 +415,15 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
         <div className="plaiz-card p-4 sm:p-5 rounded-2xl flex flex-col justify-between">
           <div className="flex items-center justify-between text-muted-foreground mb-2">
             <span className="text-[10px] uppercase tracking-wider font-semibold">Net Realized P/L</span>
-            <TrendingUp className={`w-3.5 h-3.5 ${tradeStats.netProfit >= 0 ? 'text-emerald-500' : 'text-red-500'}`} />
+            {tradeStats.netProfit >= 0 ? (
+              <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
+            ) : (
+              <TrendingDown className="w-3.5 h-3.5 text-rose-500" />
+            )}
           </div>
           <div>
             <div className={`text-2xl sm:text-3xl font-bold num-tabular ${
-              tradeStats.netProfit > 0 ? 'text-emerald-500' : tradeStats.netProfit < 0 ? 'text-red-500' : 'text-muted-foreground'
+              tradeStats.netProfit > 0 ? 'text-emerald-500' : tradeStats.netProfit < 0 ? 'text-rose-500' : 'text-muted-foreground'
             }`}>
               {tradeStats.netProfit > 0 ? `+${formatCurValue(tradeStats.netProfit)}` : tradeStats.netProfit < 0 ? `-${formatCurValue(Math.abs(tradeStats.netProfit))}` : formatCurValue(0)}
             </div>
@@ -445,7 +489,7 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
 
         <div className="w-full">
           {chartData.length > 0 ? (
-            <PerformanceChart data={chartData} height={280} />
+            <PerformanceChart data={chartData} height={280} netProfit={tradeStats.netProfit} />
           ) : (
             <div className="h-[260px] w-full flex flex-col items-center justify-center text-center p-8 bg-black/5 dark:bg-white/[0.02] rounded-xl border border-dashed border-border/40">
               <Activity className="w-8 h-8 text-muted-foreground/40 mb-3" />
@@ -464,7 +508,7 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
           <div>
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold block">Best Trade</span>
             <span className="font-mono font-bold text-base text-emerald-500">
-              {tradeStats.bestTrade > 0 ? `+$${tradeStats.bestTrade.toFixed(2)}` : '$0.00'}
+              {tradeStats.bestTrade > 0 ? `+${formatCurValue(tradeStats.bestTrade)}` : formatCurValue(0)}
             </span>
           </div>
           <ArrowUpRight className="w-5 h-5 text-emerald-500/80" />
@@ -473,24 +517,24 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
         <div className="plaiz-card p-4 rounded-xl border border-border/40 flex items-center justify-between">
           <div>
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold block">Worst Trade</span>
-            <span className="font-mono font-bold text-base text-red-500">
-              {tradeStats.worstTrade < 0 ? `-$${Math.abs(tradeStats.worstTrade).toFixed(2)}` : '$0.00'}
+            <span className="font-mono font-bold text-base text-rose-500">
+              {tradeStats.worstTrade < 0 ? `-${formatCurValue(Math.abs(tradeStats.worstTrade))}` : formatCurValue(0)}
             </span>
           </div>
-          <ArrowDownRight className="w-5 h-5 text-red-500/80" />
+          <ArrowDownRight className="w-5 h-5 text-rose-500/80" />
         </div>
 
         <div className="plaiz-card p-4 rounded-xl border border-border/40 flex items-center justify-between">
           <div>
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold block">Average Return / Trade</span>
             <span className={`font-mono font-bold text-base ${
-              tradeStats.totalTrades > 0 && (tradeStats.netProfit / tradeStats.totalTrades) >= 0 ? 'text-emerald-500' : 'text-red-500'
+              tradeStats.totalTrades > 0 && (tradeStats.netProfit / tradeStats.totalTrades) >= 0 ? 'text-emerald-500' : 'text-rose-500'
             }`}>
               {tradeStats.totalTrades > 0 
                 ? (tradeStats.netProfit / tradeStats.totalTrades >= 0 
-                    ? `+$${(tradeStats.netProfit / tradeStats.totalTrades).toFixed(2)}` 
-                    : `-$${Math.abs(tradeStats.netProfit / tradeStats.totalTrades).toFixed(2)}`)
-                : '$0.00'}
+                    ? `+${formatCurValue(tradeStats.netProfit / tradeStats.totalTrades)}` 
+                    : `-${formatCurValue(Math.abs(tradeStats.netProfit / tradeStats.totalTrades))}`)
+                : formatCurValue(0)}
             </span>
           </div>
           <BarChart2 className="w-5 h-5 text-primary/80" />
@@ -582,7 +626,7 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
 
                       <td className="px-4 py-3 font-bold text-sm">
                         {profit !== null && profit !== undefined ? (
-                          <span className={profit > 0 ? 'text-emerald-500' : profit < 0 ? 'text-red-500' : 'text-muted-foreground'}>
+                          <span className={profit > 0 ? 'text-emerald-500' : profit < 0 ? 'text-rose-500' : 'text-muted-foreground'}>
                             {profit > 0 ? `+${formatCurValue(convertAmount(profit, trade.currency || 'USD'))}` : profit < 0 ? `-${formatCurValue(Math.abs(convertAmount(profit, trade.currency || 'USD')))}` : formatCurValue(0)}
                           </span>
                         ) : (

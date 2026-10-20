@@ -155,23 +155,55 @@ export default async function DashboardOverview() {
     }))
   ];
 
-  // Group snapshots by Date (hourly aggregation)
-  const groupedSnapshots = snapshots.reduce((acc: any, curr: any) => {
-    const date = new Date(curr.timestamp);
-    const hourKey = `${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()} ${date.getHours()}:00`;
-    
-    if (!acc[hourKey]) {
-      acc[hourKey] = {
-        date: date.toLocaleString('default', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
-        timestamp: date.getTime(),
-        value: 0
-      };
-    }
-    acc[hourKey].value += curr.equity || 0;
-    return acc;
-  }, {});
+  // Accurate timeline replay for multi-account portfolio growth curve
+  const currentEquities = new Map<string, number>();
+  accounts.forEach((acc: any) => {
+    currentEquities.set(acc.id, acc.initialBalance || acc.equity || acc.balance || 0);
+  });
 
-  const chartData: any[] = Object.values(groupedSnapshots).sort((a: any, b: any) => a.timestamp - b.timestamp);
+  const getDashboardPortfolioTotal = () => {
+    let total = 0;
+    accounts.forEach((acc: any) => {
+      total += currentEquities.get(acc.id) || 0;
+    });
+    return Math.round(total * 100) / 100;
+  };
+
+  const initialTotal = getDashboardPortfolioTotal();
+  const hourlyState = new Map<string, { date: string; timestamp: number; value: number }>();
+
+  if (snapshots.length >= 2) {
+    const firstTs = new Date(snapshots[0].timestamp).getTime();
+    const baselineTime = firstTs - 3600000;
+    const baselineDate = new Date(baselineTime);
+    const baselineKey = `${baselineDate.getFullYear()}-${baselineDate.getMonth() + 1}-${baselineDate.getDate()} ${baselineDate.getHours()}:00`;
+    hourlyState.set(baselineKey, {
+      date: baselineDate.toLocaleString('default', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      timestamp: baselineTime,
+      value: initialTotal,
+    });
+
+    snapshots.forEach((s: any) => {
+      const d = new Date(s.timestamp);
+      const hourKey = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()} ${d.getHours()}:00`;
+      currentEquities.set(s.mt5AccountId, s.equity || s.balance || 0);
+      hourlyState.set(hourKey, {
+        date: d.toLocaleString('default', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        timestamp: d.getTime(),
+        value: getDashboardPortfolioTotal(),
+      });
+    });
+
+    const now = Date.now();
+    const liveTotal = accounts.reduce((sum: number, a: any) => sum + (a.equity || a.balance || 0), 0);
+    hourlyState.set('live', {
+      date: new Date(now).toLocaleString('default', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      timestamp: now,
+      value: Math.round(liveTotal * 100) / 100,
+    });
+  }
+
+  const chartData: any[] = Array.from(hourlyState.values()).sort((a: any, b: any) => a.timestamp - b.timestamp);
 
   return (
     <div className="flex-1 p-4 md:p-6 lg:p-12 flex flex-col gap-10 pb-32 overflow-y-auto custom-scrollbar relative">

@@ -69,6 +69,7 @@ export default async function PerformancePage() {
     server: a.server,
     balance: a.balance || 0,
     equity: a.equity || a.balance || 0,
+    initialBalance: (a as any).initialBalance ?? a.balance ?? 0,
     currency: a.currency || 'USD',
   }));
 

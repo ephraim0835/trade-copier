@@ -23,11 +23,12 @@ export interface SnapshotPoint {
 interface PerformanceChartProps {
   data: SnapshotPoint[];
   height?: number;
+  netProfit?: number;
 }
 
 type TimeframeOption = '24H' | '7D' | '30D' | 'ALL';
 
-export function PerformanceChart({ data, height = 260 }: PerformanceChartProps) {
+export function PerformanceChart({ data, height = 260, netProfit }: PerformanceChartProps) {
   const { resolvedTheme } = useTheme();
   const { currency, exchangeRate, formatMoney } = useCurrency();
   const [timeframe, setTimeframe] = useState<TimeframeOption>('ALL');
@@ -126,7 +127,14 @@ export function PerformanceChart({ data, height = 260 }: PerformanceChartProps) 
   const isDark = resolvedTheme === 'dark' || !resolvedTheme || resolvedTheme === 'system';
   const gridColor = isDark ? '#272733' : '#e5e7eb';
   const textColor = isDark ? '#8a8a99' : '#6b7280';
-  const isPositive = stats.change >= 0;
+  // True performance determination: negative change or negative net profit renders RED
+  const isPositive = useMemo(() => {
+    if (stats.change < 0) return false;
+    if (timeframe === 'ALL' && netProfit !== undefined && netProfit < 0) return false;
+    if (stats.change > 0) return true;
+    if (netProfit !== undefined) return netProfit >= 0;
+    return true;
+  }, [stats.change, timeframe, netProfit]);
 
   const strokeColor = isPositive ? '#10b981' : '#f43f5e';
   const gradientId = `equityGradient-${isPositive ? 'pos' : 'neg'}`;
