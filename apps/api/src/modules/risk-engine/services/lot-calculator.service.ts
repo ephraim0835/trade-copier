@@ -181,7 +181,7 @@ export class LotCalculatorService {
     const cashRiskAccountCurrency = subBaseBalance * (riskPct / 100);
 
     const slDistance = (trade.stopLoss > 0 && trade.entryPrice > 0)
-      ? Math.abs(trade.entryPrice - trade.stopLoss)
+      ? Number(Math.abs(trade.entryPrice - trade.stopLoss).toFixed(8))
       : 0;
 
     let lossPerLotUSD = 0;
@@ -189,7 +189,7 @@ export class LotCalculatorService {
     let rawVol = 0;
 
     if (slDistance > 0) {
-      lossPerLotUSD = this.calculateLossPerLotInUSD(trade.symbol, trade.entryPrice, slDistance);
+      lossPerLotUSD = Number(this.calculateLossPerLotInUSD(trade.symbol, trade.entryPrice, slDistance).toFixed(4));
       if (lossPerLotUSD > 0) {
         rawVol = cashRiskUSD / lossPerLotUSD;
       }
@@ -207,8 +207,7 @@ export class LotCalculatorService {
     let marginClamped = false;
     const freeMargin = sub.freeMargin && sub.freeMargin > 0 ? sub.freeMargin : sub.balance;
     if (freeMargin > 0 && trade.entryPrice > 0) {
-      const contractSize = constraints?.contractSize || this.getStandardContractSize(trade.symbol);
-      const marginPerLotUSD = (contractSize * trade.entryPrice) / leverage;
+      const marginPerLotUSD = this.calculateMarginPerLotInUSD(trade.symbol, trade.entryPrice, leverage, constraints);
       const freeMarginUSD = this.currencyService.toUSD(freeMargin, subCurrency);
       if (marginPerLotUSD > 0) {
         const maxAffordableLots = (freeMarginUSD * 0.85) / marginPerLotUSD; // 85% safety threshold
@@ -247,44 +246,21 @@ export class LotCalculatorService {
   public calculateLossPerLotInUSD(symbol: string, entryPrice: number, slDistance: number): number {
     const cleanSym = symbol.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
-    // 1. Gold (XAUUSD / GOLD)
+    let loss = 0;
     if (cleanSym.includes('XAU') || cleanSym.includes('GOLD')) {
-      // 1 standard lot = 100 troy oz. $1 price movement = $100 per lot.
-      return slDistance * 100;
-    }
-
-    // 2. Silver (XAGUSD / SILVER)
-    if (cleanSym.includes('XAG') || cleanSym.includes('SILVER')) {
-      // 1 standard lot = 5,000 troy oz. $1 price movement = $5,000 per lot.
-      return slDistance * 5000;
-    }
-
-    // 3. Crude Oil & Energy (USOIL / WTI, UKOIL / BRENT, XTIUSD, XBRUSD)
-    if (cleanSym.includes('OIL') || cleanSym.includes('WTI') || cleanSym.includes('BRENT') || cleanSym.includes('XTI') || cleanSym.includes('XBR')) {
-      // 1 standard lot = 1,000 barrels. $1 price movement = $1,000 per lot.
-      return slDistance * 1000;
-    }
-
-    // 4. Natural Gas (XNGUSD / NATGAS)
-    if (cleanSym.includes('GAS') || cleanSym.includes('XNG')) {
-      // 1 standard lot = 10,000 MMBtu. $1 price movement = $10,000 per lot.
-      return slDistance * 10000;
-    }
-
-    // 5. Cryptocurrencies (BTCUSD, ETHUSD, SOLUSD)
-    if (cleanSym.includes('BTC') || cleanSym.includes('ETH') || cleanSym.includes('SOL') || cleanSym.includes('CRYPTO')) {
-      // 1 lot = 1 coin. Loss = SL Distance in USD * 1.
-      return slDistance * 1;
-    }
-
-    // 6. Equity Indices (US30 / DJ30, NAS100 / USTEC, SPX500, GER40 / DAX, UK100, JP225)
-    if (cleanSym.includes('JP225') || cleanSym.includes('NIKKEI') || cleanSym.includes('JPN')) {
-      // Nikkei index points are denominated in JPY
+      loss = slDistance * 100;
+    } else if (cleanSym.includes('XAG') || cleanSym.includes('SILVER')) {
+      loss = slDistance * 5000;
+    } else if (cleanSym.includes('OIL') || cleanSym.includes('WTI') || cleanSym.includes('BRENT') || cleanSym.includes('XTI') || cleanSym.includes('XBR')) {
+      loss = slDistance * 1000;
+    } else if (cleanSym.includes('GAS') || cleanSym.includes('XNG')) {
+      loss = slDistance * 10000;
+    } else if (cleanSym.includes('BTC') || cleanSym.includes('ETH') || cleanSym.includes('SOL') || cleanSym.includes('CRYPTO')) {
+      loss = slDistance * 1;
+    } else if (cleanSym.includes('JP225') || cleanSym.includes('NIKKEI') || cleanSym.includes('JPN')) {
       const jpyToUSD = this.currencyService.toUSD(1.0, 'JPY');
-      return slDistance * (jpyToUSD > 0 ? jpyToUSD : 0.0066);
-    }
-
-    if (
+      loss = slDistance * (jpyToUSD > 0 ? jpyToUSD : 0.0066);
+    } else if (
       cleanSym.includes('US30') ||
       cleanSym.includes('DJ30') ||
       cleanSym.includes('WALLSTREET') ||
@@ -299,51 +275,41 @@ export class LotCalculatorService {
       cleanSym.includes('FTSE') ||
       cleanSym.includes('CAC')
     ) {
-      // Standard index CFD: 1 index point = $1 per 1.00 lot
-      return slDistance * 1;
-    }
+      loss = slDistance * 1;
+    } else {
+      const forexCurrencies = 'EUR|USD|GBP|JPY|AUD|CAD|CHF|NZD|ZAR|SGD|MXN|TRY|SEK|NOK|PLN|CNH|HKD';
+      const forexRegex = new RegExp(`(${forexCurrencies})(${forexCurrencies})`, 'i');
+      const forexMatch = cleanSym.match(forexRegex);
 
-    // 7. Forex Currency Pairs
-    // Robustly extract 3-letter Base and Quote currencies (handles prefixes/suffixes like mEURUSD, EURUSD.pro, etc.)
-    const forexCurrencies = 'EUR|USD|GBP|JPY|AUD|CAD|CHF|NZD|ZAR|SGD|MXN|TRY|SEK|NOK|PLN|CNH|HKD';
-    const forexRegex = new RegExp(`(${forexCurrencies})(${forexCurrencies})`, 'i');
-    const forexMatch = cleanSym.match(forexRegex);
-
-    let base = '';
-    let quote = '';
-    if (forexMatch) {
-      base = forexMatch[1].toUpperCase();
-      quote = forexMatch[2].toUpperCase();
-    } else if (cleanSym.length >= 6) {
-      base = cleanSym.substring(0, 3);
-      quote = cleanSym.substring(3, 6);
-    }
-
-    if (base && quote) {
-      // Quote is USD (e.g. EURUSD, GBPUSD, AUDUSD, NZDUSD)
-      if (quote === 'USD') {
-        // 1 lot = 100,000 units. Loss in USD = slDistance * 100,000.
-        return slDistance * 100000;
+      let base = '';
+      let quote = '';
+      if (forexMatch) {
+        base = forexMatch[1].toUpperCase();
+        quote = forexMatch[2].toUpperCase();
+      } else if (cleanSym.length >= 6) {
+        base = cleanSym.substring(0, 3);
+        quote = cleanSym.substring(3, 6);
       }
 
-      // Base is USD (e.g. USDJPY, USDCAD, USDCHF)
-      if (base === 'USD') {
-        // Loss in Quote = slDistance * 100,000.
-        // Converted to USD = (slDistance * 100,000) / entryPrice.
-        return entryPrice > 0 ? (slDistance * 100000) / entryPrice : slDistance * 100000;
-      }
-
-      // Cross pair without USD (e.g. EURGBP, GBPJPY, EURJPY, AUDCAD)
-      // Loss in Quote = slDistance * 100,000.
-      // Convert Quote to USD using CurrencyService
-      const quoteToUSD = this.currencyService.toUSD(1.0, quote);
-      if (quoteToUSD > 0) {
-        return slDistance * 100000 * quoteToUSD;
+      if (base && quote) {
+        if (quote === 'USD') {
+          loss = slDistance * 100000;
+        } else if (base === 'USD') {
+          loss = entryPrice > 0 ? (slDistance * 100000) / entryPrice : slDistance * 100000;
+        } else {
+          const quoteToUSD = this.currencyService.toUSD(1.0, quote);
+          if (quoteToUSD > 0) {
+            loss = slDistance * 100000 * quoteToUSD;
+          } else {
+            loss = slDistance * 100000;
+          }
+        }
+      } else {
+        loss = entryPrice > 0 ? (slDistance / entryPrice) * 100000 : slDistance * 100000;
       }
     }
 
-    // Fallback standard calculation
-    return entryPrice > 0 ? (slDistance / entryPrice) * 100000 : slDistance * 100000;
+    return Number(loss.toFixed(4));
   }
 
   public getStandardContractSize(symbol: string): number {
@@ -355,6 +321,58 @@ export class LotCalculatorService {
     if (cleanSym.includes('BTC') || cleanSym.includes('ETH')) return 1;
     if (cleanSym.includes('US30') || cleanSym.includes('NAS')) return 1;
     return 100000; // Standard Forex
+  }
+
+  /**
+   * Calculates required margin in USD for 1.00 lot of the specified asset
+   */
+  public calculateMarginPerLotInUSD(
+    symbol: string,
+    entryPrice: number,
+    leverage: number,
+    constraints?: BrokerSymbolConstraints,
+  ): number {
+    const safeLeverage = leverage > 0 ? leverage : 100;
+    const cleanSym = symbol.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const contractSize = constraints?.contractSize || this.getStandardContractSize(symbol);
+
+    let margin = 0;
+    if (cleanSym.includes('XAU') || cleanSym.includes('GOLD')) {
+      margin = (100 * entryPrice) / safeLeverage;
+    } else if (cleanSym.includes('XAG') || cleanSym.includes('SILVER')) {
+      margin = (5000 * entryPrice) / safeLeverage;
+    } else if (cleanSym.includes('OIL') || cleanSym.includes('WTI') || cleanSym.includes('BRENT')) {
+      margin = (1000 * entryPrice) / safeLeverage;
+    } else if (cleanSym.includes('BTC') || cleanSym.includes('ETH')) {
+      margin = (1 * entryPrice) / safeLeverage;
+    } else if (cleanSym.includes('US30') || cleanSym.includes('NAS') || cleanSym.includes('SPX')) {
+      margin = entryPrice / safeLeverage;
+    } else {
+      const forexCurrencies = 'EUR|USD|GBP|JPY|AUD|CAD|CHF|NZD|ZAR|SGD|MXN|TRY|SEK|NOK|PLN|CNH|HKD';
+      const forexRegex = new RegExp(`(${forexCurrencies})(${forexCurrencies})`, 'i');
+      const forexMatch = cleanSym.match(forexRegex);
+
+      if (forexMatch) {
+        const base = forexMatch[1].toUpperCase();
+        const quote = forexMatch[2].toUpperCase();
+        if (base === 'USD') {
+          margin = contractSize / safeLeverage;
+        } else if (quote === 'USD') {
+          margin = (contractSize * entryPrice) / safeLeverage;
+        } else {
+          const baseToUSD = this.currencyService.toUSD(1.0, base);
+          if (baseToUSD > 0) {
+            margin = (contractSize * baseToUSD) / safeLeverage;
+          } else {
+            margin = (contractSize * (entryPrice > 0 ? entryPrice : 1.0)) / safeLeverage;
+          }
+        }
+      } else {
+        margin = (contractSize * (entryPrice > 0 ? entryPrice : 1.0)) / safeLeverage;
+      }
+    }
+
+    return Number(margin.toFixed(4));
   }
 
   /**
