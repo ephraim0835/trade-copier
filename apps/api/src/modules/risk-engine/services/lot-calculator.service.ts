@@ -259,34 +259,67 @@ export class LotCalculatorService {
       return slDistance * 5000;
     }
 
-    // 3. Cryptocurrencies (BTCUSD, ETHUSD, SOLUSD)
+    // 3. Crude Oil & Energy (USOIL / WTI, UKOIL / BRENT, XTIUSD, XBRUSD)
+    if (cleanSym.includes('OIL') || cleanSym.includes('WTI') || cleanSym.includes('BRENT') || cleanSym.includes('XTI') || cleanSym.includes('XBR')) {
+      // 1 standard lot = 1,000 barrels. $1 price movement = $1,000 per lot.
+      return slDistance * 1000;
+    }
+
+    // 4. Natural Gas (XNGUSD / NATGAS)
+    if (cleanSym.includes('GAS') || cleanSym.includes('XNG')) {
+      // 1 standard lot = 10,000 MMBtu. $1 price movement = $10,000 per lot.
+      return slDistance * 10000;
+    }
+
+    // 5. Cryptocurrencies (BTCUSD, ETHUSD, SOLUSD)
     if (cleanSym.includes('BTC') || cleanSym.includes('ETH') || cleanSym.includes('SOL') || cleanSym.includes('CRYPTO')) {
       // 1 lot = 1 coin. Loss = SL Distance in USD * 1.
       return slDistance * 1;
     }
 
-    // 4. Equity Indices (US30 / DJ30, NAS100 / USTEC, SPX500, GER40 / DAX)
+    // 6. Equity Indices (US30 / DJ30, NAS100 / USTEC, SPX500, GER40 / DAX, UK100, JP225)
+    if (cleanSym.includes('JP225') || cleanSym.includes('NIKKEI') || cleanSym.includes('JPN')) {
+      // Nikkei index points are denominated in JPY
+      const jpyToUSD = this.currencyService.toUSD(1.0, 'JPY');
+      return slDistance * (jpyToUSD > 0 ? jpyToUSD : 0.0066);
+    }
+
     if (
       cleanSym.includes('US30') ||
       cleanSym.includes('DJ30') ||
       cleanSym.includes('WALLSTREET') ||
       cleanSym.includes('NAS') ||
       cleanSym.includes('USTEC') ||
+      cleanSym.includes('US100') ||
       cleanSym.includes('SPX') ||
       cleanSym.includes('US500') ||
       cleanSym.includes('GER') ||
-      cleanSym.includes('DAX')
+      cleanSym.includes('DAX') ||
+      cleanSym.includes('UK100') ||
+      cleanSym.includes('FTSE') ||
+      cleanSym.includes('CAC')
     ) {
       // Standard index CFD: 1 index point = $1 per 1.00 lot
       return slDistance * 1;
     }
 
-    // 5. Forex Currency Pairs
-    // Extract Base (first 3) and Quote (next 3)
-    if (cleanSym.length >= 6) {
-      const base = cleanSym.substring(0, 3);
-      const quote = cleanSym.substring(3, 6);
+    // 7. Forex Currency Pairs
+    // Robustly extract 3-letter Base and Quote currencies (handles prefixes/suffixes like mEURUSD, EURUSD.pro, etc.)
+    const forexCurrencies = 'EUR|USD|GBP|JPY|AUD|CAD|CHF|NZD|ZAR|SGD|MXN|TRY|SEK|NOK|PLN|CNH|HKD';
+    const forexRegex = new RegExp(`(${forexCurrencies})(${forexCurrencies})`, 'i');
+    const forexMatch = cleanSym.match(forexRegex);
 
+    let base = '';
+    let quote = '';
+    if (forexMatch) {
+      base = forexMatch[1].toUpperCase();
+      quote = forexMatch[2].toUpperCase();
+    } else if (cleanSym.length >= 6) {
+      base = cleanSym.substring(0, 3);
+      quote = cleanSym.substring(3, 6);
+    }
+
+    if (base && quote) {
       // Quote is USD (e.g. EURUSD, GBPUSD, AUDUSD, NZDUSD)
       if (quote === 'USD') {
         // 1 lot = 100,000 units. Loss in USD = slDistance * 100,000.
@@ -317,19 +350,37 @@ export class LotCalculatorService {
     const cleanSym = symbol.toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (cleanSym.includes('XAU') || cleanSym.includes('GOLD')) return 100;
     if (cleanSym.includes('XAG') || cleanSym.includes('SILVER')) return 5000;
+    if (cleanSym.includes('OIL') || cleanSym.includes('WTI') || cleanSym.includes('BRENT')) return 1000;
+    if (cleanSym.includes('GAS') || cleanSym.includes('XNG')) return 10000;
     if (cleanSym.includes('BTC') || cleanSym.includes('ETH')) return 1;
     if (cleanSym.includes('US30') || cleanSym.includes('NAS')) return 1;
     return 100000; // Standard Forex
   }
 
   /**
-   * Aligns volume to broker step and clamps within min and max
+   * Aligns volume to broker step and clamps within min and max with IEEE 754 precision protection
    */
-  private stepAndClamp(vol: number, min: number, max: number, step: number): number {
+  public stepAndClamp(vol: number, min: number, max: number, step: number): number {
     if (!vol || isNaN(vol) || vol <= 0) return min;
-    let stepped = Math.floor(vol / step) * step;
+
+    const safeStep = step && step > 0 ? step : 0.01;
+    let decimals = 2;
+    if (safeStep >= 1.0) decimals = 0;
+    else if (safeStep >= 0.1) decimals = 1;
+    else if (safeStep >= 0.01) decimals = 2;
+    else if (safeStep >= 0.001) decimals = 3;
+    else decimals = 4;
+
+    // Use epsilon (1e-7) to prevent floating-point floor truncation (e.g. 0.29 / 0.01 = 28.999999999999996)
+    let stepped = Math.floor((vol + 1e-7) / safeStep) * safeStep;
+    stepped = Number(stepped.toFixed(decimals));
+
     if (stepped < min) stepped = min;
-    if (stepped > max) stepped = max;
-    return Number(stepped.toFixed(2));
+    if (max > 0 && stepped > max) {
+      stepped = Math.floor((max + 1e-7) / safeStep) * safeStep;
+      stepped = Number(stepped.toFixed(decimals));
+    }
+
+    return stepped;
   }
 }

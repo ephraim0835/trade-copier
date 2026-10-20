@@ -4,7 +4,7 @@ import { MasterSignalDto, MasterModifyDto, MasterCloseDto, MasterTriggerDto } fr
 import { PrismaService } from '../../../database/prisma.service';
 import { RiskEngineService } from '../../risk-engine/services/risk-engine.service';
 import { CurrencyService } from '../../risk-engine/services/currency.service';
-import { LotCalculatorService } from '../../risk-engine/services/lot-calculator.service';
+import { LotCalculatorService, LotCalculationResult } from '../../risk-engine/services/lot-calculator.service';
 import { HotDispatchService, HotCommandData } from './hot-dispatch.service';
 import { AsyncPersistenceService } from './async-persistence.service';
 import { CommandType, CommandStatus, CopyState, Mt5Account, CopySettings } from '@prisma/client';
@@ -349,7 +349,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
    * 3. BALANCE_MULTIPLIER: Scaled proportionally to balance ratio with multiplier
    * 4. EQUITY_MULTIPLIER: Scaled proportionally to floating equity ratio with multiplier
    */
-  public computeSubVolume(
+  public computeSubVolumeDetails(
     sub: CachedSubAccount,
     masterInfo: CachedMasterAccount | undefined,
     masterVolume: number,
@@ -357,7 +357,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
     orderType: string,
     priceOpen: number,
     sl: number,
-  ): number {
+  ): LotCalculationResult {
     const copySettings: any = sub.copySettings || {};
     const result = this.lotCalculator.calculateLotSize(
       {
@@ -368,6 +368,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
       },
       masterInfo ? {
         balance: masterInfo.balance,
+        equity: (masterInfo as any).equity,
         currency: masterInfo.currency,
       } : undefined,
       {
@@ -390,7 +391,19 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
       this.logger.debug(`[LotCalc] ${symbol} for sub ${sub.id}: ${result.warnings.join('; ')} -> Result: ${result.finalVolume} lots`);
     }
 
-    return result.finalVolume;
+    return result;
+  }
+
+  public computeSubVolume(
+    sub: CachedSubAccount,
+    masterInfo: CachedMasterAccount | undefined,
+    masterVolume: number,
+    symbol: string,
+    orderType: string,
+    priceOpen: number,
+    sl: number,
+  ): number {
+    return this.computeSubVolumeDetails(sub, masterInfo, masterVolume, symbol, orderType, priceOpen, sl).finalVolume;
   }
 
   /**
@@ -471,7 +484,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
       const decision = this.riskEngine.evaluateTrade(signalInput, riskProfile, symbolSpecs);
       
       // Authoritative multi-currency and Stop Loss volume calculation across all 4 modes
-      const calculatedVolume = this.computeSubVolume(
+      const lotCalcResult = this.computeSubVolumeDetails(
         sub,
         masterInfo,
         dto.volume,
@@ -481,7 +494,12 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
         dto.sl ?? 0
       );
 
+      const calculatedVolume = lotCalcResult.finalVolume;
       const finalVolume = (decision.executedVol && decision.executedVol > 0) ? decision.executedVol : calculatedVolume;
+      const isRiskPercent = (sub.copySettings?.riskType || 'RISK_PERCENT').toUpperCase() === 'RISK_PERCENT';
+      const intendedRisk = (isRiskPercent && lotCalcResult.cashRiskAccountCurrency > 0) ? lotCalcResult.cashRiskAccountCurrency : 0;
+      const maxLotCap = sub.copySettings?.maxLotCap ?? null;
+
       const tradeCopyId = crypto.randomUUID();
 
       const inFlightCopy: InFlightTradeCopy = {
@@ -517,7 +535,8 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
           symbol: dto.symbol,
           orderType: dto.type,
           volume: finalVolume,
-          intendedRisk: 0, // Authoritative volume calculated by Node.js; pass 0 so EA does not miscalculate due to broker tick currency differences
+          intendedRisk,
+          maxLotCap,
           price: dto.priceOpen || 0,
           sl: dto.sl ?? 0,
           tp: dto.tp ?? 0,
@@ -638,7 +657,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
           const decision = this.riskEngine.evaluateTrade(signalInput, profile, specs);
           if (decision.state === CopyState.APPROVED) {
             const masterInfo = this.masterAccountsCache.get(masterAccountId);
-            const computedVol = this.computeSubVolume(
+            const lotCalcResult = this.computeSubVolumeDetails(
               sub,
               masterInfo,
               signal.volume,
@@ -647,7 +666,11 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
               signal.priceOpen,
               dto.sl
             );
+            const computedVol = lotCalcResult.finalVolume;
             const finalVol = (decision.executedVol && decision.executedVol > 0) ? decision.executedVol : computedVol;
+            const isRiskPercent = (sub.copySettings?.riskType || 'RISK_PERCENT').toUpperCase() === 'RISK_PERCENT';
+            const intendedRisk = (isRiskPercent && lotCalcResult.cashRiskAccountCurrency > 0) ? lotCalcResult.cashRiskAccountCurrency : 0;
+            const maxLotCap = sub.copySettings?.maxLotCap ?? null;
 
             copy.state = CopyState.APPROVED;
             copy.requestedVolume = finalVol;
@@ -664,7 +687,8 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
               symbol: signal.symbol,
               orderType: signal.type as any,
               volume: finalVol,
-              intendedRisk: 0,
+              intendedRisk,
+              maxLotCap,
               price: 0,
               sl: dto.sl,
               tp: dto.tp ?? signal.tp,
@@ -827,7 +851,12 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
         if (currentVol <= 0) currentVol = signal.volume;
 
         let requestedCloseVol = currentVol * closeFraction;
-        if (isPending) requestedCloseVol = copy.requestedVolume || signal.volume;
+        if (isPending) {
+          requestedCloseVol = copy.requestedVolume || signal.volume;
+        } else {
+          requestedCloseVol = this.lotCalculator.stepAndClamp(requestedCloseVol, 0.01, currentVol, 0.01);
+        }
+        const effectiveCmdType = (!isPending && requestedCloseVol >= currentVol) ? CommandType.CLOSE_ORDER : (isPending ? CommandType.CLOSE_ORDER : cmdType);
 
         // Ensure subPositionTicket is populated
         let targetSubPositionTicket = copy.subPositionId ?? copy.subOrderTicket;
@@ -848,7 +877,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
           tradeCopyId: copy.id,
           subAccountId: copy.subAccountId,
           masterAccountId,
-          type: isPending ? CommandType.CLOSE_ORDER : cmdType,
+          type: effectiveCmdType,
           status: CommandStatus.CREATED,
           symbol: signal.symbol,
           orderType: signal.type as any,

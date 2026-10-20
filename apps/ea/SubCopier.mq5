@@ -373,6 +373,7 @@ void ProcessCommand(string json, ulong subReceivedAt)
    double passedVolume = CMqlJson::GetDouble(json, "volume");
    double volume = passedVolume;
    double intendedRisk = CMqlJson::GetDouble(json, "intendedRisk");
+   double maxLotCap = CMqlJson::GetDouble(json, "maxLotCap");
    
    if(intendedRisk > 0 && sl > 0 && price > 0)
      {
@@ -397,21 +398,47 @@ void ProcessCommand(string json, ulong subReceivedAt)
    double maxVol = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MAX);
    double stepVol = SymbolInfoDouble(symbol, SYMBOL_VOLUME_STEP);
 
+   // Apply user Max Lot Hard Cap
+   if(maxLotCap > 0 && (maxVol <= 0 || maxLotCap < maxVol))
+     {
+      maxVol = maxLotCap;
+     }
+
    // Fallback: If volume is 0 or below minimum, preserve passed scaled volume or minVol
    if(volume <= 0)
      {
       volume = (passedVolume > 0) ? passedVolume : minVol;
      }
 
-   // Step and clamp volume
-   if(stepVol > 0 && volume > 0) volume = MathFloor(volume / stepVol) * stepVol;
+   // Determine volume step precision
+   int volDigits = 2;
+   if(stepVol >= 1.0) volDigits = 0;
+   else if(stepVol >= 0.1) volDigits = 1;
+   else if(stepVol >= 0.01) volDigits = 2;
+   else if(stepVol >= 0.001) volDigits = 3;
+   else volDigits = 4;
+
+   // Step and clamp volume with IEEE 754 precision epsilon
+   if(stepVol > 0 && volume > 0)
+     {
+      volume = MathFloor((volume + 1e-7) / stepVol) * stepVol;
+      volume = NormalizeDouble(volume, volDigits);
+     }
    if(minVol > 0 && volume < minVol) volume = minVol;
-   if(maxVol > 0 && volume > maxVol) volume = maxVol;
+   if(maxVol > 0 && volume > maxVol)
+     {
+      volume = maxVol;
+      if(stepVol > 0)
+        {
+         volume = MathFloor((volume + 1e-7) / stepVol) * stepVol;
+         volume = NormalizeDouble(volume, volDigits);
+        }
+     }
    
    if(volume < minVol || (maxVol > 0 && volume > maxVol))
      {
       ulong now = GetMicrosecondCount();
-      ReportResult(commandId, false, 0, "Volume invalid for symbol limits", 0, 0, subReceivedAt, subAcknowledgedAt, now, now);
+      ReportResult(commandId, false, 0, "Volume invalid for symbol limits or max lot cap", 0, 0, subReceivedAt, subAcknowledgedAt, now, now);
       return;
      }
 
@@ -439,6 +466,46 @@ void ProcessCommand(string json, ulong subReceivedAt)
 
    if(commandType == "OPEN_ORDER" || commandType == "")
      {
+      ENUM_ORDER_TYPE ot = ORDER_TYPE_BUY;
+      if(orderType == "SELL") ot = ORDER_TYPE_SELL;
+      else if(orderType == "BUY_LIMIT") ot = ORDER_TYPE_BUY_LIMIT;
+      else if(orderType == "SELL_LIMIT") ot = ORDER_TYPE_SELL_LIMIT;
+      else if(orderType == "BUY_STOP") ot = ORDER_TYPE_BUY_STOP;
+      else if(orderType == "SELL_STOP") ot = ORDER_TYPE_SELL_STOP;
+
+      // Pre-flight Margin Safety Guard: Check required margin before submitting to broker
+      double marginRequired = 0;
+      double checkPrice = (price > 0) ? price : (ot == ORDER_TYPE_BUY ? SymbolInfoDouble(symbol, SYMBOL_ASK) : SymbolInfoDouble(symbol, SYMBOL_BID));
+      if(checkPrice > 0 && OrderCalcMargin(ot, symbol, volume, checkPrice, marginRequired))
+        {
+         double freeMargin = AccountInfoDouble(ACCOUNT_MARGIN_FREE);
+         if(freeMargin > 0 && marginRequired > (freeMargin * 0.90))
+           {
+            // Margin exceeds 90% of free margin - prevent 10019 RET_NO_MONEY by scaling down safely
+            double safeRatio = (freeMargin * 0.85) / marginRequired;
+            double safeVol = volume * safeRatio;
+            if(stepVol > 0)
+              {
+               safeVol = MathFloor((safeVol + 1e-7) / stepVol) * stepVol;
+               safeVol = NormalizeDouble(safeVol, volDigits);
+              }
+            if(safeVol >= minVol)
+              {
+               PrintFormat("PRE-FLIGHT MARGIN GUARD: Required margin %.2f exceeds 90%% of free margin %.2f. Reduced volume from %.2f to %.2f",
+                           marginRequired, freeMargin, volume, safeVol);
+               volume = safeVol;
+              }
+            else
+              {
+               ulong now = GetMicrosecondCount();
+               PrintFormat("PRE-FLIGHT MARGIN REJECT: Required margin %.2f exceeds free margin %.2f even at minVol %.2f",
+                           marginRequired, freeMargin, minVol);
+               ReportResult(commandId, false, 10019, "Pre-flight rejected: Insufficient free margin for order (RET_NO_MONEY)", 0, 0, subReceivedAt, subAcknowledgedAt, now, now);
+               return;
+              }
+           }
+        }
+
       if(orderType == "BUY")
         {
          if(price == 0) price = SymbolInfoDouble(symbol, SYMBOL_ASK);
@@ -598,7 +665,13 @@ void ProcessCommand(string json, ulong subReceivedAt)
           PrintFormat("=== CLOSE START ===\ncommandType=%s\ncommandId=%s\nsymbol=%s\npositionTicket=%I64u\nrequestedVol=%.2f",
                       commandType, commandId, symbol, targetTicket, volume);
           if(commandType == "CLOSE_PARTIAL")
-             success = trade.PositionClosePartial(targetTicket, volume, -1);
+            {
+             double currentPosVol = PositionGetDouble(POSITION_VOLUME);
+             if(currentPosVol > 0 && volume >= currentPosVol)
+                success = trade.PositionClose(targetTicket, -1);
+             else
+                success = trade.PositionClosePartial(targetTicket, volume, -1);
+            }
           else
              success = trade.PositionClose(targetTicket, -1);
           PrintFormat("=== CLOSE END ===\nPositionClose returned=%s\nResultRetcode=%u\nResultRetcodeDescription=%s\nResultOrder=%I64u\nResultDeal=%I64u",

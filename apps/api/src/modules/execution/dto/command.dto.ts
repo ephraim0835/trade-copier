@@ -12,6 +12,7 @@ export class CommandDto {
   direction?: string;
   volume: number;
   intendedRisk?: number;
+  maxLotCap?: number;
   price?: number;
   sl?: number;
   tp?: number;

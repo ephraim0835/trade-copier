@@ -383,17 +383,25 @@ export function SettingsControls({
 
         {/* Support Channels & Priority Status */}
         <div className="ml-0 md:ml-14 grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-          <div className="p-3.5 bg-card/60 rounded-2xl border border-border/40 text-xs flex items-start gap-3">
-            <div className="w-8 h-8 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
+          <a
+            href="https://chat.whatsapp.com/HSUiI1t5ECq5Sw51kz7Joi"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-3.5 bg-card/60 hover:bg-emerald-500/5 hover:border-emerald-500/30 transition-all rounded-2xl border border-border/40 text-xs flex items-start gap-3 group cursor-pointer"
+          >
+            <div className="w-8 h-8 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
               <MessageCircle className="w-4 h-4" />
             </div>
             <div>
-              <div className="font-bold text-foreground">WhatsApp Community Support</div>
+              <div className="font-bold text-foreground flex items-center gap-1.5 group-hover:text-emerald-500 transition-colors">
+                WhatsApp Community Support
+                <ArrowUpRight className="w-3.5 h-3.5 text-muted-foreground group-hover:text-emerald-500 transition-colors" />
+              </div>
               <p className="text-muted-foreground text-[11px] mt-0.5 leading-relaxed">
                 Join our official WhatsApp group for instant announcements and community trader discussions.
               </p>
             </div>
-          </div>
+          </a>
 
           <div className="p-3.5 bg-card/60 rounded-2xl border border-border/40 text-xs flex items-start gap-3">
             <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">

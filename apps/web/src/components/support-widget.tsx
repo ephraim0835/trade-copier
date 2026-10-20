@@ -30,7 +30,7 @@ interface SupportWidgetProps {
 }
 
 export function SupportWidget({
-  whatsappUrl = 'https://chat.whatsapp.com/invite/plaiz-trade-copier',
+  whatsappUrl = 'https://chat.whatsapp.com/HSUiI1t5ECq5Sw51kz7Joi',
 }: SupportWidgetProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'tickets' | 'new'>('tickets');

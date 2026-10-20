@@ -46,6 +46,7 @@ export class ExecutionService {
       direction: c.direction ?? undefined,
       volume: c.volume,
       intendedRisk: c.intendedRisk ?? undefined,
+      maxLotCap: c.maxLotCap ?? undefined,
       price: c.price ?? undefined,
       sl: c.sl ?? undefined,
       tp: c.tp ?? undefined,
