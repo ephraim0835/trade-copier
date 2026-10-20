@@ -426,7 +426,7 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
       </div>
 
       {/* PORTFOLIO GROWTH CURVE */}
-      <section className="plaiz-card p-5 sm:p-6 rounded-2xl flex flex-col min-h-[420px] border border-border/40">
+      <section className="plaiz-card p-4 sm:p-6 rounded-2xl flex flex-col border border-border/40">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
           <div>
             <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">
@@ -443,11 +443,11 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
           </div>
         </div>
 
-        <div className="w-full h-[320px] min-h-[300px]">
+        <div className="w-full">
           {chartData.length > 0 ? (
-            <PerformanceChart data={chartData} />
+            <PerformanceChart data={chartData} height={280} />
           ) : (
-            <div className="h-[320px] w-full flex flex-col items-center justify-center text-center p-8 bg-black/5 dark:bg-white/[0.02] rounded-xl border border-dashed border-border/40">
+            <div className="h-[260px] w-full flex flex-col items-center justify-center text-center p-8 bg-black/5 dark:bg-white/[0.02] rounded-xl border border-dashed border-border/40">
               <Activity className="w-8 h-8 text-muted-foreground/40 mb-3" />
               <p className="text-sm font-semibold text-foreground">Awaiting Trading Activity</p>
               <p className="text-xs text-muted-foreground mt-1 max-w-sm">

@@ -488,8 +488,8 @@ export default async function DashboardOverview() {
               <h3 className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">Performance</h3>
               {/* Fake timeframe controls removed as per user instruction for honest functionality */}
             </div>
-            <div className="h-[220px] -mx-4 -mb-4">
-              <PerformanceChart data={chartData} />
+            <div className="w-full">
+              <PerformanceChart data={chartData} height={220} />
             </div>
           </section>
 
