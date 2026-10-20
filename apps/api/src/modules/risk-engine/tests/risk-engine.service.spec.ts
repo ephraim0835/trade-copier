@@ -206,9 +206,9 @@ describe('RiskEngineService — Phase 2 Verification Suite', () => {
   // GROUP E: Missing SL / TP handling
   // ═══════════════════════════════════════════════════════════════
   describe('E — SL / TP validation', () => {
-    it('E1: Missing SL → APPROVED immediately', () => {
+    it('E1: Missing SL → WAITING_FOR_SL with timer', () => {
       const d = svc.evaluateTrade({ ...defaultSignal, sl: 0 }, defaultProfile, eurusdSpecs);
-      expect(d.state).toBe(CopyState.APPROVED);
+      expect(d.state).toBe(CopyState.WAITING_FOR_SL);
       expect(d.executedVol).toBe(0);
     });
 
@@ -358,10 +358,10 @@ describe('RiskEngineService — Phase 2 Verification Suite', () => {
       expect(d.rejectionReason).toContain('master trade no longer exists');
     });
 
-    it('K3: Recovery with missing SL → APPROVED immediately', () => {
+    it('K3: Recovery with missing SL → WAITING_FOR_SL', () => {
       const recovery: RecoveryContext = { ...validRecovery };
       const d = svc.evaluateTrade({ ...defaultSignal, sl: 0 }, defaultProfile, eurusdSpecs, recovery);
-      expect(d.state).toBe(CopyState.APPROVED);
+      expect(d.state).toBe(CopyState.WAITING_FOR_SL);
     });
 
     it('K4: Recovery accepts valid trades', () => {

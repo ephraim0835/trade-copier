@@ -6,6 +6,7 @@ import { CurrencyService } from '../../risk-engine/services/currency.service';
 import { PrismaService } from '../../../database/prisma.service';
 import { HotDispatchService } from '../services/hot-dispatch.service';
 import { AsyncPersistenceService } from '../services/async-persistence.service';
+import { LotCalculatorService } from '../../risk-engine/services/lot-calculator.service';
 import { CommandType, CommandStatus, CopyState, OrderType } from '@prisma/client';
 
 
@@ -69,6 +70,7 @@ describe('MasterSignalService - Hot Path Suite', () => {
             get: jest.fn().mockReturnValue('false'),
           },
         },
+        LotCalculatorService,
       ],
     }).compile();
 
