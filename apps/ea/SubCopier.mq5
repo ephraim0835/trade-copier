@@ -324,6 +324,97 @@ string ResolveSymbol(string symbol)
 }
 
 //+------------------------------------------------------------------+
+//| Clamp SL and TP to satisfy broker SYMBOL_TRADE_STOPS_LEVEL       |
+//+------------------------------------------------------------------+
+void ClampStopsToBrokerLimits(string sym, string ordType, double openPrice, double &stopLoss, double &takeProfit)
+{
+   if(stopLoss <= 0 && takeProfit <= 0) return;
+
+   int digits = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
+   double point = SymbolInfoDouble(sym, SYMBOL_POINT);
+   if(point <= 0) point = 0.00001;
+
+   long stopLevel = SymbolInfoInteger(sym, SYMBOL_TRADE_STOPS_LEVEL);
+   long freezeLevel = SymbolInfoInteger(sym, SYMBOL_TRADE_FREEZE_LEVEL);
+   long minPoints = MathMax(stopLevel, freezeLevel);
+   
+   // Add 2 points buffer to prevent race condition rejects during volatility
+   double minDistance = (minPoints > 0 ? (minPoints + 2) : 2) * point;
+
+   double ask = SymbolInfoDouble(sym, SYMBOL_ASK);
+   double bid = SymbolInfoDouble(sym, SYMBOL_BID);
+
+   bool isBuy = (ordType == "BUY" || ordType == "BUY_LIMIT" || ordType == "BUY_STOP");
+   bool isSell = (ordType == "SELL" || ordType == "SELL_LIMIT" || ordType == "SELL_STOP");
+
+   if(ordType == "BUY")
+     {
+      double basePrice = (bid > 0) ? bid : openPrice;
+      if(stopLoss > 0 && stopLoss > (basePrice - minDistance))
+        {
+         double oldSl = stopLoss;
+         stopLoss = NormalizeDouble(basePrice - minDistance, digits);
+         PrintFormat("STOPS_LEVEL CLAMP: BUY SL %.5f too close to Bid %.5f (min %d pts). Clamped to %.5f", 
+                     oldSl, basePrice, (int)minPoints, stopLoss);
+        }
+      double tpBase = (ask > 0) ? ask : openPrice;
+      if(takeProfit > 0 && takeProfit < (tpBase + minDistance))
+        {
+         double oldTp = takeProfit;
+         takeProfit = NormalizeDouble(tpBase + minDistance, digits);
+         PrintFormat("STOPS_LEVEL CLAMP: BUY TP %.5f too close to Ask %.5f (min %d pts). Clamped to %.5f", 
+                     oldTp, tpBase, (int)minPoints, takeProfit);
+        }
+     }
+   else if(ordType == "SELL")
+     {
+      double basePrice = (ask > 0) ? ask : openPrice;
+      if(stopLoss > 0 && stopLoss < (basePrice + minDistance))
+        {
+         double oldSl = stopLoss;
+         stopLoss = NormalizeDouble(basePrice + minDistance, digits);
+         PrintFormat("STOPS_LEVEL CLAMP: SELL SL %.5f too close to Ask %.5f (min %d pts). Clamped to %.5f", 
+                     oldSl, basePrice, (int)minPoints, stopLoss);
+        }
+      double tpBase = (bid > 0) ? bid : openPrice;
+      if(takeProfit > 0 && takeProfit > (tpBase - minDistance))
+        {
+         double oldTp = takeProfit;
+         takeProfit = NormalizeDouble(tpBase - minDistance, digits);
+         PrintFormat("STOPS_LEVEL CLAMP: SELL TP %.5f too close to Bid %.5f (min %d pts). Clamped to %.5f", 
+                     oldTp, tpBase, (int)minPoints, takeProfit);
+        }
+     }
+   else if(isBuy) // BUY_LIMIT or BUY_STOP
+     {
+      double basePrice = (openPrice > 0) ? openPrice : ask;
+      if(stopLoss > 0 && stopLoss > (basePrice - minDistance))
+        {
+         stopLoss = NormalizeDouble(basePrice - minDistance, digits);
+        }
+      if(takeProfit > 0 && takeProfit < (basePrice + minDistance))
+        {
+         takeProfit = NormalizeDouble(basePrice + minDistance, digits);
+        }
+     }
+   else if(isSell) // SELL_LIMIT or SELL_STOP
+     {
+      double basePrice = (openPrice > 0) ? openPrice : bid;
+      if(stopLoss > 0 && stopLoss < (basePrice + minDistance))
+        {
+         stopLoss = NormalizeDouble(basePrice + minDistance, digits);
+        }
+      if(takeProfit > 0 && takeProfit > (basePrice - minDistance))
+        {
+         takeProfit = NormalizeDouble(basePrice - minDistance, digits);
+        }
+     }
+
+   if(stopLoss > 0) stopLoss = NormalizeDouble(stopLoss, digits);
+   if(takeProfit > 0) takeProfit = NormalizeDouble(takeProfit, digits);
+}
+
+//+------------------------------------------------------------------+
 //| Process Command                                                  |
 //+------------------------------------------------------------------+
 void ProcessCommand(string json, ulong subReceivedAt)
@@ -357,9 +448,13 @@ void ProcessCommand(string json, ulong subReceivedAt)
    double tp = CMqlJson::GetDouble(json, "tp");
    double price = CMqlJson::GetDouble(json, "price");
    
+   // Live market prices on Sub broker
+   double currentAsk = SymbolInfoDouble(symbol, SYMBOL_ASK);
+   double currentBid = SymbolInfoDouble(symbol, SYMBOL_BID);
+
    // For market orders, fallback to current ASK/BID if price is 0
-   if(price == 0 && orderType == "BUY") price = SymbolInfoDouble(symbol, SYMBOL_ASK);
-   if(price == 0 && orderType == "SELL") price = SymbolInfoDouble(symbol, SYMBOL_BID);
+   if(price == 0 && orderType == "BUY") price = currentAsk;
+   if(price == 0 && orderType == "SELL") price = currentBid;
 
    // Pending orders require valid non-zero limit/stop price
    bool isPending = (orderType == "BUY_LIMIT" || orderType == "SELL_LIMIT" || orderType == "BUY_STOP" || orderType == "SELL_STOP");
@@ -370,12 +465,19 @@ void ProcessCommand(string json, ulong subReceivedAt)
       return;
      }
 
+   // Exact execution reference price
+   double refPrice = (orderType == "BUY") ? currentAsk : ((orderType == "SELL") ? currentBid : price);
+   if(refPrice <= 0) refPrice = price;
+
+   // Automatically clamp SL/TP against broker SYMBOL_TRADE_STOPS_LEVEL (prevents Error 10016)
+   ClampStopsToBrokerLimits(symbol, orderType, refPrice, sl, tp);
+
    double passedVolume = CMqlJson::GetDouble(json, "volume");
    double volume = passedVolume;
    double intendedRisk = CMqlJson::GetDouble(json, "intendedRisk");
    double maxLotCap = CMqlJson::GetDouble(json, "maxLotCap");
    
-   if(intendedRisk > 0 && sl > 0 && price > 0)
+   if(intendedRisk > 0 && sl > 0 && refPrice > 0)
      {
       double tickSize = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_SIZE);
       double tickValue = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_VALUE);
@@ -383,13 +485,13 @@ void ProcessCommand(string json, ulong subReceivedAt)
       if(tickValue <= 0) tickValue = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_VALUE_PROFIT);
       if(tickSize > 0 && tickValue > 0)
         {
-         double slDistance = MathAbs(price - sl);
+         double slDistance = MathAbs(refPrice - sl);
          double riskPerLot = (slDistance / tickSize) * tickValue;
          if(riskPerLot > 0)
            {
             volume = intendedRisk / riskPerLot;
-            PrintFormat("DEBUG VOLUME CALC: intendedRisk=%f, price=%f, sl=%f, slDistance=%f, tickSize=%f, tickValue=%f, riskPerLot=%f, volume=%f", 
-                        intendedRisk, price, sl, slDistance, tickSize, tickValue, riskPerLot, volume);
+            PrintFormat("DEBUG VOLUME CALC: intendedRisk=%f, refPrice=%f, sl=%f, slDistance=%f, tickSize=%f, tickValue=%f, riskPerLot=%f, volume=%f", 
+                        intendedRisk, refPrice, sl, slDistance, tickSize, tickValue, riskPerLot, volume);
            }
         }
      }
@@ -590,6 +692,11 @@ void ProcessCommand(string json, ulong subReceivedAt)
 
        if(isPos)
          {
+          ENUM_POSITION_TYPE posType = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
+          string modifyOrdType = (posType == POSITION_TYPE_BUY) ? "BUY" : "SELL";
+          double posOpenPrice = PositionGetDouble(POSITION_PRICE_OPEN);
+          ClampStopsToBrokerLimits(symbol, modifyOrdType, posOpenPrice, sl, tp);
+
           PrintFormat("=== MODIFY POSITION START ===\ncommandId=%s\nsymbol=%s\npositionTicket=%I64u\nrequestedSL=%.5f\nrequestedTP=%.5f",
                       commandId, symbol, targetTicket, sl, tp);
           success = trade.PositionModify(targetTicket, sl, tp);
@@ -598,6 +705,11 @@ void ProcessCommand(string json, ulong subReceivedAt)
          }
        else if(orderTicketToModify > 0)
          {
+          ENUM_ORDER_TYPE pendingType = (ENUM_ORDER_TYPE)OrderGetInteger(ORDER_TYPE);
+          string pendingOrdStr = "BUY";
+          if(pendingType == ORDER_TYPE_SELL_LIMIT || pendingType == ORDER_TYPE_SELL_STOP) pendingOrdStr = "SELL";
+          ClampStopsToBrokerLimits(symbol, pendingOrdStr, price, sl, tp);
+
           PrintFormat("=== MODIFY ORDER START ===\ncommandId=%s\norderTicket=%I64u\nprice=%.5f\nrequestedSL=%.5f\nrequestedTP=%.5f",
                       commandId, orderTicketToModify, price, sl, tp);
           success = trade.OrderModify(orderTicketToModify, price, sl, tp, ORDER_TIME_GTC, 0, 0);
