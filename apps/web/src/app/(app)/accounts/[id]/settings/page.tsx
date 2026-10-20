@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { RiskSettingsClient } from './risk-settings-client';
 import { ArrowLeft, ShieldAlert, Wifi } from 'lucide-react';
 import Link from 'next/link';
+import { ReconnectButton } from '@/components/accounts/reconnect-button';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,11 +52,22 @@ export default async function AccountSettingsPage({ params }: { params: Promise<
               {account.login}
             </span>
             {(() => {
-              const isOnline = (account.isActive ?? false) && account.connectionStatus === 'ONLINE' && account.lastHeartbeatAt && (Math.abs(Date.now() - new Date(account.lastHeartbeatAt).getTime()) < 180_000);
+              const isOnline = Boolean((account.isActive ?? false) && account.connectionStatus === 'ONLINE' && account.lastHeartbeatAt && (Math.abs(Date.now() - new Date(account.lastHeartbeatAt).getTime()) < 180_000));
               return (
-                <div className={`plaiz-pill text-[10px] ${isOnline ? 'plaiz-pill-success' : 'plaiz-pill-destructive'}`}>
-                  <Wifi className="w-3 h-3" />
-                  {isOnline ? 'Online' : 'Offline'}
+                <div className="flex items-center gap-2">
+                  <div className={`plaiz-pill text-[10px] ${isOnline ? 'plaiz-pill-success' : 'plaiz-pill-destructive'}`}>
+                    <Wifi className="w-3 h-3" />
+                    {isOnline ? 'Online' : 'Offline'}
+                  </div>
+                  {!isOnline && (
+                    <ReconnectButton
+                      accountId={account.id}
+                      accountName={account.login}
+                      variant="pill"
+                      isOnline={isOnline}
+                      connectionStatus={account.connectionStatus}
+                    />
+                  )}
                 </div>
               );
             })()}

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Save, AlertTriangle, Percent, Wifi } from 'lucide-react';
 import { MoneyDisplay } from '@/components/money-display';
+import { ReconnectButton } from '@/components/accounts/reconnect-button';
 
 export function RiskControls({ initialAccounts }: { initialAccounts: any[] }) {
   const router = useRouter();
@@ -78,7 +79,7 @@ export function RiskControls({ initialAccounts }: { initialAccounts: any[] }) {
           const currentPct = account.copySettings?.riskPercentage ?? 1.0;
           const isFailed = account.connectionStatus === 'FAILED' || !!account.provisioningError;
           const isConnecting = account.connectionStatus === 'PROVISIONING' || account.connectionStatus === 'PENDING';
-          const isOnline = !isFailed && !isConnecting && (account.isActive ?? false) && account.connectionStatus === 'ONLINE' && account.lastHeartbeatAt && (Math.abs(Date.now() - new Date(account.lastHeartbeatAt).getTime()) < 180_000);
+          const isOnline = Boolean(!isFailed && !isConnecting && (account.isActive ?? false) && account.connectionStatus === 'ONLINE' && account.lastHeartbeatAt && (Math.abs(Date.now() - new Date(account.lastHeartbeatAt).getTime()) < 180_000));
           
           return (
             <div key={account.id} className="plaiz-card bg-secondary/30 p-6 rounded-[24px]">
@@ -92,6 +93,15 @@ export function RiskControls({ initialAccounts }: { initialAccounts: any[] }) {
                       <Wifi className={`w-2.5 h-2.5 ${isConnecting ? 'animate-pulse' : ''}`} />
                       {isFailed ? 'Failed' : isConnecting ? 'Connecting...' : isOnline ? 'Online' : 'Offline'}
                     </div>
+                    {!isOnline && (
+                      <ReconnectButton
+                        accountId={account.id}
+                        accountName={account.displayName || account.login}
+                        variant="pill"
+                        isOnline={isOnline}
+                        connectionStatus={account.connectionStatus}
+                      />
+                    )}
                   </div>
                   <span className="plaiz-pill plaiz-pill-neutral text-[10px] uppercase tracking-widest">{account.broker || 'Unknown'}</span>
                 </div>

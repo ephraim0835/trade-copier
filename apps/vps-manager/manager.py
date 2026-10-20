@@ -738,14 +738,20 @@ def poll_db_worker():
                     if account['connectionStatus'] == 'FAILED' and not is_stale:
                         continue
                         
+                    is_pending_reconnect = (account['connectionStatus'] == 'PENDING')
                     if login in active_terminals:
                         proc = active_terminals[login].get('process')
                         if proc and proc.poll() is not None:
                             logger.info(f"Terminal process for {login} exited (code {proc.poll()}). Cleaning up active_terminals.")
                             del active_terminals[login]
+                        elif is_pending_reconnect:
+                            logger.info(f"User requested reconnect for {login} (connectionStatus=PENDING). Terminating existing terminal for fresh connection.")
+                            kill_account_terminal(login)
+                            if login in active_terminals:
+                                del active_terminals[login]
 
-                    if login not in active_terminals or is_stale:
-                        if is_stale:
+                    if login not in active_terminals or is_stale or is_pending_reconnect:
+                        if is_stale and not is_pending_reconnect:
                             logger.info(f"Intelligent Watchdog: Account {login} is ONLINE but heartbeat is stale. Terminating for safe recovery.")
                             kill_account_terminal(login)
                             if login in active_terminals:

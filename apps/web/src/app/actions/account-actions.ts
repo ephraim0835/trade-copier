@@ -602,14 +602,35 @@ export async function retryAccountConnection(accountId: string) {
       return { success: false, error: 'User not found' };
     }
 
+    const whereClause: any = { id: accountId };
+    if (user.role !== 'ADMIN' && user.role !== 'OWNER') {
+      whereClause.userId = user.id;
+    }
+
     await prisma.mt5Account.update({
-      where: { id: accountId, userId: user.id },
+      where: whereClause,
       data: {
+        isActive: true,
         connectionStatus: 'PENDING',
         provisioningError: null,
         updatedAt: new Date(),
       }
     });
+
+    // Notify VPS daemon to instantly synchronize and reconnect terminal
+    try {
+      await prisma.vpsEnvironment.updateMany({
+        where: { commandStatus: { not: 'PENDING' } },
+        data: {
+          lastCommand: 'SYNC',
+          commandStatus: 'PENDING',
+          commandAt: new Date(),
+          commandMessage: `Instant reconnect requested for account ${accountId}`,
+        }
+      });
+    } catch {
+      // Non-fatal if VPS environment record is transitioning
+    }
 
     return { success: true };
   } catch (err: any) {

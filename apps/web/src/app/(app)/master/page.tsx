@@ -106,6 +106,7 @@ export default async function MasterPage() {
               server={masterAccount.server}
               connectionStatus={masterAccount.connectionStatus}
               provisioningError={masterAccount.provisioningError}
+              isOnline={masterOnline}
             />
 
             <section className="plaiz-card p-8 rounded-[24px]">

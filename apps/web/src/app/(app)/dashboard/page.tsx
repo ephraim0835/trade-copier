@@ -17,6 +17,7 @@ import { formatUserFriendlyError } from '@/lib/error-formatter';
 import { BotControlSwitch } from '@/components/dashboard/bot-control-switch';
 import { TrialGraceBanner } from '@/components/trial-grace-banner';
 import { getTrialGraceStatus, enforceTrialGraceCleanup } from '@/lib/trial-grace';
+import { ReconnectButton } from '@/components/accounts/reconnect-button';
 
 export const dynamic = 'force-dynamic';
 
@@ -388,6 +389,15 @@ export default async function DashboardOverview() {
                         <Wifi className={`w-3 h-3 ${masterAccount.connectionStatus === 'PROVISIONING' ? 'animate-pulse' : ''}`} />
                         {masterOnline ? 'Online' : masterAccount.connectionStatus === 'PROVISIONING' ? 'Connecting...' : 'Offline'}
                       </div>
+                      {!masterOnline && (
+                        <ReconnectButton
+                          accountId={masterAccount.id}
+                          accountName="Master"
+                          variant="pill"
+                          isOnline={masterOnline}
+                          connectionStatus={masterAccount.connectionStatus}
+                        />
+                      )}
                     </div>
                     <h4 className="text-[28px] font-bold text-foreground tracking-tighter leading-none group-hover:text-primary transition-colors">{masterAccount.login}</h4>
                   </div>
@@ -477,6 +487,15 @@ export default async function DashboardOverview() {
                               <Wifi className={`w-2.5 h-2.5 ${subConnecting ? 'animate-pulse' : ''}`} />
                               {subOnline ? 'Online' : subConnecting ? 'Connecting...' : subFailed ? 'Failed' : 'Offline'}
                             </div>
+                            {!subOnline && (
+                              <ReconnectButton
+                                accountId={sub.id}
+                                accountName={sub.displayName || sub.login}
+                                variant="pill"
+                                isOnline={subOnline}
+                                connectionStatus={sub.connectionStatus}
+                              />
+                            )}
                           </div>
                           <div className="text-[10px] text-muted-foreground mt-1">{sub.broker} &bull; {sub.server}</div>
                         </div>

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ConnectAccountModal } from '@/components/connect-account-modal';
 import { ProtectedAction } from '@/components/protected-action';
 import { deleteAccount } from '@/app/actions/account-actions';
+import { ReconnectButton } from '@/components/accounts/reconnect-button';
 
 interface MasterActionsProps {
   masterAccountId?: string;
@@ -46,6 +47,17 @@ export function MasterActions({ masterAccountId }: MasterActionsProps) {
             {error}
           </span>
         )}
+        {/* Reconnect button — only shown when a master account exists */}
+        {masterAccountId && (
+          <ProtectedAction>
+            <ReconnectButton
+              accountId={masterAccountId}
+              accountName="Master"
+              variant="compact"
+            />
+          </ProtectedAction>
+        )}
+
         {/* Disconnect button — only shown when a master account exists */}
         {masterAccountId && (
           <ProtectedAction>

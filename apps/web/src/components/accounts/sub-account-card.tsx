@@ -8,6 +8,7 @@ import { ProtectedAction } from '@/components/protected-action';
 import { toggleAccountActive, deleteAccount, retryAccountConnection, getAccountConnectionStatus, updateAccountCredentials } from '@/app/actions/account-actions';
 import { useRouter } from 'next/navigation';
 import { getFriendlyErrorDetails } from '@/lib/error-formatter';
+import { ReconnectButton } from '@/components/accounts/reconnect-button';
 
 interface SubAccountCardProps {
   account: {
@@ -238,6 +239,21 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
                 <Wifi className="w-3 h-3" /> Offline
               </span>
             )}
+
+            {!isOnline && !isConnecting && (
+              <ReconnectButton
+                accountId={accountData.id}
+                accountName={accountData.displayName || accountData.login}
+                isOnline={false}
+                connectionStatus={accountData.connectionStatus}
+                variant="pill"
+                onReconnected={() => {
+                  setJustConnected(true);
+                  router.refresh();
+                }}
+              />
+            )}
+
             <span className="plaiz-pill plaiz-pill-neutral text-[10px]">
               {accountData.broker}
             </span>
@@ -541,7 +557,7 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
           </Link>
         </div>
 
-        {/* Secondary actions: Toggle + Delete */}
+        {/* Secondary actions: Toggle + Reconnect + Delete */}
         <div className="flex items-center gap-2">
           <ProtectedAction className="flex-1 flex">
             <button
@@ -556,6 +572,20 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
               {isActive ? <PowerOff className="w-3.5 h-3.5" /> : <Power className="w-3.5 h-3.5" />}
               {isActive ? 'Disable' : 'Enable'}
             </button>
+          </ProtectedAction>
+
+          <ProtectedAction>
+            <ReconnectButton
+              accountId={accountData.id}
+              accountName={accountData.displayName || accountData.login}
+              isOnline={isOnline}
+              connectionStatus={accountData.connectionStatus}
+              variant="compact"
+              onReconnected={() => {
+                setJustConnected(true);
+                router.refresh();
+              }}
+            />
           </ProtectedAction>
 
           <ProtectedAction>
