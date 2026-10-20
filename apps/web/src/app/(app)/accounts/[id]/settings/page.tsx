@@ -33,7 +33,9 @@ export default async function AccountSettingsPage({ params }: { params: Promise<
       requireTp: true,
       missingSlTimeoutSec: 60,
       maxRecoveryRRDegradation: 0.5,
-    })
+      maxLotCap: null,
+    }),
+    maxLotCap: account.copySettings?.maxLotCap ?? null,
   };
 
   return (

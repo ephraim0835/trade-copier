@@ -696,6 +696,7 @@ export async function updateAccountRiskSettings(
     requireTp?: boolean;
     missingSlTimeoutSec?: number;
     maxRecoveryRRDegradation?: number;
+    maxLotCap?: number | null;
   }
 ) {
   try {
@@ -746,6 +747,7 @@ export async function updateAccountRiskSettings(
     if (copySettingsData.requireTp !== undefined) cleanData.requireTp = Boolean(copySettingsData.requireTp);
     if (copySettingsData.missingSlTimeoutSec !== undefined) cleanData.missingSlTimeoutSec = Number(copySettingsData.missingSlTimeoutSec);
     if (copySettingsData.maxRecoveryRRDegradation !== undefined) cleanData.maxRecoveryRRDegradation = Number(copySettingsData.maxRecoveryRRDegradation);
+    if (copySettingsData.maxLotCap !== undefined) cleanData.maxLotCap = copySettingsData.maxLotCap ? Number(copySettingsData.maxLotCap) : null;
 
     await prisma.copySettings.upsert({
       where: { mt5AccountId: accountId },

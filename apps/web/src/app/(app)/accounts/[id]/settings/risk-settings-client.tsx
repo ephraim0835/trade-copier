@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Save, Loader2, Info, Percent, Layers, Scale, DollarSign, CheckCircle2 } from 'lucide-react';
+import { Save, Loader2, Info, Percent, Layers, Scale, DollarSign, CheckCircle2, Shield } from 'lucide-react';
 import { updateAccountRiskSettings } from '@/app/actions/account-actions';
 
 type RiskSettingsProps = {
@@ -30,6 +30,7 @@ export function RiskSettingsClient({ accountId, initialSettings }: RiskSettingsP
     requireTp: initialSettings.requireTp || false,
     missingSlTimeoutSec: initialSettings.missingSlTimeoutSec?.toString() || '60',
     maxRecoveryRRDegradation: initialSettings.maxRecoveryRRDegradation?.toString() || '0.5',
+    maxLotCap: initialSettings.maxLotCap ? initialSettings.maxLotCap.toString() : '',
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -75,6 +76,7 @@ export function RiskSettingsClient({ accountId, initialSettings }: RiskSettingsP
         requireTp: formData.requireTp,
         missingSlTimeoutSec: Number(formData.missingSlTimeoutSec),
         maxRecoveryRRDegradation: Number(formData.maxRecoveryRRDegradation),
+        maxLotCap: formData.maxLotCap && formData.maxLotCap.trim() ? Number(formData.maxLotCap) : null,
       };
 
       const result = await updateAccountRiskSettings(accountId, payload);
@@ -298,7 +300,7 @@ export function RiskSettingsClient({ accountId, initialSettings }: RiskSettingsP
       {/* 3. Safety Limits */}
       <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
         <h2 className="text-lg font-semibold mb-4 border-b border-border pb-3">Safety & Drawdown Limits</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <input 
@@ -341,11 +343,35 @@ export function RiskSettingsClient({ accountId, initialSettings }: RiskSettingsP
             )}
           </div>
         </div>
+
+        {/* Max Lot Hard Cap Field */}
+        <div className="pt-4 border-t border-border/50">
+          <div className="max-w-md space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-semibold flex items-center gap-1.5 text-foreground">
+                <Shield className="w-4 h-4 text-primary" />
+                Max Lot Hard Cap (Optional)
+              </label>
+              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                Absolute Ceiling
+              </span>
+            </div>
+            <input 
+              type="number" step="0.01" min="0.01" max="100.0" name="maxLotCap"
+              placeholder="e.g. 2.00 (Leave empty for no limit)"
+              value={formData.maxLotCap} onChange={handleChange}
+              className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+            />
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Never execute more than this lot size on any trade, regardless of risk percentage, account balance, or master volume.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* 4. SL/TP Overrides & Fallbacks */}
       <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
-        <h2 className="text-lg font-semibold mb-4 border-b border-border pb-3">SL/TP Overrides & Fallbacks</h2>
+        <h2 className="text-lg font-semibold mb-4 border-b border-border pb-3">SL/TP Overrides & Missing SL Handling</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-4">
             <div className="flex items-center gap-2">
@@ -360,13 +386,15 @@ export function RiskSettingsClient({ accountId, initialSettings }: RiskSettingsP
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Missing SL Timeout (Seconds)</label>
+            <label className="text-sm font-medium">Missing SL Timer / Wait Window (Seconds)</label>
             <input 
-              type="number" step="1" min="1" name="missingSlTimeoutSec"
+              type="number" step="1" min="5" max="300" name="missingSlTimeoutSec"
               value={formData.missingSlTimeoutSec} onChange={handleChange}
               className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary font-mono"
             />
-            <p className="text-xs text-muted-foreground">Auto-close trades if Master doesn&apos;t set an SL within this time.</p>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              In Risk % mode, trades opened without an SL pause in <span className="font-semibold text-foreground">WAITING_FOR_SL</span>. If Master adds an SL within this window, the trade copies with exact calculated risk. If time expires, the trade is safely skipped.
+            </p>
           </div>
         </div>
       </div>

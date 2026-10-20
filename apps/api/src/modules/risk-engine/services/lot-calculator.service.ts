@@ -20,6 +20,7 @@ export interface CopyRiskSettings {
   riskPercentage?: number;
   fixedLotSize?: number;
   lotMultiplier?: number;
+  maxLotCap?: number | null;
 }
 
 export interface TradeOrderInput {
@@ -47,6 +48,7 @@ export interface LotCalculationResult {
   slDistance: number;
   calculationMethod: 'SL_RISK_PERCENT' | 'FIXED_LOT' | 'BALANCE_MULTIPLIER' | 'EQUITY_MULTIPLIER' | 'FALLBACK_PROPORTIONAL';
   marginClamped: boolean;
+  maxLotClamped?: boolean;
   warnings?: string[];
 }
 
@@ -64,6 +66,7 @@ export class LotCalculatorService {
    * 3. 4 Risk Multiplier Modes (RISK_PERCENT, FIXED_LOT, BALANCE_MULTIPLIER, EQUITY_MULTIPLIER)
    * 4. Free Margin safety ceiling to prevent 10019 RET_NO_MONEY rejects
    * 5. Broker volume stepping and clamping (minLot, maxLot, lotStep)
+   * 6. User-defined Max Lot Hard Cap per trade ceiling
    */
   public calculateLotSize(
     sub: SubAccountRiskProfile,
@@ -74,7 +77,16 @@ export class LotCalculatorService {
   ): LotCalculationResult {
     const warnings: string[] = [];
     const minLot = constraints?.minLot && constraints.minLot > 0 ? constraints.minLot : 0.01;
-    const maxLot = constraints?.maxLot && constraints.maxLot > 0 ? constraints.maxLot : 100.0;
+    let maxLot = constraints?.maxLot && constraints.maxLot > 0 ? constraints.maxLot : 100.0;
+    
+    // Enforce optional user Max Lot Hard Cap
+    let maxLotClamped = false;
+    if (settings.maxLotCap && settings.maxLotCap > 0) {
+      if (settings.maxLotCap < maxLot) {
+        maxLot = settings.maxLotCap;
+      }
+    }
+    
     const lotStep = constraints?.lotStep && constraints.lotStep > 0 ? constraints.lotStep : 0.01;
     const leverage = sub.leverage && sub.leverage > 0 ? sub.leverage : 100;
 
@@ -83,6 +95,10 @@ export class LotCalculatorService {
     // 1. FIXED_LOT MODE
     if (riskType === 'FIXED_LOT') {
       const targetLot = settings.fixedLotSize && settings.fixedLotSize > 0 ? settings.fixedLotSize : minLot;
+      if (settings.maxLotCap && settings.maxLotCap > 0 && targetLot > settings.maxLotCap) {
+        maxLotClamped = true;
+        warnings.push(`Fixed lot (${targetLot.toFixed(2)}) capped by user Max Lot Cap (${settings.maxLotCap.toFixed(2)}).`);
+      }
       const finalVolume = this.stepAndClamp(targetLot, minLot, maxLot, lotStep);
       return {
         finalVolume,
@@ -93,6 +109,8 @@ export class LotCalculatorService {
         slDistance: 0,
         calculationMethod: 'FIXED_LOT',
         marginClamped: false,
+        maxLotClamped,
+        warnings: warnings.length > 0 ? warnings : undefined,
       };
     }
 
@@ -110,6 +128,10 @@ export class LotCalculatorService {
       const multiplier = settings.lotMultiplier && settings.lotMultiplier > 0 ? settings.lotMultiplier : 1.0;
       const ratio = masterCapitalUSD > 0 ? (subCapitalUSD / masterCapitalUSD) : 1.0;
       const rawVol = trade.masterVolume * ratio * multiplier;
+      if (settings.maxLotCap && settings.maxLotCap > 0 && rawVol > settings.maxLotCap) {
+        maxLotClamped = true;
+        warnings.push(`Balance-scaled volume (${rawVol.toFixed(2)}) capped by user Max Lot Cap (${settings.maxLotCap.toFixed(2)}).`);
+      }
       const finalVolume = this.stepAndClamp(rawVol, minLot, maxLot, lotStep);
       return {
         finalVolume,
@@ -120,6 +142,8 @@ export class LotCalculatorService {
         slDistance: 0,
         calculationMethod: 'BALANCE_MULTIPLIER',
         marginClamped: false,
+        maxLotClamped,
+        warnings: warnings.length > 0 ? warnings : undefined,
       };
     }
 
@@ -132,6 +156,10 @@ export class LotCalculatorService {
       const masterEquityUSD = this.currencyService.toUSD(masterEquity, masterCurrency);
       const ratio = masterEquityUSD > 0 ? (subEquityUSD / masterEquityUSD) : 1.0;
       const rawVol = trade.masterVolume * ratio * multiplier;
+      if (settings.maxLotCap && settings.maxLotCap > 0 && rawVol > settings.maxLotCap) {
+        maxLotClamped = true;
+        warnings.push(`Equity-scaled volume (${rawVol.toFixed(2)}) capped by user Max Lot Cap (${settings.maxLotCap.toFixed(2)}).`);
+      }
       const finalVolume = this.stepAndClamp(rawVol, minLot, maxLot, lotStep);
       return {
         finalVolume,
@@ -142,6 +170,8 @@ export class LotCalculatorService {
         slDistance: 0,
         calculationMethod: 'EQUITY_MULTIPLIER',
         marginClamped: false,
+        maxLotClamped,
+        warnings: warnings.length > 0 ? warnings : undefined,
       };
     }
 
@@ -190,6 +220,11 @@ export class LotCalculatorService {
       }
     }
 
+    if (settings.maxLotCap && settings.maxLotCap > 0 && rawVol > settings.maxLotCap) {
+      maxLotClamped = true;
+      warnings.push(`Risk-percentage volume (${rawVol.toFixed(2)}) capped by user Max Lot Cap (${settings.maxLotCap.toFixed(2)}).`);
+    }
+
     const finalVolume = this.stepAndClamp(rawVol, minLot, maxLot, lotStep);
 
     return {
@@ -201,6 +236,7 @@ export class LotCalculatorService {
       slDistance,
       calculationMethod,
       marginClamped,
+      maxLotClamped,
       warnings: warnings.length > 0 ? warnings : undefined,
     };
   }

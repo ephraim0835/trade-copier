@@ -13,6 +13,8 @@ export interface RiskProfile {
   masterCurrency?: string;
 
   // From CopySettings
+  riskType?: string;
+  maxLotCap?: number | null;
   riskPercentage: number;
   roundingTolerancePct: number;  // max ADDITIONAL risk from rounding, as % of intendedRisk
   dailyRiskEnabled: boolean;

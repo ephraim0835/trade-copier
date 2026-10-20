@@ -308,6 +308,8 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
       masterInitialBalance: master?.initialBalance,
       masterCurrency: master?.currency,
       riskPercentage: copySettings.riskPercentage ?? 1.0,
+      riskType: copySettings.riskType ?? 'RISK_PERCENT',
+      maxLotCap: copySettings.maxLotCap ?? null,
       roundingTolerancePct: copySettings.roundingTolerancePct ?? 2.0,
       dailyRiskEnabled: copySettings.dailyRiskEnabled ?? false,
       maxDailyRisk: copySettings.maxDailyRisk ?? 0,
@@ -373,6 +375,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
         riskPercentage: copySettings.riskPercentage,
         fixedLotSize: copySettings.fixedLotSize,
         lotMultiplier: copySettings.lotMultiplier,
+        maxLotCap: copySettings.maxLotCap,
       },
       {
         symbol,
@@ -538,6 +541,23 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
         // 4. Enqueue into HotDispatchService
         await this.hotDispatch.enqueueCommand(hotCmd);
         executionCommandsData.push(hotCmd);
+      } else if (decision.state === CopyState.WAITING_FOR_SL) {
+        const timeoutSec = sub.copySettings?.missingSlTimeoutSec || 60;
+        this.logger.log(`[HOTPATH] Copy ${tradeCopyId} for sub ${sub.id} is WAITING_FOR_SL (Timer: ${timeoutSec}s)`);
+
+        // Automatically expire if Master does not provide SL within timeoutSec
+        setTimeout(() => {
+          const currentSignal = this.activeSignalsByTicket.get(dto.ticket.toString());
+          const currentCopy = currentSignal?.copies.get(tradeCopyId);
+          if (currentCopy && currentCopy.state === CopyState.WAITING_FOR_SL) {
+            currentCopy.state = CopyState.REJECTED;
+            this.logger.warn(`[HOTPATH] Copy ${tradeCopyId} timed out after ${timeoutSec}s waiting for Master SL. Marked REJECTED.`);
+            this.asyncPersistence.enqueueTask('UPDATE_COPY_REJECTED', {
+              tradeCopyId,
+              rejectionReason: `Expired: Master did not set Stop Loss within ${timeoutSec}s`,
+            });
+          }
+        }, timeoutSec * 1000);
       }
     }
 

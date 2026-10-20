@@ -110,6 +110,7 @@ model CopySettings {
   riskType                 String     @default("RISK_PERCENT") // RISK_PERCENT, FIXED_LOT, BALANCE_MULTIPLIER, EQUITY_MULTIPLIER
   fixedLotSize             Float      @default(0.01)
   lotMultiplier            Float      @default(1.0)
+  maxLotCap                Float?
   createdAt                DateTime   @default(now())
   updatedAt                DateTime   @updatedAt
   mt5Account               Mt5Account @relation(fields: [mt5AccountId], references: [id])

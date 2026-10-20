@@ -11,7 +11,8 @@ export type PersistenceTaskType =
   | 'UPDATE_COMMAND_RESULT'
   | 'UPDATE_SIGNAL_MODIFY'
   | 'UPDATE_SIGNAL_CLOSE'
-  | 'UPDATE_SIGNAL_TRIGGER';
+  | 'UPDATE_SIGNAL_TRIGGER'
+  | 'UPDATE_COPY_REJECTED';
 
 export interface PersistenceTask {
   id: string;
@@ -336,6 +337,17 @@ export class AsyncPersistenceService implements OnModuleInit, OnModuleDestroy {
             where: { masterOrderTicket: BigInt(orderTicket) },
             data: { masterPositionTicket: BigInt(positionTicket) },
           });
+        });
+        break;
+      }
+
+      case 'UPDATE_COPY_REJECTED': {
+        const { tradeCopyId, rejectionReason } = task.payload;
+        await this.prisma.tradeCopy.updateMany({
+          where: { id: tradeCopyId },
+          data: {
+            state: CopyState.REJECTED,
+          },
         });
         break;
       }

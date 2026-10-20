@@ -52,8 +52,8 @@ export class RiskEngineService {
 
     // ── STEP 1: Missing SL ──────────────────────────────────
     // In live manual trading, traders frequently open market orders without SL (sl=0).
-    // Unless requireTp is ON and TP is missing, trades without SL are approved
-    // immediately using the master's volume.
+    // If the follower is on RISK_PERCENT mode, lot sizing cannot be computed without an SL.
+    // It enters WAITING_FOR_SL and waits for the Master's SL modification within missingSlTimeoutSec.
     if (!signal.sl || signal.sl === 0) {
       if (profile.requireTp && (!signal.tp || signal.tp === 0)) {
         decision.state = CopyState.REJECTED;
@@ -62,6 +62,13 @@ export class RiskEngineService {
       }
       if (profile.maxTradesEnabled && profile.currentActiveTrades >= profile.maxActiveTrades) {
         decision.rejectionReason = `Max active trades reached (${profile.maxActiveTrades})`;
+        return decision;
+      }
+
+      const riskType = (profile.riskType || 'RISK_PERCENT').toUpperCase();
+      if (riskType === 'RISK_PERCENT') {
+        decision.state = CopyState.WAITING_FOR_SL;
+        decision.rejectionReason = 'Waiting for Master to set Stop Loss';
         return decision;
       }
 
