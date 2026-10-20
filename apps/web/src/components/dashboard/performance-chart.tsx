@@ -93,6 +93,16 @@ export function PerformanceChart({ data, height = 260, netProfit }: PerformanceC
     return { start, current, high, low, change, changePct };
   }, [processedData]);
 
+  // True performance determination: negative change or negative net profit renders RED
+  // Must be called unconditionally before any early returns to satisfy React Rules of Hooks
+  const isPositive = useMemo(() => {
+    if (stats.change < 0) return false;
+    if (timeframe === 'ALL' && netProfit !== undefined && netProfit < 0) return false;
+    if (stats.change > 0) return true;
+    if (netProfit !== undefined) return netProfit >= 0;
+    return true;
+  }, [stats.change, timeframe, netProfit]);
+
   if (!mounted) {
     return (
       <div 
@@ -127,14 +137,6 @@ export function PerformanceChart({ data, height = 260, netProfit }: PerformanceC
   const isDark = resolvedTheme === 'dark' || !resolvedTheme || resolvedTheme === 'system';
   const gridColor = isDark ? '#272733' : '#e5e7eb';
   const textColor = isDark ? '#8a8a99' : '#6b7280';
-  // True performance determination: negative change or negative net profit renders RED
-  const isPositive = useMemo(() => {
-    if (stats.change < 0) return false;
-    if (timeframe === 'ALL' && netProfit !== undefined && netProfit < 0) return false;
-    if (stats.change > 0) return true;
-    if (netProfit !== undefined) return netProfit >= 0;
-    return true;
-  }, [stats.change, timeframe, netProfit]);
 
   const strokeColor = isPositive ? '#10b981' : '#f43f5e';
   const gradientId = `equityGradient-${isPositive ? 'pos' : 'neg'}`;
@@ -142,6 +144,9 @@ export function PerformanceChart({ data, height = 260, netProfit }: PerformanceC
 
   const formatCurrencyCompact = (val: number) => {
     const symbol = currency === 'NGN' ? '₦' : '$';
+    if (val === undefined || val === null || isNaN(val) || !isFinite(val)) {
+      return `${symbol}0`;
+    }
     if (Math.abs(val) >= 1_000_000) {
       return `${symbol}${(val / 1_000_000).toFixed(1)}M`;
     }
