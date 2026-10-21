@@ -382,4 +382,328 @@ describe('Copier Sizing & Risk Multiplier Accuracy Matrix', () => {
       expect(copySub3.finalVolume * 350).toBeLessThanOrEqual(396.96 + 0.01);
     });
   });
+
+  // =========================================================================
+  // 5. DIVERSE ASSET CLASSES SIZING (Metals, Energy, Indices, Crypto)
+  // =========================================================================
+  describe('5. Diverse Asset Classes SL Risk Sizing', () => {
+    it('Silver (XAGUSD): $0.30 SL distance = $1,500 loss/lot on Sub 3 @ 1.0% risk ($198.48)', () => {
+      // 0.30 * 5000 = $1,500 loss/lot. $198.48 / 1500 = 0.1323 -> 0.13 lots
+      const res = lotCalc.calculateLotSize(
+        subAccounts.sub3_large_usd,
+        masterAccount,
+        { riskType: 'RISK_PERCENT', riskPercentage: 1.0 },
+        { symbol: 'XAGUSD', orderType: 'BUY', masterVolume: 0.1, entryPrice: 32.50, stopLoss: 32.20 },
+      );
+      expect(res.lossPerLotUSD).toBe(1500);
+      expect(res.finalVolume).toBe(0.13);
+    });
+
+    it('Crude Oil (USOIL / WTI): $0.80 SL distance = $800 loss/lot on Sub 3 @ 1.5% risk ($297.72)', () => {
+      // 0.80 * 1000 = $800 loss/lot. $297.72 / 800 = 0.3721 -> 0.37 lots
+      const res = lotCalc.calculateLotSize(
+        subAccounts.sub3_large_usd,
+        masterAccount,
+        { riskType: 'RISK_PERCENT', riskPercentage: 1.5 },
+        { symbol: 'USOIL', orderType: 'BUY', masterVolume: 0.1, entryPrice: 75.00, stopLoss: 74.20 },
+      );
+      expect(res.lossPerLotUSD).toBe(800);
+      expect(res.finalVolume).toBe(0.37);
+    });
+
+    it('Dow Jones (US30 / DJ30): 200 points SL distance = $200 loss/lot on Sub 3 @ 1.0% risk ($198.48)', () => {
+      // 200 * 1 = $200 loss/lot. $198.48 / 200 = 0.9924 -> 0.99 lots
+      const res = lotCalc.calculateLotSize(
+        subAccounts.sub3_large_usd,
+        masterAccount,
+        { riskType: 'RISK_PERCENT', riskPercentage: 1.0 },
+        { symbol: 'US30', orderType: 'BUY', masterVolume: 1.0, entryPrice: 42000, stopLoss: 41800 },
+      );
+      expect(res.lossPerLotUSD).toBe(200);
+      expect(res.finalVolume).toBe(0.99);
+    });
+
+    it('Nasdaq (NAS100 / US100): 80 points SL distance = $80 loss/lot on Sub 3 @ 1.0% risk ($198.48)', () => {
+      // 80 * 1 = $80 loss/lot. $198.48 / 80 = 2.481 -> 2.48 lots
+      const res = lotCalc.calculateLotSize(
+        subAccounts.sub3_large_usd,
+        masterAccount,
+        { riskType: 'RISK_PERCENT', riskPercentage: 1.0 },
+        { symbol: 'NAS100', orderType: 'BUY', masterVolume: 1.0, entryPrice: 20000, stopLoss: 19920 },
+      );
+      expect(res.lossPerLotUSD).toBe(80);
+      expect(res.finalVolume).toBe(2.48);
+    });
+
+    it('Ethereum (ETHUSD): $80 SL distance = $80 loss/lot on Sub 3 @ 2.0% risk ($396.96)', () => {
+      // 80 * 1 = $80 loss/lot. $396.96 / 80 = 4.962 -> 4.96 lots
+      const res = lotCalc.calculateLotSize(
+        subAccounts.sub3_large_usd,
+        masterAccount,
+        { riskType: 'RISK_PERCENT', riskPercentage: 2.0 },
+        { symbol: 'ETHUSD', orderType: 'BUY', masterVolume: 1.0, entryPrice: 2600, stopLoss: 2520 },
+      );
+      expect(res.lossPerLotUSD).toBe(80);
+      expect(res.finalVolume).toBe(4.96);
+    });
+
+    it('USDJPY with fractional pips: 30 pips SL @ 152.00 entry price on Sub 3 @ 1.0% risk ($198.48)', () => {
+      // (0.30 * 100,000) / 152 = $197.3684 loss/lot. $198.48 / 197.3684 = 1.0056 -> 1.00 lots
+      const res = lotCalc.calculateLotSize(
+        subAccounts.sub3_large_usd,
+        masterAccount,
+        { riskType: 'RISK_PERCENT', riskPercentage: 1.0 },
+        { symbol: 'USDJPY', orderType: 'BUY', masterVolume: 0.1, entryPrice: 152.00, stopLoss: 151.70 },
+      );
+      expect(res.finalVolume).toBe(1.00);
+    });
+  });
+
+  // =========================================================================
+  // 6. MULTI-CURRENCY BASE ACCOUNT SIZING
+  // =========================================================================
+  describe('6. Multi-Currency Base Account Risk Sizing', () => {
+    it('EUR Base Account (€10,000 EUR @ 0.92 EUR/USD) risking 1.0% over 25 pips EURUSD', () => {
+      // €10,000 / 0.92 = $10,869.57 USD. 1% = $108.70. Loss/lot = $250. Lots = 108.70 / 250 = 0.4347 -> 0.43 lots
+      const res = lotCalc.calculateLotSize(
+        { balance: 10000, equity: 10000, currency: 'EUR', leverage: 100 },
+        masterAccount,
+        { riskType: 'RISK_PERCENT', riskPercentage: 1.0 },
+        { symbol: 'EURUSD', orderType: 'BUY', masterVolume: 0.1, entryPrice: 1.1000, stopLoss: 1.0975 },
+      );
+      expect(res.finalVolume).toBe(0.43);
+    });
+
+    it('GBP Base Account (£10,000 GBP @ 0.78 GBP/USD) risking 1.0% over 25 pips EURUSD', () => {
+      // £10,000 / 0.78 = $12,820.51 USD. 1% = $128.21. Lots = 128.21 / 250 = 0.5128 -> 0.51 lots
+      const res = lotCalc.calculateLotSize(
+        { balance: 10000, equity: 10000, currency: 'GBP', leverage: 100 },
+        masterAccount,
+        { riskType: 'RISK_PERCENT', riskPercentage: 1.0 },
+        { symbol: 'EURUSD', orderType: 'BUY', masterVolume: 0.1, entryPrice: 1.1000, stopLoss: 1.0975 },
+      );
+      expect(res.finalVolume).toBe(0.51);
+    });
+
+    it('JPY Base Account (¥1,000,000 JPY @ 152 JPY/USD) risking 1.0% over 25 pips EURUSD', () => {
+      // ¥1,000,000 / 152 = $6,578.95 USD. 1% = $65.79. Lots = 65.79 / 250 = 0.2631 -> 0.26 lots
+      const res = lotCalc.calculateLotSize(
+        { balance: 1000000, equity: 1000000, currency: 'JPY', leverage: 100 },
+        masterAccount,
+        { riskType: 'RISK_PERCENT', riskPercentage: 1.0 },
+        { symbol: 'EURUSD', orderType: 'BUY', masterVolume: 0.1, entryPrice: 1.1000, stopLoss: 1.0975 },
+      );
+      expect(res.finalVolume).toBe(0.26);
+    });
+
+    it('CAD Base Account ($10,000 CAD @ 1.38 CAD/USD) risking 1.0% over 25 pips EURUSD', () => {
+      // $10,000 / 1.38 = $7,246.38 USD. 1% = $72.46. Lots = 72.46 / 250 = 0.2898 -> 0.28 lots
+      const res = lotCalc.calculateLotSize(
+        { balance: 10000, equity: 10000, currency: 'CAD', leverage: 100 },
+        masterAccount,
+        { riskType: 'RISK_PERCENT', riskPercentage: 1.0 },
+        { symbol: 'EURUSD', orderType: 'BUY', masterVolume: 0.1, entryPrice: 1.1000, stopLoss: 1.0975 },
+      );
+      expect(res.finalVolume).toBe(0.28);
+    });
+
+    it('AUD Base Account ($10,000 AUD @ 1.53 AUD/USD) risking 1.0% over 25 pips EURUSD', () => {
+      // $10,000 / 1.53 = $6,535.95 USD. 1% = $65.36. Lots = 65.36 / 250 = 0.2614 -> 0.26 lots
+      const res = lotCalc.calculateLotSize(
+        { balance: 10000, equity: 10000, currency: 'AUD', leverage: 100 },
+        masterAccount,
+        { riskType: 'RISK_PERCENT', riskPercentage: 1.0 },
+        { symbol: 'EURUSD', orderType: 'BUY', masterVolume: 0.1, entryPrice: 1.1000, stopLoss: 1.0975 },
+      );
+      expect(res.finalVolume).toBe(0.26);
+    });
+
+    it('ZAR Base Account (R100,000 ZAR @ 18.2 ZAR/USD) risking 1.0% over 25 pips EURUSD', () => {
+      // R100,000 / 18.2 = $5,494.51 USD. 1% = $54.95. Lots = 54.95 / 250 = 0.2197 -> 0.21 lots
+      const res = lotCalc.calculateLotSize(
+        { balance: 100000, equity: 100000, currency: 'ZAR', leverage: 100 },
+        masterAccount,
+        { riskType: 'RISK_PERCENT', riskPercentage: 1.0 },
+        { symbol: 'EURUSD', orderType: 'BUY', masterVolume: 0.1, entryPrice: 1.1000, stopLoss: 1.0975 },
+      );
+      expect(res.finalVolume).toBe(0.21);
+    });
+  });
+
+  // =========================================================================
+  // 7. PROP FIRM $100,000 CHALLENGE ACCOUNT RISK TIERS
+  // =========================================================================
+  describe('7. Prop Firm $100,000 Challenge Account Risk Tiers', () => {
+    const propAccount = {
+      balance: 100000.0,
+      equity: 100000.0,
+      freeMargin: 100000.0,
+      currency: 'USD',
+      leverage: 100,
+    };
+
+    it('Prop Firm $100k Account @ 0.25% Risk ($250 cash risk) over 25 pips EURUSD ($250/lot) = 1.00 lots', () => {
+      const res = lotCalc.calculateLotSize(
+        propAccount,
+        masterAccount,
+        { riskType: 'RISK_PERCENT', riskPercentage: 0.25 },
+        { symbol: 'EURUSD', orderType: 'BUY', masterVolume: 0.1, entryPrice: 1.1000, stopLoss: 1.0975 },
+      );
+      expect(res.finalVolume).toBe(1.00);
+    });
+
+    it('Prop Firm $100k Account @ 0.50% Risk ($500 cash risk) over 25 pips EURUSD ($250/lot) = 2.00 lots', () => {
+      const res = lotCalc.calculateLotSize(
+        propAccount,
+        masterAccount,
+        { riskType: 'RISK_PERCENT', riskPercentage: 0.50 },
+        { symbol: 'EURUSD', orderType: 'BUY', masterVolume: 0.1, entryPrice: 1.1000, stopLoss: 1.0975 },
+      );
+      expect(res.finalVolume).toBe(2.00);
+    });
+
+    it('Prop Firm $100k Account @ 1.00% Risk ($1,000 cash risk) over 25 pips EURUSD ($250/lot) = 4.00 lots', () => {
+      const res = lotCalc.calculateLotSize(
+        propAccount,
+        masterAccount,
+        { riskType: 'RISK_PERCENT', riskPercentage: 1.00 },
+        { symbol: 'EURUSD', orderType: 'BUY', masterVolume: 0.1, entryPrice: 1.1000, stopLoss: 1.0975 },
+      );
+      expect(res.finalVolume).toBe(4.00);
+    });
+
+    it('Prop Firm $100k Account @ 2.00% Risk ($2,000 cash risk) over 25 pips EURUSD ($250/lot) = 8.00 lots', () => {
+      const res = lotCalc.calculateLotSize(
+        propAccount,
+        masterAccount,
+        { riskType: 'RISK_PERCENT', riskPercentage: 2.00 },
+        { symbol: 'EURUSD', orderType: 'BUY', masterVolume: 0.1, entryPrice: 1.1000, stopLoss: 1.0975 },
+      );
+      expect(res.finalVolume).toBe(8.00);
+    });
+  });
+
+  // =========================================================================
+  // 8. SAFETY CONSTRAINTS & CLAMPING EDGE CASES
+  // =========================================================================
+  describe('8. Safety Constraints & Clamping Edge Cases', () => {
+    it('Free Margin Safety Threshold clamps volume when free margin is nearly exhausted', () => {
+      const lowMarginAccount = {
+        balance: 10000,
+        equity: 10000,
+        freeMargin: 100, // Only $100 free margin left!
+        currency: 'USD',
+        leverage: 100,
+      };
+      const res = lotCalc.calculateLotSize(
+        lowMarginAccount,
+        masterAccount,
+        { riskType: 'RISK_PERCENT', riskPercentage: 5.0 },
+        { symbol: 'EURUSD', orderType: 'BUY', masterVolume: 1.0, entryPrice: 1.1000, stopLoss: 1.0980 },
+      );
+      expect(res.marginClamped).toBe(true);
+      expect(res.finalVolume).toBeLessThan(1.0);
+    });
+
+    it('User Max Lot Cap takes precedence over large calculated risk volume', () => {
+      const res = lotCalc.calculateLotSize(
+        subAccounts.sub3_large_usd,
+        masterAccount,
+        { riskType: 'RISK_PERCENT', riskPercentage: 5.0, maxLotCap: 0.50 },
+        { symbol: 'EURUSD', orderType: 'BUY', masterVolume: 1.0, entryPrice: 1.1000, stopLoss: 1.0980 },
+      );
+      expect(res.maxLotClamped).toBe(true);
+      expect(res.finalVolume).toBe(0.50);
+    });
+
+    it('Broker maxLot ceiling clamps extreme volume requests', () => {
+      const hugeAccount = {
+        balance: 5000000,
+        equity: 5000000,
+        currency: 'USD',
+        leverage: 100,
+      };
+      const res = lotCalc.calculateLotSize(
+        hugeAccount,
+        masterAccount,
+        { riskType: 'RISK_PERCENT', riskPercentage: 10.0 },
+        { symbol: 'EURUSD', orderType: 'BUY', masterVolume: 1.0, entryPrice: 1.1000, stopLoss: 1.0980 },
+        { minLot: 0.01, maxLot: 100.0, lotStep: 0.01 },
+      );
+      expect(res.finalVolume).toBe(100.0);
+    });
+
+    it('Broker minLot floor clamps micro volume requests to 0.01 lots', () => {
+      const microAccount = {
+        balance: 10.0, // $10 micro account
+        equity: 10.0,
+        currency: 'USD',
+        leverage: 100,
+      };
+      const res = lotCalc.calculateLotSize(
+        microAccount,
+        masterAccount,
+        { riskType: 'RISK_PERCENT', riskPercentage: 1.0 }, // 10 cents risk
+        { symbol: 'EURUSD', orderType: 'BUY', masterVolume: 0.01, entryPrice: 1.1000, stopLoss: 1.0950 },
+      );
+      expect(res.finalVolume).toBe(0.01);
+    });
+
+    it('Broker volume stepping (0.05 step) steps volume properly without illegal fractional lots', () => {
+      const res = lotCalc.calculateLotSize(
+        subAccounts.sub3_large_usd,
+        masterAccount,
+        { riskType: 'RISK_PERCENT', riskPercentage: 1.0 }, // $198.48 risk
+        { symbol: 'EURUSD', orderType: 'BUY', masterVolume: 0.1, entryPrice: 1.1000, stopLoss: 1.0975 }, // $250 loss/lot -> 0.7939 lots
+        { minLot: 0.05, maxLot: 100.0, lotStep: 0.05 },
+      );
+      expect(res.finalVolume).toBe(0.75); // stepped down to nearest 0.05
+    });
+  });
+
+  // =========================================================================
+  // 9. MISSING SL & IRREGULAR ORDER SAFE FALLBACKS
+  // =========================================================================
+  describe('9. Missing SL & Fallback Scaling Accuracy', () => {
+    it('Missing Stop Loss (SL = 0) safely falls back to FALLBACK_PROPORTIONAL capital ratio scaling', () => {
+      // Sub 3: $19,848.10, Master: $1,055.44 -> Ratio = 18.805
+      // Master: 0.10 lots -> Sub: 1.88 lots
+      const res = lotCalc.calculateLotSize(
+        subAccounts.sub3_large_usd,
+        masterAccount,
+        { riskType: 'RISK_PERCENT', riskPercentage: 1.0 },
+        { symbol: 'EURUSD', orderType: 'BUY', masterVolume: 0.10, entryPrice: 1.1000, stopLoss: 0.0 },
+      );
+      expect(res.calculationMethod).toBe('FALLBACK_PROPORTIONAL');
+      expect(res.finalVolume).toBe(1.88);
+    });
+
+    it('Inverted Stop Loss safely computes positive absolute point distance', () => {
+      const res = lotCalc.calculateLotSize(
+        subAccounts.sub3_large_usd,
+        masterAccount,
+        { riskType: 'RISK_PERCENT', riskPercentage: 1.0 },
+        { symbol: 'EURUSD', orderType: 'BUY', masterVolume: 0.10, entryPrice: 1.1000, stopLoss: 1.1025 }, // SL above entry
+      );
+      expect(res.calculationMethod).toBe('SL_RISK_PERCENT');
+      expect(res.lossPerLotUSD).toBe(250);
+      expect(res.finalVolume).toBe(0.79);
+    });
+
+    it('Tiny balance ($1.00) safely clamps to minimum lot (0.01) without arithmetic underflow', () => {
+      const microAccount = {
+        balance: 1.0,
+        equity: 1.0,
+        currency: 'USD',
+      };
+      const res = lotCalc.calculateLotSize(
+        microAccount,
+        masterAccount,
+        { riskType: 'RISK_PERCENT', riskPercentage: 1.0 },
+        { symbol: 'EURUSD', orderType: 'BUY', masterVolume: 0.10, entryPrice: 1.1000, stopLoss: 1.0975 },
+      );
+      expect(res.finalVolume).toBe(0.01);
+    });
+  });
 });
+
