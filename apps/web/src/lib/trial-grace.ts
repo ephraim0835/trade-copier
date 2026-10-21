@@ -17,6 +17,23 @@ export interface TrialGraceStatus {
 }
 
 /**
+ * Adds business days (Monday through Friday) to a given start date,
+ * strictly skipping Saturdays and Sundays.
+ */
+export function addBusinessDays(startDate: Date, numDays: number): Date {
+  const result = new Date(startDate.getTime());
+  let daysAdded = 0;
+  while (daysAdded < numDays) {
+    result.setDate(result.getDate() + 1);
+    const dayOfWeek = result.getDay(); // 0 is Sunday, 6 is Saturday
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      daysAdded++;
+    }
+  }
+  return result;
+}
+
+/**
  * Calculates whether user is on trial, if trial expired,
  * and if they are within the 3-day grace period to select a plan.
  */

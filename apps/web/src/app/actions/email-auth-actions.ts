@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { sendVerificationEmail, sendPasswordResetEmail } from '@/lib/email';
 import { randomBytes } from 'crypto';
 import * as argon2 from 'argon2';
+import { addBusinessDays } from '@/lib/trial-grace';
 
 export async function registerUser(email: string, passwordPlain: string, name: string) {
   try {
@@ -12,7 +13,8 @@ export async function registerUser(email: string, passwordPlain: string, name: s
 
     const passwordHash = await argon2.hash(passwordPlain);
 
-    const trialEndsAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+    // 5 Full Business Days (skipping Saturdays & Sundays)
+    const trialEndsAt = addBusinessDays(new Date(), 5);
 
     const user = await prisma.user.create({
       data: {

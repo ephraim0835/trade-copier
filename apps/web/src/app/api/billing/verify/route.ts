@@ -67,34 +67,31 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // 1. Ownership validation: Verify customer email matches authenticated session
+    // 1. Transaction Ownership Validation
     const customerEmail = verifiedData.customer?.email?.toLowerCase().trim();
     const sessionEmail = session.user.email.toLowerCase().trim();
-    if (customerEmail && customerEmail !== sessionEmail) {
-      console.warn(`[Security] Billing IDOR attempt: session user ${sessionEmail} tried to claim transaction for ${customerEmail}`);
+    const finalTxRef = verifiedData.tx_ref || tx_ref;
+
+    // Check ownership through any of the secure links:
+    // a) tx_ref starts with `tx-${user.id}-`
+    // b) meta.userId equals user.id
+    // c) customer.email equals active session email
+    // d) user.subscription?.flutterwaveTxRef equals finalTxRef
+    const isMatchingUserTx = Boolean(finalTxRef && finalTxRef.startsWith(`tx-${user.id}-`));
+    const isMatchingMetaUser = verifiedData.meta?.userId === user.id;
+    const isMatchingEmail = Boolean(customerEmail && customerEmail === sessionEmail);
+    const isMatchingSavedIntent = Boolean(user.subscription?.flutterwaveTxRef && user.subscription.flutterwaveTxRef === finalTxRef);
+
+    if (!isMatchingUserTx && !isMatchingMetaUser && !isMatchingEmail && !isMatchingSavedIntent) {
+      console.warn(`[Security] Billing IDOR attempt: user ${user.id} (${sessionEmail}) tried to claim unowned transaction ${finalTxRef}`);
       return NextResponse.json({
         success: false,
-        error: "Transaction customer does not match the active account user."
+        error: "Transaction reference or customer does not match your active account."
       }, { status: 403 });
     }
 
-    // 2. Ownership & format validation on tx_ref
-    const finalTxRef = verifiedData.tx_ref || tx_ref;
+    // 2. Replay attack prevention: Ensure tx_ref has not already been claimed by another user
     if (finalTxRef) {
-      // If tx_ref follows the standard pattern tx-{userId}-..., verify user id matches
-      if (finalTxRef.startsWith("tx-")) {
-        const parts = finalTxRef.split("-");
-        const refUserId = parts[1];
-        if (refUserId && refUserId !== user.id) {
-          console.warn(`[Security] Billing IDOR attempt: user ${user.id} tried to claim tx_ref ${finalTxRef} belonging to ${refUserId}`);
-          return NextResponse.json({
-            success: false,
-            error: "Transaction reference does not match your user account."
-          }, { status: 403 });
-        }
-      }
-
-      // 3. Replay attack prevention: Ensure tx_ref has not already been claimed by another user
       const existingSub = await prisma.subscription.findFirst({
         where: {
           flutterwaveTxRef: finalTxRef,

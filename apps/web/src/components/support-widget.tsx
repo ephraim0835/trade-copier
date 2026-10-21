@@ -143,7 +143,7 @@ export function SupportWidget({
   return (
     <>
       {/* Floating Support Button */}
-      <aside aria-label="Support Desk" className="fixed bottom-20 lg:bottom-6 right-6 z-40">
+      <aside aria-label="Support Desk" className="fixed bottom-24 lg:bottom-6 right-4 sm:right-6 z-40">
         <button
           type="button"
           onClick={() => setIsOpen(true)}
@@ -158,9 +158,9 @@ export function SupportWidget({
 
       {/* Support Drawer / Modal */}
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-end sm:justify-end sm:p-6 bg-background/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-end sm:justify-end sm:p-6 bg-background/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div 
-            className="bg-card border border-border/80 w-full sm:w-[440px] h-[90vh] sm:h-[660px] max-h-[95vh] rounded-t-[32px] sm:rounded-[32px] shadow-2xl flex flex-col overflow-hidden relative animate-in slide-in-from-bottom-6 sm:slide-in-from-right-6 duration-200"
+            className="bg-card border border-border/80 w-full sm:w-[440px] h-[92vh] sm:h-[660px] max-h-[96vh] rounded-t-[32px] sm:rounded-[32px] shadow-2xl flex flex-col overflow-hidden relative animate-in slide-in-from-bottom-6 sm:slide-in-from-right-6 duration-200 pb-safe"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -277,7 +277,7 @@ export function SupportWidget({
                 </div>
 
                 {/* Reply Input */}
-                <form onSubmit={handleSendReply} className="p-3 border-t border-border/40 bg-card flex gap-2">
+                <form onSubmit={handleSendReply} className="p-3 pb-8 sm:pb-3 border-t border-border/40 bg-card flex gap-2 shrink-0">
                   <input
                     type="text"
                     value={replyText}
@@ -456,7 +456,7 @@ export function SupportWidget({
                     <button
                       type="submit"
                       disabled={submitting}
-                      className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-md shadow-primary/20"
+                      className="w-full py-3.5 mb-8 sm:mb-0 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-md shadow-primary/20 shrink-0"
                     >
                       {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                       <span>Submit Support Ticket</span>

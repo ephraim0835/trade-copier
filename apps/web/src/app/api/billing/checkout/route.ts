@@ -75,8 +75,12 @@ export async function POST(req: NextRequest) {
       }, { status: 500 });
     }
 
-    // The base URL of the application
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.FRONTEND_URL || req.nextUrl.origin;
+    // The base URL of the application (dynamically respects local dev vs production)
+    const origin = req.nextUrl?.origin;
+    const isLocal = origin && (origin.includes('localhost') || origin.includes('127.0.0.1'));
+    const appUrl = isLocal 
+      ? origin 
+      : (process.env.NEXT_PUBLIC_APP_URL || process.env.FRONTEND_URL || origin || 'https://plaiz-markets.vercel.app');
     const redirect_url = `${appUrl}/billing/verify?tx_ref=${tx_ref}&plan=${planId}`;
 
     const payload = {
