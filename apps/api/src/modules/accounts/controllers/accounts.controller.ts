@@ -17,9 +17,10 @@ export class AccountsController {
   @Get()
   @UseGuards(AuthGuard('jwt'))
   async getAccounts(@Request() req: any) {
-    return this.prisma.mt5Account.findMany({
+    const accounts = await this.prisma.mt5Account.findMany({
       where: { userId: req.user.userId },
     });
+    return accounts.map(({ password, ...safeAccount }) => safeAccount);
   }
 
   @Patch(':accountId/settings')

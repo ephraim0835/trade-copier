@@ -93,8 +93,8 @@ export default async function AccountsPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {accounts.map((account: any) => (
-          <SubAccountCard key={account.id} account={account} />
+        {accounts.map(({ password, ...safeAccount }: any) => (
+          <SubAccountCard key={safeAccount.id} account={safeAccount} />
         ))}
 
         {accounts.length === 0 && (

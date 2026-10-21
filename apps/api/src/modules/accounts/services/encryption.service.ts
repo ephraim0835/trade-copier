@@ -10,6 +10,9 @@ export class EncryptionService {
   constructor() {
     const hexKey = process.env.ENCRYPTION_KEY;
     if (!hexKey) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('FATAL: ENCRYPTION_KEY environment variable is required in production.');
+      }
       this.logger.warn('ENCRYPTION_KEY environment variable is missing! Falling back to empty key (NOT SECURE)');
       this.key = Buffer.alloc(32); // 32 bytes of zeros
     } else {
