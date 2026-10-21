@@ -71,8 +71,20 @@ export function SupportWidget({
 
   useEffect(() => {
     if (isOpen) {
+      if (typeof document !== 'undefined') {
+        document.body.classList.add('support-widget-open');
+      }
       fetchTickets();
+    } else {
+      if (typeof document !== 'undefined') {
+        document.body.classList.remove('support-widget-open');
+      }
     }
+    return () => {
+      if (typeof document !== 'undefined') {
+        document.body.classList.remove('support-widget-open');
+      }
+    };
   }, [isOpen]);
 
   useEffect(() => {
@@ -158,9 +170,13 @@ export function SupportWidget({
 
       {/* Support Drawer / Modal */}
       {isOpen && (
-        <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-end sm:justify-end sm:p-6 bg-background/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div 
+          className="fixed inset-0 flex items-end sm:items-center justify-end sm:justify-end sm:p-6 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200"
+          style={{ zIndex: 99999 }}
+        >
           <div 
-            className="bg-card border border-border/80 w-full sm:w-[440px] h-[92vh] sm:h-[660px] max-h-[96vh] rounded-t-[32px] sm:rounded-[32px] shadow-2xl flex flex-col overflow-hidden relative animate-in slide-in-from-bottom-6 sm:slide-in-from-right-6 duration-200 pb-safe"
+            className="bg-card border border-border/80 w-full sm:w-[440px] h-[86dvh] sm:h-[660px] max-h-[88dvh] sm:max-h-[90vh] rounded-t-[32px] sm:rounded-[32px] shadow-2xl flex flex-col overflow-hidden relative animate-in slide-in-from-bottom-6 sm:slide-in-from-right-6 duration-200"
+            style={{ zIndex: 100000 }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -277,20 +293,31 @@ export function SupportWidget({
                 </div>
 
                 {/* Reply Input */}
-                <form onSubmit={handleSendReply} className="p-3 pb-8 sm:pb-3 border-t border-border/40 bg-card flex gap-2 shrink-0">
+                <form 
+                  onSubmit={handleSendReply} 
+                  className="p-3 sm:p-3.5 border-t border-border/40 bg-card flex items-center gap-2 shrink-0 z-20"
+                  style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 16px), 16px)' }}
+                >
                   <input
                     type="text"
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
                     placeholder="Type your message..."
-                    className="flex-1 bg-background border border-border/50 rounded-xl px-3.5 py-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="flex-1 bg-background border border-border/50 rounded-xl px-3.5 py-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary min-w-0"
                   />
                   <button
                     type="submit"
                     disabled={sendingReply || !replyText.trim()}
-                    className="p-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all disabled:opacity-50 shrink-0"
+                    className="px-4 py-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-xs flex items-center gap-1.5 shadow-md shadow-primary/20 shrink-0 disabled:opacity-50 transition-all cursor-pointer"
                   >
-                    {sendingReply ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    {sendingReply ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        <span>Send</span>
+                        <Send className="w-3.5 h-3.5" />
+                      </>
+                    )}
                   </button>
                 </form>
               </div>
@@ -395,72 +422,80 @@ export function SupportWidget({
                   </div>
                 ) : (
                   /* Tab: New Ticket Form */
-                  <form onSubmit={handleCreateTicket} className="flex-1 p-4 overflow-y-auto custom-scrollbar flex flex-col gap-3.5">
-                    <div>
-                      <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-                        Category
-                      </label>
-                      <select
-                        value={category}
-                        onChange={(e) => setCategory(e.target.value)}
-                        className="w-full bg-background border border-border/50 rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                      >
-                        <option value="TECHNICAL">Technical / MT5 Connection</option>
-                        <option value="RISK_ENGINE">Lotsize & Risk Engine</option>
-                        <option value="BROKER">Broker / Prop Firm Compatibility</option>
-                        <option value="BILLING">Billing & Subscriptions</option>
-                        <option value="GENERAL">General Inquiry</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-                        Subject
-                      </label>
-                      <input
-                        type="text"
-                        value={subject}
-                        onChange={(e) => setSubject(e.target.value)}
-                        placeholder="e.g. Question about lot size calculation on XAUUSD"
-                        className="w-full bg-background border border-border/50 rounded-xl px-3.5 py-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
-                    </div>
-
-                    <div className="flex-1 flex flex-col">
-                      <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
-                        Message Details
-                      </label>
-                      <textarea
-                        rows={4}
-                        value={message}
-                        onChange={(e) => setMessage(e.target.value)}
-                        placeholder="Describe your issue or question in detail..."
-                        className="flex-1 min-h-[120px] bg-background border border-border/50 rounded-xl p-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none"
-                      />
-                    </div>
-
-                    {errorMsg && (
-                      <div className="p-2.5 rounded-xl bg-destructive/10 text-destructive text-[11px] font-medium flex items-center gap-1.5">
-                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                        <span>{errorMsg}</span>
+                  <form onSubmit={handleCreateTicket} className="flex-1 flex flex-col min-h-0">
+                    <div className="flex-1 p-4 overflow-y-auto custom-scrollbar flex flex-col gap-3.5">
+                      <div>
+                        <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                          Category
+                        </label>
+                        <select
+                          value={category}
+                          onChange={(e) => setCategory(e.target.value)}
+                          className="w-full bg-background border border-border/50 rounded-xl px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                        >
+                          <option value="TECHNICAL">Technical / MT5 Connection</option>
+                          <option value="RISK_ENGINE">Lotsize & Risk Engine</option>
+                          <option value="BROKER">Broker / Prop Firm Compatibility</option>
+                          <option value="BILLING">Billing & Subscriptions</option>
+                          <option value="GENERAL">General Inquiry</option>
+                        </select>
                       </div>
-                    )}
 
-                    {successMsg && (
-                      <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-500 text-[11px] font-medium flex items-center gap-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                        <span>{successMsg}</span>
+                      <div>
+                        <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                          Subject
+                        </label>
+                        <input
+                          type="text"
+                          value={subject}
+                          onChange={(e) => setSubject(e.target.value)}
+                          placeholder="e.g. Question about lot size calculation on XAUUSD"
+                          className="w-full bg-background border border-border/50 rounded-xl px-3.5 py-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
                       </div>
-                    )}
 
-                    <button
-                      type="submit"
-                      disabled={submitting}
-                      className="w-full py-3.5 mb-8 sm:mb-0 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-md shadow-primary/20 shrink-0"
+                      <div className="flex-1 flex flex-col min-h-[110px]">
+                        <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                          Message Details
+                        </label>
+                        <textarea
+                          rows={4}
+                          value={message}
+                          onChange={(e) => setMessage(e.target.value)}
+                          placeholder="Describe your issue or question in detail..."
+                          className="flex-1 min-h-[110px] bg-background border border-border/50 rounded-xl p-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+                        />
+                      </div>
+
+                      {errorMsg && (
+                        <div className="p-2.5 rounded-xl bg-destructive/10 text-destructive text-[11px] font-medium flex items-center gap-1.5">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          <span>{errorMsg}</span>
+                        </div>
+                      )}
+
+                      {successMsg && (
+                        <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-500 text-[11px] font-medium flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                          <span>{successMsg}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Fixed / Pinned Submit Action Footer */}
+                    <div 
+                      className="p-3 sm:p-4 border-t border-border/40 bg-card shrink-0 z-20"
+                      style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 16px), 16px)' }}
                     >
-                      {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                      <span>Submit Support Ticket</span>
-                    </button>
+                      <button
+                        type="submit"
+                        disabled={submitting}
+                        className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-md shadow-primary/20 shrink-0 cursor-pointer"
+                      >
+                        {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                        <span>Submit Support Ticket</span>
+                      </button>
+                    </div>
                   </form>
                 )}
               </div>

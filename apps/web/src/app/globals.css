@@ -174,4 +174,9 @@
   .custom-scrollbar:hover::-webkit-scrollbar-thumb {
     @apply bg-muted-foreground/50;
   }
+
+  /* Automatically hide mobile bottom navigation bar when Support Desk modal is open */
+  body.support-widget-open .bottom-nav-container {
+    display: none !important;
+  }
 }

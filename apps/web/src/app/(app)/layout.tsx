@@ -70,8 +70,8 @@ export default async function AppLayout({
                     {children}
                   </div>
                 </main>
-                <SupportWidget />
                 <BottomNav isAdmin={user.role === 'ADMIN' || user.role === 'OWNER'} />
+                <SupportWidget />
               </div>
             </div>
           </RealtimeProvider>
