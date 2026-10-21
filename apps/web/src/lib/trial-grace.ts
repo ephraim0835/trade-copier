@@ -5,6 +5,8 @@ export interface TrialGraceStatus {
   isPaidOrAdmin: boolean;
   isTrialExpired: boolean;
   trialEndsAt: Date | null;
+  trialDaysRemaining?: number;
+  trialHoursRemaining?: number;
   inGracePeriod: boolean;
   gracePeriodEndsAt: Date | null;
   graceHoursRemaining: number;
@@ -34,6 +36,26 @@ export function addBusinessDays(startDate: Date, numDays: number): Date {
 }
 
 /**
+ * Calculates remaining trading/business days between now and targetDate,
+ * strictly skipping Saturdays and Sundays.
+ */
+export function getBusinessDaysRemaining(targetDate: Date): number {
+  const now = new Date();
+  if (now >= targetDate) return 0;
+  
+  let count = 0;
+  const current = new Date(now.getTime());
+  while (current < targetDate) {
+    const day = current.getDay();
+    if (day !== 0 && day !== 6) {
+      count++;
+    }
+    current.setDate(current.getDate() + 1);
+  }
+  return Math.max(1, count);
+}
+
+/**
  * Calculates whether user is on trial, if trial expired,
  * and if they are within the 3-day grace period to select a plan.
  */
@@ -55,6 +77,8 @@ export function getTrialGraceStatus(user: {
       isPaidOrAdmin: true,
       isTrialExpired: false,
       trialEndsAt: null,
+      trialDaysRemaining: 0,
+      trialHoursRemaining: 0,
       inGracePeriod: false,
       gracePeriodEndsAt: null,
       graceHoursRemaining: 0,
@@ -76,6 +100,8 @@ export function getTrialGraceStatus(user: {
       isPaidOrAdmin: false,
       isTrialExpired: true,
       trialEndsAt: null,
+      trialDaysRemaining: 0,
+      trialHoursRemaining: 0,
       inGracePeriod: false,
       gracePeriodEndsAt: null,
       graceHoursRemaining: 0,
@@ -103,10 +129,18 @@ export function getTrialGraceStatus(user: {
   const graceHoursRemaining = Math.floor(msRemaining / (1000 * 60 * 60));
   const graceDaysRemaining = Math.ceil(msRemaining / (1000 * 60 * 60 * 24));
 
+  const msUntilTrialEnd = Math.max(0, trialEndMs - now);
+  const trialHoursRemaining = Math.floor(msUntilTrialEnd / (1000 * 60 * 60));
+  const trialDaysRemaining = getBusinessDaysRemaining(currentPeriodEnd);
+
   let bannerTitle: string | undefined;
   let bannerMessage: string | undefined;
 
-  if (inGracePeriod) {
+  if (!isTrialExpired) {
+    const daysLabel = trialDaysRemaining === 1 ? '1 trading day' : `${trialDaysRemaining} trading days`;
+    bannerTitle = `5-Day Free Trial Active (${daysLabel} remaining)`;
+    bannerMessage = `You are on a 5-day free trial (${daysLabel} left, weekends excluded). Enjoy full platform access to automated trade copying.`;
+  } else if (inGracePeriod) {
     const timeLabel = graceDaysRemaining > 1 ? `${graceDaysRemaining} days` : `${graceHoursRemaining} hours`;
     bannerTitle = `Trial Expired — 3-Day Grace Period (${timeLabel} remaining)`;
     bannerMessage = `Your 5-day free trial has expired. You have ${timeLabel} left in your 3-day grace period to select a plan. Trade copying is paused, and your existing connected MT5 accounts will be automatically cleared when this grace period ends.`;
@@ -120,6 +154,8 @@ export function getTrialGraceStatus(user: {
     isPaidOrAdmin: false,
     isTrialExpired,
     trialEndsAt: currentPeriodEnd,
+    trialDaysRemaining,
+    trialHoursRemaining,
     inGracePeriod,
     gracePeriodEndsAt,
     graceHoursRemaining,

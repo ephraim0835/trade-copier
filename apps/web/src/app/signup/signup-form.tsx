@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Lock, Mail, Eye, EyeOff, User } from "lucide-react";
+import { Lock, Mail, Eye, EyeOff, User, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { sendVerification, registerUser } from "@/app/actions/email-auth-actions";
@@ -65,7 +65,10 @@ export function SignupForm() {
 
       // Send verification email
       sessionStorage.setItem('signup_email', email);
-      await sendVerification(email);
+      const verifyRes = await sendVerification(email);
+      if (verifyRes?.expiresAt) {
+        sessionStorage.setItem('verification_link_expiry', verifyRes.expiresAt.toString());
+      }
 
       // Establish session
       await signIn("credentials", {
@@ -89,6 +92,10 @@ export function SignupForm() {
       <div className="text-center flex flex-col items-center">
         <img src="/plaiz-logo.png" alt="Plaiz Markets Logo" className="h-12 w-auto mb-6" />
         <h2 className="text-3xl font-bold tracking-tight text-foreground">Create Account</h2>
+        <div className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs font-semibold">
+          <Sparkles className="w-3.5 h-3.5 shrink-0" />
+          <span>Includes 5-Day Free Trial (Weekends Excluded)</span>
+        </div>
         <p className="mt-2 text-[13px] text-muted-foreground">
           Join Plaiz Markets to start copying trades
         </p>

@@ -4,25 +4,28 @@ const resend = new Resend(process.env.RESEND_API_KEY || 're_dummy');
 const FROM = 'Plaiz Markets <noreply@plaiz-markets.online>';
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://plaiz-markets.online';
 
-export async function sendVerificationEmail(email: string, name: string, token: string) {
-  const link = `${BASE_URL}/verify-email/confirm?token=${token}`;
+export async function sendVerificationEmail(email: string, name: string, token: string, expiresAtMs?: number) {
+  const expParam = expiresAtMs ? `&exp=${expiresAtMs}` : '';
+  const link = `${BASE_URL}/verify-email/confirm?token=${token}${expParam}`;
   await resend.emails.send({
     from: FROM,
     to: email,
-    subject: 'Verify your Plaiz Markets account',
+    subject: 'Verify your email — Activate your 5-Day Free Trial | Plaiz Markets',
     html: emailTemplate({
       title: 'Verify your email',
-      preheader: 'One click and you\'re in.',
+      preheader: 'Your 5-Day Free Trial is waiting (trading days only, weekends excluded).',
       body: `
         <p style="margin:0 0 16px;font-size:16px;color:#a1a1aa;">Hi ${name || 'there'},</p>
+        <p style="margin:0 0 16px;font-size:16px;color:#a1a1aa;">
+          Welcome to <strong style="color:#fff;">Plaiz Markets</strong>! Your <strong style="color:#10b981;">5-Day Free Trial</strong> (5 full trading days, weekends excluded) is ready to be activated.
+        </p>
         <p style="margin:0 0 32px;font-size:16px;color:#a1a1aa;">
-          Thanks for signing up for <strong style="color:#fff;">Plaiz Markets</strong>. 
-          Click the button below to verify your email address and activate your account.
+          Click the button below to verify your email address and unlock your trading dashboard.
         </p>
       `,
-      ctaLabel: 'Verify Email Address',
+      ctaLabel: 'Verify Email & Start 5-Day Trial',
       ctaUrl: link,
-      footer: 'This link expires in 24 hours. If you didn\'t create an account, you can safely ignore this email.',
+      footer: '⏳ This verification link expires in 15 minutes. If you didn\'t create an account, you can safely ignore this email.',
     }),
   });
 }

@@ -10,6 +10,62 @@ interface TrialGraceBannerProps {
 }
 
 export function TrialGraceBanner({ status }: TrialGraceBannerProps) {
+  const [dismissed, setDismissed] = React.useState(false);
+
+  if (dismissed) return null;
+
+  // Active 5-Day Free Trial
+  if (status.isTrial && !status.isTrialExpired) {
+    const daysLabel = status.trialDaysRemaining === 1 
+      ? '1 trading day' 
+      : `${status.trialDaysRemaining || 5} trading days`;
+
+    return (
+      <div className="p-4 sm:p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm animate-in fade-in duration-300 relative">
+        <div className="flex items-start gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center shrink-0 mt-0.5">
+            <Sparkles className="w-5 h-5 text-emerald-500 animate-pulse" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-bold text-sm text-foreground">
+                5-Day Free Trial Active
+              </span>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-500/20 text-emerald-500 border border-emerald-500/30">
+                {daysLabel} Left (Weekends Excluded)
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed max-w-2xl">
+              You are on a <strong>5-Day Free Trial</strong>. Saturdays and Sundays do not count against your trial duration, giving you 5 full trading days of unrestricted automated trade copying.
+              {status.trialEndsAt && (
+                <span className="ml-1 text-foreground/80 font-medium">
+                  Valid until {new Date(status.trialEndsAt).toLocaleDateString('default', { month: 'short', day: 'numeric', year: 'numeric' })}.
+                </span>
+              )}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 self-stretch sm:self-auto shrink-0">
+          <Link
+            href="/pricing"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-xs shadow-md transition-all text-center"
+          >
+            <span>View Plans</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+          <button
+            onClick={() => setDismissed(true)}
+            aria-label="Dismiss trial banner"
+            className="px-2.5 py-2.5 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground text-xs transition-colors"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (!status.inGracePeriod && !status.isGraceExpired) {
     return null;
   }

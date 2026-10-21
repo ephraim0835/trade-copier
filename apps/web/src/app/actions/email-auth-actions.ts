@@ -42,34 +42,62 @@ export async function registerUser(email: string, passwordPlain: string, name: s
   }
 }
 
-// Send / resend verification email
+// Send / resend verification email with 15-minute expiry
 export async function sendVerification(email: string) {
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) return { error: 'User not found' };
   if (user.emailVerified) return { error: 'Email already verified' };
 
-  const token = randomBytes(32).toString('hex');
+  const rawToken = randomBytes(32).toString('hex');
+  const expiresAtMs = Date.now() + 15 * 60 * 1000; // 15 minutes
+  const storedToken = `${rawToken}.${expiresAtMs}`;
+
   await prisma.user.update({
     where: { email },
-    data: { verificationToken: token },
+    data: { verificationToken: storedToken },
   });
 
-  await sendVerificationEmail(email, user.name || '', token);
-  return { success: true };
+  await sendVerificationEmail(email, user.name || '', rawToken, expiresAtMs);
+  return { success: true, expiresAt: expiresAtMs };
 }
 
-// Confirm verification token
+// Confirm verification token with 15-minute validity check
 export async function confirmVerification(token: string) {
+  if (!token) return { error: 'No verification token provided.' };
+
+  const rawToken = token.includes('.') ? token.split('.')[0] : token;
+
   const user = await prisma.user.findFirst({
-    where: { verificationToken: token },
+    where: {
+      OR: [
+        { verificationToken: token },
+        { verificationToken: { startsWith: `${rawToken}.` } },
+      ],
+    },
   });
-  if (!user) return { error: 'Invalid or expired verification link.' };
+
+  if (!user || !user.verificationToken) {
+    return { error: 'Invalid or already used verification link.' };
+  }
+
+  // Validate 15-minute expiration
+  if (user.verificationToken.includes('.')) {
+    const parts = user.verificationToken.split('.');
+    const expiresAt = parseInt(parts[1], 10);
+    if (!isNaN(expiresAt) && Date.now() > expiresAt) {
+      return { 
+        error: 'This verification link has expired (links are valid for 15 minutes). Please request a new verification email.',
+        isExpired: true,
+      };
+    }
+  }
 
   await prisma.user.update({
     where: { id: user.id },
     data: { emailVerified: true, verificationToken: null },
   });
-  return { success: true };
+
+  return { success: true, email: user.email };
 }
 
 // Send password reset email
