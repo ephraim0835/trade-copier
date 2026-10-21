@@ -25,7 +25,10 @@ export class RealtimeController {
    */
   @Post('internal/ticket')
   getInternalTicket(@Body() body: { userId: string }, @Request() req: any) {
-    const serviceKey = process.env.INTERNAL_MANAGER_SECRET || 'internal_manager_secret_998877';
+    const serviceKey = process.env.INTERNAL_MANAGER_SECRET;
+    if (!serviceKey) {
+      throw new UnauthorizedException('Internal manager secret is not configured on server');
+    }
     const authHeader = req.headers?.authorization;
     if (!authHeader || authHeader !== `Bearer ${serviceKey}`) {
       throw new UnauthorizedException('Invalid internal service authorization');

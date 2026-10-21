@@ -57,15 +57,36 @@ export async function PATCH(
     }
 
     const copySettingsData: any = {};
-    if (riskPercentage !== undefined) copySettingsData.riskPercentage = Number(riskPercentage);
-    if (roundingTolerancePct !== undefined) copySettingsData.roundingTolerancePct = Number(roundingTolerancePct);
+    if (riskPercentage !== undefined) {
+      const num = Number(riskPercentage);
+      if (isNaN(num) || num < 0.01 || num > 100) {
+        return NextResponse.json({ message: "Risk percentage must be between 0.01% and 100%." }, { status: 400 });
+      }
+      copySettingsData.riskPercentage = num;
+    }
+    if (roundingTolerancePct !== undefined) {
+      const num = Number(roundingTolerancePct);
+      if (!isNaN(num)) copySettingsData.roundingTolerancePct = Math.max(0, Math.min(100, num));
+    }
     if (dailyRiskEnabled !== undefined) copySettingsData.dailyRiskEnabled = Boolean(dailyRiskEnabled);
-    if (maxDailyRisk !== undefined) copySettingsData.maxDailyRisk = Number(maxDailyRisk);
+    if (maxDailyRisk !== undefined) {
+      const num = Number(maxDailyRisk);
+      if (!isNaN(num)) copySettingsData.maxDailyRisk = Math.max(0, Math.min(100, num));
+    }
     if (maxTradesEnabled !== undefined) copySettingsData.maxTradesEnabled = Boolean(maxTradesEnabled);
-    if (maxActiveTrades !== undefined) copySettingsData.maxActiveTrades = Number(maxActiveTrades);
+    if (maxActiveTrades !== undefined) {
+      const num = parseInt(String(maxActiveTrades), 10);
+      if (!isNaN(num)) copySettingsData.maxActiveTrades = Math.max(1, Math.min(500, num));
+    }
     if (requireTp !== undefined) copySettingsData.requireTp = Boolean(requireTp);
-    if (missingSlTimeoutSec !== undefined) copySettingsData.missingSlTimeoutSec = Number(missingSlTimeoutSec);
-    if (maxRecoveryRRDegradation !== undefined) copySettingsData.maxRecoveryRRDegradation = Number(maxRecoveryRRDegradation);
+    if (missingSlTimeoutSec !== undefined) {
+      const num = parseInt(String(missingSlTimeoutSec), 10);
+      if (!isNaN(num)) copySettingsData.missingSlTimeoutSec = Math.max(0, Math.min(3600, num));
+    }
+    if (maxRecoveryRRDegradation !== undefined) {
+      const num = Number(maxRecoveryRRDegradation);
+      if (!isNaN(num)) copySettingsData.maxRecoveryRRDegradation = Math.max(0, Math.min(100, num));
+    }
 
     const updatedSettings = await prisma.copySettings.upsert({
       where: { mt5AccountId: id },

@@ -9,8 +9,8 @@ export async function POST() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const apiUrl = 'https://plaiz-markets-api.onrender.com';
-  const internalSecret = process.env.INTERNAL_MANAGER_SECRET || 'internal_manager_secret_998877';
+  const apiUrl = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'https://plaiz-markets-api.onrender.com';
+  const internalSecret = process.env.INTERNAL_MANAGER_SECRET;
 
   // 1. Try with user's access token if available
   const accessToken = (session as any)?.accessToken;
@@ -34,6 +34,11 @@ export async function POST() {
   }
 
   // 2. Fallback: Request ticket via internal endpoint using the authenticated user ID from DB
+  if (!internalSecret) {
+    console.error("INTERNAL_MANAGER_SECRET is not configured on web server");
+    return NextResponse.json({ error: "Realtime service configuration missing" }, { status: 500 });
+  }
+
   try {
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
