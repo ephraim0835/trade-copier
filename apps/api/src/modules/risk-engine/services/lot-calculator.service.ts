@@ -319,7 +319,15 @@ export class LotCalculatorService {
     if (cleanSym.includes('OIL') || cleanSym.includes('WTI') || cleanSym.includes('BRENT')) return 1000;
     if (cleanSym.includes('GAS') || cleanSym.includes('XNG')) return 10000;
     if (cleanSym.includes('BTC') || cleanSym.includes('ETH')) return 1;
-    if (cleanSym.includes('US30') || cleanSym.includes('NAS')) return 1;
+    if (
+      cleanSym.includes('US30') || cleanSym.includes('DJ30') ||
+      cleanSym.includes('NAS') || cleanSym.includes('US100') || cleanSym.includes('USTEC') ||
+      cleanSym.includes('SPX') || cleanSym.includes('US500') ||
+      cleanSym.includes('GER') || cleanSym.includes('DAX') ||
+      cleanSym.includes('UK100') || cleanSym.includes('FTSE') ||
+      cleanSym.includes('JP225') || cleanSym.includes('NIKKEI') ||
+      cleanSym.includes('CAC')
+    ) return 1;
     return 100000; // Standard Forex
   }
 
@@ -345,9 +353,20 @@ export class LotCalculatorService {
       margin = (1000 * entryPrice) / safeLeverage;
     } else if (cleanSym.includes('BTC') || cleanSym.includes('ETH')) {
       margin = (1 * entryPrice) / safeLeverage;
-    } else if (cleanSym.includes('US30') || cleanSym.includes('NAS') || cleanSym.includes('SPX')) {
+    } else if (
+      cleanSym.includes('US30') || cleanSym.includes('DJ30') ||
+      cleanSym.includes('NAS') || cleanSym.includes('US100') || cleanSym.includes('USTEC') ||
+      cleanSym.includes('SPX') || cleanSym.includes('US500') ||
+      cleanSym.includes('GER') || cleanSym.includes('DAX') ||
+      cleanSym.includes('UK100') || cleanSym.includes('FTSE') ||
+      cleanSym.includes('CAC')
+    ) {
       margin = entryPrice / safeLeverage;
+    } else if (cleanSym.includes('JP225') || cleanSym.includes('NIKKEI') || cleanSym.includes('JPN')) {
+      const jpyToUSD = this.currencyService.toUSD(1.0, 'JPY');
+      margin = (entryPrice * (jpyToUSD > 0 ? jpyToUSD : 0.0066)) / safeLeverage;
     } else {
+
       const forexCurrencies = 'EUR|USD|GBP|JPY|AUD|CAD|CHF|NZD|ZAR|SGD|MXN|TRY|SEK|NOK|PLN|CNH|HKD';
       const forexRegex = new RegExp(`(${forexCurrencies})(${forexCurrencies})`, 'i');
       const forexMatch = cleanSym.match(forexRegex);
