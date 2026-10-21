@@ -30,6 +30,20 @@ interface SubAccountCardProps {
   };
 }
 
+function getCleanBrokerName(broker: string | null | undefined): string {
+  if (!broker) return 'Broker';
+  const lower = broker.toLowerCase();
+  if (lower.includes('headway')) return 'Headway';
+  if (lower.includes('just global') || lower.includes('justmarkets')) return 'JustMarkets';
+  if (lower.includes('exness')) return 'Exness';
+  if (lower.includes('deriv')) return 'Deriv';
+  if (lower.includes('xm')) return 'XM';
+  if (lower.includes('ic markets')) return 'IC Markets';
+  if (lower.includes('ftmo')) return 'FTMO';
+  const cleaned = broker.split('(')[0].trim().replace(/\b(Ltd\.?|Limited|LLC|Inc\.?|Corp\.?|Pty\.?|Global|Markets)\b/gi, '').trim();
+  return cleaned || broker;
+}
+
 export function SubAccountCard({ account }: SubAccountCardProps) {
   const [accountData, setAccountData] = useState(account);
   const [isActive, setIsActive] = useState(account.isActive);
@@ -201,9 +215,9 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
         : 'border-border/40'
     }`}>
       <div>
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <div className={`w-3 h-3 rounded-full transition-colors ${
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="flex items-start gap-2.5 min-w-0">
+            <div className={`w-2.5 h-2.5 rounded-full shrink-0 mt-1.5 transition-colors ${
               isFailed 
                 ? 'bg-destructive' 
                 : isConnecting 
@@ -212,21 +226,26 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
                 ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50' 
                 : 'bg-destructive/80'
             }`} />
-            <div className="flex items-baseline gap-2">
-              <span className="font-mono font-bold text-lg text-foreground">#{accountData.login}</span>
+            <div className="flex flex-col min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="font-mono font-bold text-lg text-foreground tracking-tight">#{accountData.login}</span>
+                <button
+                  onClick={() => setIsEditing(true)}
+                  title="Edit login, password, or server"
+                  className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                </button>
+              </div>
               {accountData.displayName && accountData.displayName !== accountData.login && (
-                <span className="text-xs text-muted-foreground truncate max-w-[120px] font-medium">({accountData.displayName})</span>
+                <span className="text-xs text-muted-foreground font-medium truncate max-w-[170px]" title={accountData.displayName}>
+                  {accountData.displayName}
+                </span>
               )}
             </div>
-            <button
-              onClick={() => setIsEditing(true)}
-              title="Edit login, password, or server"
-              className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
-            >
-              <Edit3 className="w-3.5 h-3.5" />
-            </button>
           </div>
-          <div className="flex items-center gap-1.5">
+
+          <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end max-w-[55%]">
             {isFailed ? (
               <span className="plaiz-pill plaiz-pill-destructive text-[10px] flex items-center gap-1">
                 <AlertCircle className="w-3 h-3" /> Failed
@@ -259,8 +278,8 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
               />
             )}
 
-            <span className="plaiz-pill plaiz-pill-neutral text-[10px]">
-              {accountData.broker}
+            <span className="plaiz-pill plaiz-pill-neutral text-[10px] font-semibold truncate max-w-[120px]" title={accountData.broker || undefined}>
+              {getCleanBrokerName(accountData.broker)}
             </span>
           </div>
         </div>
