@@ -218,17 +218,19 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
       currentEquities.set(acc.id, initVal);
     });
 
-    const getPortfolioTotal = () => {
+    const getPortfolioTotalUSD = () => {
       let total = 0;
       filteredAccounts.forEach(acc => {
         const val = currentEquities.get(acc.id) || 0;
-        total += convertAmount(val, acc.currency || 'USD');
+        const src = (acc.currency || 'USD').toUpperCase();
+        const usdVal = src === 'NGN' ? (exchangeRate > 0 ? val / exchangeRate : val / 1600) : val;
+        total += usdVal;
       });
       return Math.round(total * 100) / 100;
     };
 
     if (activeSnapshots.length >= 2) {
-      const initialTotal = getPortfolioTotal();
+      const initialTotal = getPortfolioTotalUSD();
       const firstTs = new Date(activeSnapshots[0].timestamp).getTime();
 
       // Bucket snapshots by hour, recording the latest closing valuation per hour
@@ -246,11 +248,17 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
 
       // Process chronologically: update account state and record bucket valuation
       activeSnapshots.forEach(s => {
+        const rawVal = s.equity || s.balance || 0;
+        // Ignore zero-provisioning artifacts
+        if (rawVal <= 0 && (currentEquities.get(s.mt5AccountId) || 0) > 0) {
+          return;
+        }
+
         const d = new Date(s.timestamp);
         const hourKey = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()} ${d.getHours()}:00`;
 
-        currentEquities.set(s.mt5AccountId, s.equity || s.balance || 0);
-        const currentTotal = getPortfolioTotal();
+        currentEquities.set(s.mt5AccountId, rawVal);
+        const currentTotal = getPortfolioTotalUSD();
 
         hourlyState.set(hourKey, {
           date: d.toLocaleString('default', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
@@ -259,13 +267,15 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
         });
       });
 
-      // Add current live portfolio state
+      // Add current live portfolio state (in base USD)
       const now = Date.now();
-      let liveTotal = 0;
+      let liveTotalUSD = 0;
       filteredAccounts.forEach(acc => {
-        liveTotal += convertAmount(acc.equity || acc.balance || 0, acc.currency || 'USD');
+        const val = acc.equity || acc.balance || 0;
+        const src = (acc.currency || 'USD').toUpperCase();
+        liveTotalUSD += src === 'NGN' ? (exchangeRate > 0 ? val / exchangeRate : val / 1600) : val;
       });
-      liveTotal = Math.round(liveTotal * 100) / 100;
+      liveTotalUSD = Math.round(liveTotalUSD * 100) / 100;
 
       const sorted = Array.from(hourlyState.values()).sort((a, b) => a.timestamp - b.timestamp);
 
@@ -274,7 +284,7 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
         sorted.push({
           date: new Date(now).toLocaleString('default', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
           timestamp: now,
-          value: liveTotal,
+          value: liveTotalUSD,
         });
       }
 
@@ -283,11 +293,18 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
       }
     }
 
-    // Fallback: If snapshots are fewer than 2, synthesize curve from current equity + closed trades
-    if (totalEquity > 0) {
+    // Fallback: If snapshots are fewer than 2, synthesize curve from current equity + closed trades (in USD)
+    const totalEquityUSD = filteredAccounts.reduce((sum, a) => {
+      const val = a.equity || a.balance || 0;
+      const src = (a.currency || 'USD').toUpperCase();
+      return sum + (src === 'NGN' ? (exchangeRate > 0 ? val / exchangeRate : val / 1600) : val);
+    }, 0);
+
+    if (totalEquityUSD > 0) {
       const now = Date.now();
       const points: { date: string; timestamp: number; value: number }[] = [];
-      const baseEquity = Math.max(0, totalEquity - tradeStats.netProfit);
+      const netProfitInUSD = currency === 'NGN' ? (tradeStats.netProfit / exchangeRate) : tradeStats.netProfit;
+      const baseEquityUSD = Math.max(0, totalEquityUSD - netProfitInUSD);
 
       // If closedTrades exist, plot progression across trades
       const closedTrades = filteredTrades
@@ -295,16 +312,19 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
         .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
       if (closedTrades.length > 0) {
-        let runningEquity = baseEquity;
+        let runningEquity = baseEquityUSD;
         const firstTradeTime = new Date(closedTrades[0].createdAt).getTime();
         points.push({
           date: 'Initial',
           timestamp: firstTradeTime - 3600000,
-          value: Math.round(baseEquity * 100) / 100
+          value: Math.round(baseEquityUSD * 100) / 100
         });
 
         closedTrades.forEach((t) => {
-          runningEquity += convertAmount(t.profit || 0, t.currency || 'USD');
+          const p = t.profit || 0;
+          const src = (t.currency || 'USD').toUpperCase();
+          const profitUSD = src === 'NGN' ? (exchangeRate > 0 ? p / exchangeRate : p / 1600) : p;
+          runningEquity += profitUSD;
           const d = new Date(t.createdAt);
           points.push({
             date: d.toLocaleString('default', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
@@ -317,7 +337,7 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
         points.push({
           date: 'Live Portfolio',
           timestamp: now,
-          value: Math.round(totalEquity * 100) / 100
+          value: Math.round(totalEquityUSD * 100) / 100
         });
 
         return points;
@@ -327,13 +347,13 @@ export function PerformanceClient({ accounts, snapshots, trades }: PerformanceCl
       points.push({
         date: 'Start',
         timestamp: now - 3600000 * 24,
-        value: Math.round(baseEquity * 100) / 100
+        value: Math.round(baseEquityUSD * 100) / 100
       });
 
       points.push({
         date: 'Live Portfolio',
         timestamp: now,
-        value: Math.round(totalEquity * 100) / 100
+        value: Math.round(totalEquityUSD * 100) / 100
       });
 
       return points;

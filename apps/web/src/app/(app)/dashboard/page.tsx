@@ -18,6 +18,7 @@ import { BotControlSwitch } from '@/components/dashboard/bot-control-switch';
 import { TrialGraceBanner } from '@/components/trial-grace-banner';
 import { getTrialGraceStatus, enforceTrialGraceCleanup } from '@/lib/trial-grace';
 import { ReconnectButton } from '@/components/accounts/reconnect-button';
+import { convertToUSD } from '@/lib/currency';
 
 export const dynamic = 'force-dynamic';
 
@@ -156,13 +157,20 @@ export default async function DashboardOverview() {
     }))
   ];
 
-  // Accurate timeline replay for multi-account portfolio growth curve
-  const currentEquities = new Map<string, number>();
+  // Accurate timeline replay for multi-account portfolio growth curve (strictly normalized to USD)
+  const accountCurrencyMap = new Map<string, string>();
   accounts.forEach((acc: any) => {
-    currentEquities.set(acc.id, acc.initialBalance || acc.equity || acc.balance || 0);
+    accountCurrencyMap.set(acc.id, acc.currency || 'USD');
   });
 
-  const getDashboardPortfolioTotal = () => {
+  const currentEquities = new Map<string, number>();
+  accounts.forEach((acc: any) => {
+    const rawVal = acc.initialBalance || acc.equity || acc.balance || 0;
+    const usdVal = convertToUSD(rawVal, acc.currency);
+    currentEquities.set(acc.id, usdVal);
+  });
+
+  const getDashboardPortfolioTotalUSD = () => {
     let total = 0;
     accounts.forEach((acc: any) => {
       total += currentEquities.get(acc.id) || 0;
@@ -170,7 +178,7 @@ export default async function DashboardOverview() {
     return Math.round(total * 100) / 100;
   };
 
-  const initialTotal = getDashboardPortfolioTotal();
+  const initialTotal = getDashboardPortfolioTotalUSD();
   const hourlyState = new Map<string, { date: string; timestamp: number; value: number }>();
 
   if (snapshots.length >= 2) {
@@ -185,22 +193,56 @@ export default async function DashboardOverview() {
     });
 
     snapshots.forEach((s: any) => {
+      const rawVal = s.equity || s.balance || 0;
+      // Filter out temporary zero-provisioning anomalies that cause artificial cliff plunges
+      if (rawVal <= 0 && (currentEquities.get(s.mt5AccountId) || 0) > 0) {
+        return;
+      }
       const d = new Date(s.timestamp);
       const hourKey = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()} ${d.getHours()}:00`;
-      currentEquities.set(s.mt5AccountId, s.equity || s.balance || 0);
+      const curr = accountCurrencyMap.get(s.mt5AccountId) || 'USD';
+      const usdVal = convertToUSD(rawVal, curr);
+      currentEquities.set(s.mt5AccountId, usdVal);
       hourlyState.set(hourKey, {
         date: d.toLocaleString('default', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
         timestamp: d.getTime(),
-        value: getDashboardPortfolioTotal(),
+        value: getDashboardPortfolioTotalUSD(),
       });
     });
 
     const now = Date.now();
-    const liveTotal = accounts.reduce((sum: number, a: any) => sum + (a.equity || a.balance || 0), 0);
+    const liveTotalUSD = accounts.reduce((sum: number, a: any) => {
+      const rawVal = a.equity || a.balance || 0;
+      return sum + convertToUSD(rawVal, a.currency);
+    }, 0);
     hourlyState.set('live', {
       date: new Date(now).toLocaleString('default', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
       timestamp: now,
-      value: Math.round(liveTotal * 100) / 100,
+      value: Math.round(liveTotalUSD * 100) / 100,
+    });
+  }
+
+  // Fallback if snapshots are sparse
+  if (hourlyState.size < 2 && accounts.length > 0) {
+    const now = Date.now();
+    const liveTotalUSD = accounts.reduce((sum: number, a: any) => {
+      const rawVal = a.equity || a.balance || 0;
+      return sum + convertToUSD(rawVal, a.currency);
+    }, 0);
+    const initialUSD = accounts.reduce((sum: number, a: any) => {
+      const rawVal = a.initialBalance || a.equity || a.balance || 0;
+      return sum + convertToUSD(rawVal, a.currency);
+    }, 0);
+    const baselineTime = now - 24 * 3600000;
+    hourlyState.set('baseline', {
+      date: new Date(baselineTime).toLocaleString('default', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      timestamp: baselineTime,
+      value: Math.round(initialUSD * 100) / 100,
+    });
+    hourlyState.set('live', {
+      date: new Date(now).toLocaleString('default', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      timestamp: now,
+      value: Math.round(liveTotalUSD * 100) / 100,
     });
   }
 
