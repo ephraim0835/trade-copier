@@ -212,7 +212,12 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
                 ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50' 
                 : 'bg-destructive/80'
             }`} />
-            <span className="font-semibold text-lg">{accountData.displayName || accountData.login}</span>
+            <div className="flex items-baseline gap-2">
+              <span className="font-mono font-bold text-lg text-foreground">#{accountData.login}</span>
+              {accountData.displayName && accountData.displayName !== accountData.login && (
+                <span className="text-xs text-muted-foreground truncate max-w-[120px] font-medium">({accountData.displayName})</span>
+              )}
+            </div>
             <button
               onClick={() => setIsEditing(true)}
               title="Edit login, password, or server"
@@ -472,6 +477,10 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
         )}
 
         <div className="space-y-3 mb-6">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Account Login</span>
+            <span className="font-mono font-semibold text-foreground">#{accountData.login}</span>
+          </div>
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Status</span>
             <span className={
