@@ -9,6 +9,7 @@ import { Response } from 'express';
 
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
 
+@SkipThrottle()
 @Controller('execution')
 @UseGuards(EaAuthGuard)
 export class ExecutionController {
@@ -17,7 +18,6 @@ export class ExecutionController {
     private readonly reconciliationService: ReconciliationService
   ) {}
 
-  @Throttle({ default: { limit: 3000, ttl: 60000 } })
   @Get('poll')
   async pollCommands(@Request() req: any, @Res() res: Response) {
     const subAccountId = req.mt5Account.id;
