@@ -63,19 +63,14 @@ export function SignupForm() {
         return;
       }
 
-      // Send verification email
-      sessionStorage.setItem('signup_email', email);
-      const verifyRes = await sendVerification(email);
-      if (verifyRes?.expiresAt) {
-        sessionStorage.setItem('verification_link_expiry', verifyRes.expiresAt.toString());
+      // Store pending registration info for the 15-minute countdown and resends
+      if (res.pendingToken) {
+        sessionStorage.setItem('signup_pending_token', res.pendingToken);
       }
-
-      // Establish session
-      await signIn("credentials", {
-        redirect: false,
-        email,
-        password,
-      });
+      sessionStorage.setItem('signup_email', res.email || email);
+      if (res.expiresAt) {
+        sessionStorage.setItem('verification_link_expiry', res.expiresAt.toString());
+      }
 
       router.push("/verify-email");
     } catch (err) {

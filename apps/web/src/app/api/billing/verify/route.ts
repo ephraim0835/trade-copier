@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { sendSubscriptionReceiptEmail, sendAdminSubscriptionAlert } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
   try {
@@ -151,8 +152,68 @@ export async function POST(req: NextRequest) {
       }).catch((e) => console.error("Could not increment discount usedCount:", e));
     }
 
+    // Official Dispute Reference ID
+    const referenceId = `PLZ-REF-${finalTxRef}`;
+    const flwTxId = verifiedData.id ? String(verifiedData.id) : (transaction_id ? String(transaction_id) : null);
+    const flwCustId = verifiedData.customer?.id ? String(verifiedData.customer.id) : null;
+
+    // 1. In-app receipt and dispute reference for the user
+    await prisma.userNotification.create({
+      data: {
+        userId: user.id,
+        title: "Subscription Confirmed — Dispute Reference ID",
+        message: `Thank you for subscribing to Plaiz Markets! Your official dispute reference ID is ${referenceId}. Keep this ID safe in case of any billing dispute or inquiry.`,
+        type: "SUCCESS",
+        actionUrl: "/billing",
+      },
+    }).catch((e) => console.error("Could not create user notification:", e));
+
+    // 2. Official dispute log for Admin / Owner
+    const admins = await prisma.user.findMany({
+      where: { role: { in: ["ADMIN", "OWNER"] } },
+      select: { id: true, email: true, name: true }
+    });
+
+    for (const admin of admins) {
+      await prisma.userNotification.create({
+        data: {
+          userId: admin.id,
+          title: `[Dispute Log] New Subscription — ${referenceId}`,
+          message: `Subscriber: ${user.email} (${user.name || 'N/A'})\nPlan: ${metaPlan.toUpperCase()}\nAmount: ${currency} ${chargedAmount}\nRef ID: ${referenceId}\nFLW TxRef: ${finalTxRef}\nFLW TxID: ${flwTxId || 'N/A'}`,
+          type: "INFO",
+          actionUrl: "/admin",
+        },
+      }).catch((e) => console.error("Could not create admin notification:", e));
+
+      // Send admin alert email
+      sendAdminSubscriptionAlert({
+        adminEmail: admin.email,
+        userEmail: user.email,
+        userName: user.name,
+        planName: metaPlan,
+        amount: chargedAmount,
+        currency,
+        referenceId,
+        flwTxRef: finalTxRef,
+        flwTransactionId: flwTxId,
+        flwCustomerId: flwCustId,
+      }).catch((e) => console.error("Could not send admin alert email:", e));
+    }
+
+    // 3. Send Thank You receipt email to user
+    sendSubscriptionReceiptEmail({
+      email: user.email,
+      name: user.name,
+      planName: metaPlan,
+      amount: chargedAmount,
+      currency,
+      referenceId,
+      periodEnd: currentPeriodEnd,
+    }).catch((e) => console.error("Could not send user receipt email:", e));
+
     return NextResponse.json({
       success: true,
+      referenceId,
       subscription: {
         status: subscription.status,
         planId: subscription.planId,

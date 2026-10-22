@@ -83,9 +83,159 @@ export async function sendPasswordResetCode(email: string, name: string, code: s
     </tr>
   </table>
 </body>
-</html>`
+</html>`,
   });
 }
+
+export async function sendSubscriptionReceiptEmail({
+  email,
+  name,
+  planName,
+  amount,
+  currency,
+  referenceId,
+  periodEnd,
+}: {
+  email: string;
+  name?: string | null;
+  planName: string;
+  amount: number | string;
+  currency: string;
+  referenceId: string;
+  periodEnd?: Date | null;
+}) {
+  const formattedDate = periodEnd 
+    ? new Date(periodEnd).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+    : 'In 30 days';
+
+  await resend.emails.send({
+    from: FROM,
+    to: email,
+    subject: `🎉 Payment Receipt & Dispute Reference #${referenceId} | Plaiz Markets`,
+    html: emailTemplate({
+      title: 'Thank You for Your Subscription!',
+      preheader: `Payment confirmed for ${planName.toUpperCase()} plan. Your Dispute Reference ID is ${referenceId}.`,
+      body: `
+        <p style="margin:0 0 16px;font-size:16px;color:#a1a1aa;">Hi ${name || 'Trader'},</p>
+        <p style="margin:0 0 20px;font-size:16px;color:#a1a1aa;line-height:1.6;">
+          Thank you for choosing <strong style="color:#fff;">Plaiz Markets</strong>! We have received your payment, and your <strong style="color:#10b981;">${planName.toUpperCase()}</strong> plan is now fully active. All trading copier features, multi-account bridges, and risk protection are unlocked.
+        </p>
+
+        <!-- Receipt & Dispute Details Box -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#27272a;border-radius:16px;padding:20px;margin-bottom:24px;border:1px solid #3f3f46;">
+          <tr>
+            <td style="padding:8px 0;font-size:14px;color:#a1a1aa;border-bottom:1px solid #3f3f46;">Plan Activated:</td>
+            <td style="padding:8px 0;font-size:14px;color:#fff;font-weight:700;text-align:right;border-bottom:1px solid #3f3f46;text-transform:uppercase;">${planName}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 0;font-size:14px;color:#a1a1aa;border-bottom:1px solid #3f3f46;">Amount Paid:</td>
+            <td style="padding:8px 0;font-size:14px;color:#10b981;font-weight:700;text-align:right;border-bottom:1px solid #3f3f46;">${currency.toUpperCase()} ${amount}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 0;font-size:14px;color:#a1a1aa;border-bottom:1px solid #3f3f46;">Next Renewal Date:</td>
+            <td style="padding:8px 0;font-size:14px;color:#fff;text-align:right;border-bottom:1px solid #3f3f46;">${formattedDate}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 0;font-size:14px;color:#a1a1aa;">Official Dispute Reference ID:</td>
+            <td style="padding:8px 0;font-size:14px;color:#38bdf8;font-family:monospace;font-weight:700;text-align:right;">${referenceId}</td>
+          </tr>
+        </table>
+
+        <div style="background:rgba(59, 130, 246, 0.1);border:1px solid rgba(59, 130, 246, 0.25);border-radius:12px;padding:14px;margin-bottom:24px;">
+          <p style="margin:0;font-size:13px;color:#93c5fd;line-height:1.5;">
+            🛡️ <strong>Dispute Protection:</strong> Please retain your Reference ID (<strong>${referenceId}</strong>) in case of any billing questions, reconciliation, or payment disputes. Our support team can instantly verify your payment with this ID.
+          </p>
+        </div>
+      `,
+      ctaLabel: 'Go to Trading Dashboard',
+      ctaUrl: `${BASE_URL}/dashboard`,
+      footer: 'Need billing assistance or dispute resolution? Email support@plaiz-markets.online with your Reference ID.',
+    }),
+  }).catch((err) => {
+    console.error('Failed to send subscription receipt email:', err);
+  });
+}
+
+export async function sendAdminSubscriptionAlert({
+  adminEmail,
+  userEmail,
+  userName,
+  planName,
+  amount,
+  currency,
+  referenceId,
+  flwTxRef,
+  flwTransactionId,
+  flwCustomerId,
+}: {
+  adminEmail: string;
+  userEmail: string;
+  userName?: string | null;
+  planName: string;
+  amount: number | string;
+  currency: string;
+  referenceId: string;
+  flwTxRef?: string | null;
+  flwTransactionId?: string | null;
+  flwCustomerId?: string | null;
+}) {
+  await resend.emails.send({
+    from: FROM,
+    to: adminEmail,
+    subject: `[Admin Dispute Log] New Subscription #${referenceId} — ${userEmail}`,
+    html: emailTemplate({
+      title: 'New Subscription & Dispute Reference Recorded',
+      preheader: `Dispute Log: Reference ${referenceId} for user ${userEmail}`,
+      body: `
+        <p style="margin:0 0 16px;font-size:16px;color:#a1a1aa;">Admin Notification,</p>
+        <p style="margin:0 0 20px;font-size:16px;color:#a1a1aa;">
+          A new subscription payment was successfully confirmed. Official dispute records and reference tokens have been generated:
+        </p>
+
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#27272a;border-radius:16px;padding:20px;margin-bottom:24px;border:1px solid #3f3f46;">
+          <tr>
+            <td style="padding:6px 0;font-size:13px;color:#a1a1aa;">Dispute Reference ID:</td>
+            <td style="padding:6px 0;font-size:13px;color:#38bdf8;font-family:monospace;font-weight:700;text-align:right;">${referenceId}</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 0;font-size:13px;color:#a1a1aa;">Subscriber Email:</td>
+            <td style="padding:6px 0;font-size:13px;color:#fff;text-align:right;">${userEmail}</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 0;font-size:13px;color:#a1a1aa;">Subscriber Name:</td>
+            <td style="padding:6px 0;font-size:13px;color:#fff;text-align:right;">${userName || 'N/A'}</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 0;font-size:13px;color:#a1a1aa;">Plan Tier:</td>
+            <td style="padding:6px 0;font-size:13px;color:#fff;text-align:right;text-transform:uppercase;">${planName}</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 0;font-size:13px;color:#a1a1aa;">Amount Paid:</td>
+            <td style="padding:6px 0;font-size:13px;color:#10b981;font-weight:700;text-align:right;">${currency.toUpperCase()} ${amount}</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 0;font-size:13px;color:#a1a1aa;">Flutterwave TxRef:</td>
+            <td style="padding:6px 0;font-size:13px;color:#a1a1aa;font-family:monospace;text-align:right;">${flwTxRef || 'N/A'}</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 0;font-size:13px;color:#a1a1aa;">Flutterwave Tx ID:</td>
+            <td style="padding:6px 0;font-size:13px;color:#a1a1aa;font-family:monospace;text-align:right;">${flwTransactionId || 'N/A'}</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 0;font-size:13px;color:#a1a1aa;">Customer ID:</td>
+            <td style="padding:6px 0;font-size:13px;color:#a1a1aa;font-family:monospace;text-align:right;">${flwCustomerId || 'N/A'}</td>
+          </tr>
+        </table>
+      `,
+      ctaLabel: 'View Admin Dashboard',
+      ctaUrl: `${BASE_URL}/admin`,
+      footer: 'Official internal dispute log for Plaiz Markets Administration.',
+    }),
+  }).catch((err) => {
+    console.error('Failed to send admin subscription alert email:', err);
+  });
+}
+
 
 function emailTemplate({ title, preheader, body, ctaLabel, ctaUrl, footer }: {
   title: string;

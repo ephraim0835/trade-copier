@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { CheckCircle2, XCircle, ArrowRight, ShieldCheck, Loader2 } from 'lucide-react';
+import { CheckCircle2, XCircle, ArrowRight, ShieldCheck, Loader2, Copy, Check } from 'lucide-react';
 import Link from 'next/link';
 
 export function VerifyClient() {
@@ -16,6 +16,8 @@ export function VerifyClient() {
   const [state, setState] = useState<'VERIFYING' | 'SUCCESS' | 'FAILED'>('VERIFYING');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [planId, setPlanId] = useState<string | null>(null);
+  const [referenceId, setReferenceId] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (status === 'cancelled') {
@@ -41,6 +43,7 @@ export function VerifyClient() {
         }
 
         setPlanId(data.subscription?.planId || 'pro');
+        setReferenceId(data.referenceId || (txRef ? `PLZ-REF-${txRef}` : null));
         setState('SUCCESS');
         router.refresh();
       } catch (err: any) {
@@ -66,7 +69,7 @@ export function VerifyClient() {
       )}
 
       {state === 'SUCCESS' && (
-        <div className="flex flex-col items-center gap-4 py-4 animate-in fade-in zoom-in-95 duration-300">
+        <div className="flex flex-col items-center gap-4 py-4 animate-in fade-in zoom-in-95 duration-300 w-full">
           <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 mb-2">
             <CheckCircle2 className="w-10 h-10" />
           </div>
@@ -77,6 +80,43 @@ export function VerifyClient() {
           <p className="text-sm text-muted-foreground max-w-sm leading-relaxed">
             Your <span className="font-semibold text-foreground uppercase">{planId || 'Pro'}</span> plan is now active. All trade copying features and multi-account sync are unlocked.
           </p>
+
+          {referenceId && (
+            <div className="w-full bg-secondary/50 border border-border/60 rounded-2xl p-4 my-2 text-left">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Dispute Reference ID
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(referenceId);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
+                  className="flex items-center gap-1 text-[12px] font-medium text-primary hover:text-primary/80 transition-colors cursor-pointer"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-500" />
+                      <span className="text-emerald-500 font-semibold">Copied</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copy ID</span>
+                    </>
+                  )}
+                </button>
+              </div>
+              <div className="font-mono text-xs font-bold text-foreground bg-background/70 p-2.5 rounded-xl border border-border/50 select-all break-all">
+                {referenceId}
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-2 leading-normal">
+                🛡️ A thank you receipt with this dispute reference has been sent to your email and logged with administration for dispute protection.
+              </p>
+            </div>
+          )}
 
           <div className="mt-6 flex flex-col sm:flex-row items-center gap-3 w-full">
             <Link

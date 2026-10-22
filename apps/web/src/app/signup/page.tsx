@@ -1,22 +1,15 @@
 import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { SignupForm } from "./signup-form";
 
 export default async function SignupPage() {
-  const session = await getServerSession();
+  const session = await getServerSession(authOptions);
   
-  // If already authenticated AND exists in DB, redirect to dashboard
   if (session?.user?.email) {
-    const { prisma } = await import('@/lib/prisma');
-    const dbUser = await prisma.user.findUnique({
-      where: { email: session.user.email }
-    });
-    
-    if (dbUser) {
-      redirect("/dashboard");
-    }
+    redirect("/dashboard");
   }
 
   return (

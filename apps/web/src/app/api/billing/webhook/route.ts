@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import crypto from "crypto";
+import { sendSubscriptionReceiptEmail, sendAdminSubscriptionAlert } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
   try {
@@ -78,7 +79,67 @@ export async function POST(req: NextRequest) {
           }).catch((e) => console.error("Could not increment discount usedCount:", e));
         }
 
-        console.log(`Successfully activated subscription for user ${user.id} via Flutterwave`);
+        // Official Dispute Reference ID
+        const referenceId = `PLZ-REF-${tx_ref}`;
+        const flwTxId = payload.data?.id ? String(payload.data.id) : null;
+        const flwCustId = customer.id ? String(customer.id) : null;
+        const chargedCurrency = (currency || "USD").toUpperCase();
+
+        // 1. In-app receipt and dispute reference for the user
+        await prisma.userNotification.create({
+          data: {
+            userId: user.id,
+            title: "Subscription Confirmed — Dispute Reference ID",
+            message: `Thank you for subscribing to Plaiz Markets! Your official dispute reference ID is ${referenceId}. Keep this ID safe in case of any billing dispute or inquiry.`,
+            type: "SUCCESS",
+            actionUrl: "/billing",
+          },
+        }).catch((e) => console.error("Could not create user notification:", e));
+
+        // 2. Official dispute log for Admin / Owner
+        const admins = await prisma.user.findMany({
+          where: { role: { in: ["ADMIN", "OWNER"] } },
+          select: { id: true, email: true, name: true }
+        });
+
+        for (const admin of admins) {
+          await prisma.userNotification.create({
+            data: {
+              userId: admin.id,
+              title: `[Dispute Log] New Subscription — ${referenceId}`,
+              message: `Subscriber: ${user.email} (${user.name || 'N/A'})\nPlan: ${planId.toUpperCase()}\nAmount: ${chargedCurrency} ${amount}\nRef ID: ${referenceId}\nFLW TxRef: ${tx_ref}\nFLW TxID: ${flwTxId || 'N/A'}`,
+              type: "INFO",
+              actionUrl: "/admin",
+            },
+          }).catch((e) => console.error("Could not create admin notification:", e));
+
+          // Send admin alert email
+          sendAdminSubscriptionAlert({
+            adminEmail: admin.email,
+            userEmail: user.email,
+            userName: user.name,
+            planName: planId,
+            amount: amount,
+            currency: chargedCurrency,
+            referenceId,
+            flwTxRef: tx_ref,
+            flwTransactionId: flwTxId,
+            flwCustomerId: flwCustId,
+          }).catch((e) => console.error("Could not send admin alert email:", e));
+        }
+
+        // 3. Send Thank You receipt email to user
+        sendSubscriptionReceiptEmail({
+          email: user.email,
+          name: user.name,
+          planName: planId,
+          amount: amount,
+          currency: chargedCurrency,
+          referenceId,
+          periodEnd: currentPeriodEnd,
+        }).catch((e) => console.error("Could not send user receipt email:", e));
+
+        console.log(`Successfully activated subscription for user ${user.id} via Flutterwave (Ref: ${referenceId})`);
       }
     }
 

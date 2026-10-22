@@ -121,7 +121,7 @@ export function LoginForm() {
         <div className="text-center mt-6">
           <p className="text-[13px] text-muted-foreground">
             Don't have an account?{' '}
-            <Link href="/signup" className="text-foreground font-medium hover:text-primary transition-colors">
+            <Link href="/signup" prefetch={true} className="text-foreground font-medium hover:text-primary transition-colors">
               Create one now
             </Link>
           </p>

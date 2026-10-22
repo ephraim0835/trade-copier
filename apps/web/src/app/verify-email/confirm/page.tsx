@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { confirmVerification } from '@/app/actions/email-auth-actions';
+import { signIn } from 'next-auth/react';
 import { CheckCircle, XCircle, Loader2, Sparkles, Clock, ArrowRight, ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
 import { Suspense } from 'react';
@@ -16,6 +17,7 @@ function ConfirmContent() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
   const [isExpired, setIsExpired] = useState(false);
+  const [alreadyVerified, setAlreadyVerified] = useState(false);
   const [redirectCountdown, setRedirectCountdown] = useState(3);
 
   // Check initial token and expiration
@@ -36,12 +38,29 @@ function ConfirmContent() {
       }
     }
 
-    confirmVerification(token).then((result) => {
+    confirmVerification(token).then(async (result) => {
       if (result.error) {
         setStatus('error');
         setMessage(result.error);
         setIsExpired(!!result.isExpired || result.error.toLowerCase().includes('expired'));
       } else {
+        if (result.alreadyVerified) {
+          setAlreadyVerified(true);
+        }
+
+        // Auto-login user with the one-time token
+        if (result.email && result.oneTimeToken) {
+          try {
+            await signIn('credentials', {
+              redirect: false,
+              email: result.email,
+              oneTimeToken: result.oneTimeToken,
+            });
+          } catch (e) {
+            console.error('Auto sign-in error:', e);
+          }
+        }
+
         setStatus('success');
       }
     });
@@ -52,7 +71,7 @@ function ConfirmContent() {
     if (status !== 'success') return;
 
     if (redirectCountdown <= 0) {
-      router.push('/dashboard');
+      window.location.href = '/dashboard';
       return;
     }
 
@@ -60,7 +79,7 @@ function ConfirmContent() {
       setRedirectCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          router.push('/dashboard');
+          window.location.href = '/dashboard';
           return 0;
         }
         return prev - 1;
@@ -68,7 +87,7 @@ function ConfirmContent() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [status, redirectCountdown, router]);
+  }, [status, redirectCountdown]);
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4 relative">
@@ -104,10 +123,13 @@ function ConfirmContent() {
             </div>
 
             <div>
-              <h1 className="text-2xl font-extrabold text-foreground mb-2">Email Verified Successfully!</h1>
+              <h1 className="text-2xl font-extrabold text-foreground mb-2">
+                {alreadyVerified ? 'Account Already Verified!' : 'Email Verified Successfully!'}
+              </h1>
               <p className="text-muted-foreground text-[14px] leading-relaxed">
-                Welcome to Plaiz Markets! Your account is active and your 5-day free trial is now running.
-                Saturdays and Sundays do not count against your trial duration.
+                {alreadyVerified
+                  ? 'Your account is verified and ready. Directing you to your active dashboard...'
+                  : 'Welcome to Plaiz Markets! Your account is active and your 5-day free trial is now running. Saturdays and Sundays do not count against your trial duration.'}
               </p>
             </div>
 
@@ -130,13 +152,16 @@ function ConfirmContent() {
             </div>
 
             {/* Manual Immediate Action */}
-            <Link 
-              href="/dashboard" 
-              className="plaiz-btn plaiz-btn-primary w-full py-3.5 rounded-2xl flex items-center justify-center gap-2 text-sm font-bold shadow-lg shadow-primary/25"
+            <button
+              type="button"
+              onClick={() => {
+                window.location.href = '/dashboard';
+              }}
+              className="plaiz-btn plaiz-btn-primary w-full py-3.5 rounded-2xl flex items-center justify-center gap-2 text-sm font-bold shadow-lg shadow-primary/25 cursor-pointer"
             >
               <span>Go to Dashboard Now</span>
               <ArrowRight className="w-4 h-4" />
-            </Link>
+            </button>
           </div>
         )}
 

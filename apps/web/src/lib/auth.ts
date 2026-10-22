@@ -20,10 +20,43 @@ export const authOptions: NextAuthOptions = {
       name: 'Credentials',
       credentials: {
         email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" }
+        password: { label: "Password", type: "password" },
+        oneTimeToken: { label: "OneTimeToken", type: "text" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
+        if (!credentials?.email) return null;
+
+        // Auto-login via one-time verification token
+        if (credentials.oneTimeToken) {
+          try {
+            const { prisma } = await import('@/lib/prisma');
+            const cleanEmail = credentials.email.toLowerCase().trim();
+            const user = await prisma.user.findUnique({
+              where: { email: cleanEmail },
+            });
+            if (
+              user &&
+              user.resetToken &&
+              user.resetToken === credentials.oneTimeToken &&
+              user.resetTokenExpiresAt &&
+              user.resetTokenExpiresAt > new Date()
+            ) {
+              await prisma.user.update({
+                where: { id: user.id },
+                data: { resetToken: null, resetTokenExpiresAt: null },
+              });
+              return {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+              };
+            }
+          } catch (e) {
+            console.error("One-time token auth error:", e);
+          }
+        }
+
+        if (!credentials.password) return null;
 
         try {
           const res = await fetch(`${API_URL}/auth/login`, {
@@ -35,23 +68,42 @@ export const authOptions: NextAuthOptions = {
             headers: { "Content-Type": "application/json" }
           });
 
-          if (!res.ok) return null;
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.access_token) {
+              return {
+                id: credentials.email,
+                email: credentials.email,
+                accessToken: data.access_token,
+                refreshToken: data.refresh_token,
+                accessTokenExpiresAt: data.access_token_expires_at,
+              };
+            }
+          }
+        } catch (e) {
+          console.error("Auth API error, checking local database:", e);
+        }
 
-          const data = await res.json();
-          if (data?.access_token) {
+        // Direct DB fallback if NestJS API is unreachable
+        try {
+          const { prisma } = await import('@/lib/prisma');
+          const argon2 = await import('argon2');
+          const cleanEmail = credentials.email.toLowerCase().trim();
+          const user = await prisma.user.findUnique({
+            where: { email: cleanEmail },
+          });
+          if (user && user.password && (await argon2.verify(user.password, credentials.password))) {
             return {
-              id: credentials.email,
-              email: credentials.email,
-              accessToken: data.access_token,
-              refreshToken: data.refresh_token,
-              accessTokenExpiresAt: data.access_token_expires_at,
+              id: user.id,
+              email: user.email,
+              name: user.name,
             };
           }
-          return null;
-        } catch (e) {
-          console.error("Auth error:", e);
-          return null;
+        } catch (dbErr) {
+          console.error("Direct DB auth fallback error:", dbErr);
         }
+
+        return null;
       }
     })
   ],

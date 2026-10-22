@@ -95,6 +95,7 @@ export function PricingAction({ plan, userSubscription }: PricingActionProps) {
   return (
     <Link 
       href="/signup" 
+      prefetch={true}
       className={`plaiz-btn w-full py-3 justify-center ${plan.popular ? 'plaiz-btn-primary relative z-10' : 'plaiz-btn-secondary'}`}
     >
       {plan.cta}
