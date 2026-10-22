@@ -82,6 +82,11 @@ export function CheckoutModal({
   };
 
   const [selectedPlan, setSelectedPlan] = useState<'starter' | 'pro' | 'elite'>(normalizePlan(initialPlanId));
+  const flwPub = (process.env.NEXT_PUBLIC_FLW_PUBLIC_KEY || '').trim();
+  const isLiveGateway = 
+    process.env.NODE_ENV === 'production' ||
+    (process.env.NEXT_PUBLIC_FLW_MODE || '').toLowerCase() === 'live' ||
+    (flwPub.startsWith('FLWPUBK-') && !flwPub.includes('_TEST'));
   const [currency, setCurrency] = useState<'USD' | 'NGN'>(globalCurrency || 'USD');
   const [discountCode, setDiscountCode] = useState('');
   const [isValidatingCode, setIsValidatingCode] = useState(false);
@@ -546,84 +551,107 @@ export function CheckoutModal({
           </div>
         )}
 
-        {/* Flutterwave Sandbox / Card Guidance Helper */}
-        <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-xs flex flex-col gap-2.5 relative z-10">
-          <div className="flex items-center justify-between">
-            <span className="font-bold text-amber-500 flex items-center gap-1.5 text-[11px] uppercase tracking-wider">
-              <Info className="w-3.5 h-3.5" /> Flutterwave Test Card (Sandbox Active)
-            </span>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-500 font-mono font-bold">
-              TEST GATEWAY
-            </span>
-          </div>
-
-          <p className="text-[11px] text-muted-foreground leading-relaxed">
-            Real bank cards trigger <em>&quot;Sorry an error occurred while processing your card&quot;</em> in test mode. Click below to copy sandbox test card:
-          </p>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 font-mono text-[11px]">
-            <button
-              type="button"
-              onClick={() => copyToClipboard('5531886652142950', 'card')}
-              className="p-1.5 rounded-xl bg-card border border-border/60 hover:border-primary/60 flex items-center justify-between text-left transition-colors cursor-pointer"
-              title="Click to copy Card Number"
-            >
-              <div>
-                <div className="text-[9px] text-muted-foreground font-sans">CARD NO</div>
-                <div className="font-bold text-foreground truncate">5531••2950</div>
-              </div>
-              {copiedField === 'card' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3 h-3 text-muted-foreground" />}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => copyToClipboard('09/32', 'exp')}
-              className="p-1.5 rounded-xl bg-card border border-border/60 hover:border-primary/60 flex items-center justify-between text-left transition-colors cursor-pointer"
-              title="Click to copy Expiry Date"
-            >
-              <div>
-                <div className="text-[9px] text-muted-foreground font-sans">EXPIRY</div>
-                <div className="font-bold text-foreground">09/32</div>
-              </div>
-              {copiedField === 'exp' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3 h-3 text-muted-foreground" />}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => copyToClipboard('564', 'cvv')}
-              className="p-1.5 rounded-xl bg-card border border-border/60 hover:border-primary/60 flex items-center justify-between text-left transition-colors cursor-pointer"
-              title="Click to copy CVV"
-            >
-              <div>
-                <div className="text-[9px] text-muted-foreground font-sans">CVV</div>
-                <div className="font-bold text-foreground">564</div>
-              </div>
-              {copiedField === 'cvv' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3 h-3 text-muted-foreground" />}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => copyToClipboard('3310', 'pin')}
-              className="p-1.5 rounded-xl bg-card border border-border/60 hover:border-primary/60 flex items-center justify-between text-left transition-colors cursor-pointer"
-              title="Click to copy PIN"
-            >
-              <div>
-                <div className="text-[9px] text-muted-foreground font-sans">PIN / OTP</div>
-                <div className="font-bold text-foreground">3310 / 12345</div>
-              </div>
-              {copiedField === 'pin' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3 h-3 text-muted-foreground" />}
-            </button>
-          </div>
-
-          <div className="text-[10px] text-muted-foreground flex flex-col gap-0.5 pt-1.5 border-t border-amber-500/20">
-            <div>
-              <span className="font-bold text-foreground">🇳🇬 Paying with a Nigerian Bank?</span> Ensure you selected <strong>NGN (₦)</strong> above. Standard Naira cards reject foreign USD charges due to CBN FX policy.
+        {/* Flutterwave Live / Sandbox Guidance Helper */}
+        {isLiveGateway ? (
+          <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 text-xs flex flex-col gap-2 relative z-10">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-emerald-500 flex items-center gap-1.5 text-[11px] uppercase tracking-wider">
+                <ShieldCheck className="w-4 h-4 text-emerald-500" /> Live Secure Payment Gateway
+              </span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-500 font-mono font-bold">
+                LIVE PRODUCTION
+              </span>
             </div>
-            <div>
-              <span className="font-bold text-foreground">💡 Tip:</span> On the Flutterwave screen, you can also select <strong>&quot;Pay with Bank Transfer&quot;</strong> or <strong>USSD</strong> for instant direct settlement.
+
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              Accepts <strong>Mastercard, Visa, Verve, Direct Bank Transfer, USSD & QR</strong>. Bank-grade 256-bit SSL encrypted settlement via Flutterwave.
+            </p>
+
+            <div className="text-[10px] text-muted-foreground flex flex-col gap-0.5 pt-1.5 border-t border-emerald-500/20">
+              <div>
+                <span className="font-bold text-foreground">🇳🇬 Paying with a Nigerian Bank Account?</span> Ensure <strong>NGN (₦)</strong> is selected above to pay directly via local Card, Bank Transfer, or USSD without FX restrictions.
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-xs flex flex-col gap-2.5 relative z-10">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-amber-500 flex items-center gap-1.5 text-[11px] uppercase tracking-wider">
+                <Info className="w-3.5 h-3.5" /> Flutterwave Test Card (Sandbox Active)
+              </span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-500 font-mono font-bold">
+                TEST GATEWAY
+              </span>
+            </div>
+
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              Real bank cards trigger <em>&quot;Sorry an error occurred while processing your card&quot;</em> in test mode. Click below to copy sandbox test card:
+            </p>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 font-mono text-[11px]">
+              <button
+                type="button"
+                onClick={() => copyToClipboard('5531886652142950', 'card')}
+                className="p-1.5 rounded-xl bg-card border border-border/60 hover:border-primary/60 flex items-center justify-between text-left transition-colors cursor-pointer"
+                title="Click to copy Card Number"
+              >
+                <div>
+                  <div className="text-[9px] text-muted-foreground font-sans">CARD NO</div>
+                  <div className="font-bold text-foreground truncate">5531••2950</div>
+                </div>
+                {copiedField === 'card' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3 h-3 text-muted-foreground" />}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => copyToClipboard('09/32', 'exp')}
+                className="p-1.5 rounded-xl bg-card border border-border/60 hover:border-primary/60 flex items-center justify-between text-left transition-colors cursor-pointer"
+                title="Click to copy Expiry Date"
+              >
+                <div>
+                  <div className="text-[9px] text-muted-foreground font-sans">EXPIRY</div>
+                  <div className="font-bold text-foreground">09/32</div>
+                </div>
+                {copiedField === 'exp' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3 h-3 text-muted-foreground" />}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => copyToClipboard('564', 'cvv')}
+                className="p-1.5 rounded-xl bg-card border border-border/60 hover:border-primary/60 flex items-center justify-between text-left transition-colors cursor-pointer"
+                title="Click to copy CVV"
+              >
+                <div>
+                  <div className="text-[9px] text-muted-foreground font-sans">CVV</div>
+                  <div className="font-bold text-foreground">564</div>
+                </div>
+                {copiedField === 'cvv' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3 h-3 text-muted-foreground" />}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => copyToClipboard('3310', 'pin')}
+                className="p-1.5 rounded-xl bg-card border border-border/60 hover:border-primary/60 flex items-center justify-between text-left transition-colors cursor-pointer"
+                title="Click to copy PIN"
+              >
+                <div>
+                  <div className="text-[9px] text-muted-foreground font-sans">PIN / OTP</div>
+                  <div className="font-bold text-foreground">3310 / 12345</div>
+                </div>
+                {copiedField === 'pin' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3 h-3 text-muted-foreground" />}
+              </button>
+            </div>
+
+            <div className="text-[10px] text-muted-foreground flex flex-col gap-0.5 pt-1.5 border-t border-amber-500/20">
+              <div>
+                <span className="font-bold text-foreground">🇳🇬 Paying with a Nigerian Bank?</span> Ensure you selected <strong>NGN (₦)</strong> above. Standard Naira cards reject foreign USD charges due to CBN FX policy.
+              </div>
+              <div>
+                <span className="font-bold text-foreground">💡 Tip:</span> On the Flutterwave screen, you can also select <strong>&quot;Pay with Bank Transfer&quot;</strong> or <strong>USSD</strong> for instant direct settlement.
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Action Button */}
         <div className="flex flex-col gap-2.5 relative z-10">

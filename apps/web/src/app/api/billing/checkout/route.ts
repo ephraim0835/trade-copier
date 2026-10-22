@@ -128,12 +128,11 @@ export async function POST(req: NextRequest) {
     const data = await response.json();
 
     if (data.status === "success" && data.data?.link) {
-      // Save the intent in the database
+      // Save the intent in the database without mutating current planId on existing subscriptions
       await prisma.subscription.upsert({
         where: { userId: user.id },
         update: {
           flutterwaveTxRef: tx_ref,
-          planId: planId,
           ...(appliedDiscount ? { discountCodeId: appliedDiscount.id } : {})
         },
         create: {

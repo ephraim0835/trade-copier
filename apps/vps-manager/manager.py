@@ -7,6 +7,7 @@ import logging
 import subprocess
 import uuid
 import shutil
+import stat
 from datetime import datetime
 from pathlib import Path
 
@@ -352,13 +353,16 @@ def launch_mt5_and_attach_ea(account):
     ini_file_name = f"startup_{login}.ini"
     ini_file_path = ini_file_dir / ini_file_name
     
-    resolved_server = resolve_server_name(server)
+    clean_login = str(login).replace('\r', '').replace('\n', '').strip()
+    clean_password = str(password).replace('\r', '').replace('\n', '')
+    clean_server = str(resolved_server).replace('\r', '').replace('\n', '').strip()
+    clean_base_api_root = str(base_api_root).replace('\r', '').replace('\n', '').strip()
 
-    with open(ini_file_path, 'w') as f:
+    with open(ini_file_path, 'w', encoding='utf-8') as f:
         f.write(f"[Common]\n")
-        f.write(f"Login={login}\n")
-        f.write(f"Password={password}\n")
-        f.write(f"Server={resolved_server}\n")
+        f.write(f"Login={clean_login}\n")
+        f.write(f"Password={clean_password}\n")
+        f.write(f"Server={clean_server}\n")
         f.write(f"AutoConfiguration=true\n")
         f.write(f"EnableNews=false\n")
         f.write(f"CertInstall=0\n")
@@ -377,7 +381,7 @@ def launch_mt5_and_attach_ea(account):
         f.write(f"Chart=0\n")
         f.write(f"WebRequest=1\n")
         f.write(f"AllowWebRequest=1\n")
-        f.write(f"WebRequestUrl1={base_api_root}\n")
+        f.write(f"WebRequestUrl1={clean_base_api_root}\n")
 
     # Tune terminal.ini for sound off and news off to conserve CPU, and enforce Expert Advisor execution permissions
     terminal_ini = ini_file_dir / 'terminal.ini'
@@ -396,7 +400,7 @@ def launch_mt5_and_attach_ea(account):
             "AllowDllImport=1\n"
             "WebRequest=1\n"
             "AllowWebRequest=1\n"
-            f"WebRequestUrl1={base_api_root}\n"
+            f"WebRequestUrl1={clean_base_api_root}\n"
         )
         terminal_ini.write_text(terminal_ini_content, encoding='utf-16')
     except Exception as e:
@@ -421,6 +425,18 @@ def launch_mt5_and_attach_ea(account):
     account['instance_dir'] = str(terminal_path)
     account['server'] = server
     account['launch_time'] = time.time()
+
+    # Clean up transient plaintext startup.ini after terminal initialization to protect stored passwords (SEC-020)
+    def _delayed_ini_cleanup(target_ini):
+        time.sleep(15)
+        try:
+            p = Path(target_ini)
+            if p.exists():
+                p.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+    threading.Thread(target=_delayed_ini_cleanup, args=(str(ini_file_path),), daemon=True).start()
 
     # Record log file offsets at launch so diagnostics only inspect new session logs
     try:
@@ -452,7 +468,6 @@ def kill_account_terminal(account_or_login):
                     (f"startup_{login_str}.ini" in cmd)
                     or (acc_id and acc_id in cmd)
                     or (inst_dir and Path(inst_dir).name in cmd)
-                    or (login_str and login_str in cmd)
                 ):
                     proc.kill()
                     logger.info(f"Terminated MT5 terminal process for {login_str}")
@@ -871,7 +886,7 @@ def poll_db_worker():
                                     
                                     # 1. Update database directly with zero latency
                                     execute_query(
-                                        'UPDATE "Mt5Account" SET "connectionStatus" = %s, "isActive" = true, "lastHeartbeatAt" = %s, balance = %s, equity = %s, margin = %s, "freeMargin" = %s, "floatingPl" = %s, currency = %s, "provisioningError" = NULL WHERE id = %s',
+                                        'UPDATE "Mt5Account" SET "connectionStatus" = %s, "lastHeartbeatAt" = %s, balance = %s, equity = %s, margin = %s, "freeMargin" = %s, "floatingPl" = %s, currency = %s, "provisioningError" = NULL WHERE id = %s',
                                         ('ONLINE', datetime.datetime.now(datetime.timezone.utc), info.balance, info.equity, info.margin, info.margin_free, info.profit, info.currency, acc['id'])
                                     )
                                     
@@ -1186,6 +1201,21 @@ def command_worker():
                             'UPDATE "VpsEnvironment" SET "commandStatus" = %s, "commandMessage" = %s, "lastHeartbeatAt" = now() WHERE id = %s',
                             ('EXECUTED', f'All MT5 terminals safely stopped at {datetime.datetime.now().strftime("%H:%M:%S")}', env_id)
                         )
+                        
+                    elif cmd in ('PAUSE', 'RESUME'):
+                        sync_event.set()
+                        execute_query(
+                            'UPDATE "VpsEnvironment" SET "commandStatus" = %s, "commandMessage" = %s, "lastHeartbeatAt" = now() WHERE id = %s',
+                            ('EXECUTED', f'{cmd} state processed & synchronized at {datetime.datetime.now().strftime("%H:%M:%S")}', env_id)
+                        )
+                        logger.info(f"Processed {cmd} command and synchronized fleet.")
+                        
+                    else:
+                        execute_query(
+                            'UPDATE "VpsEnvironment" SET "commandStatus" = %s, "commandMessage" = %s, "lastHeartbeatAt" = now() WHERE id = %s',
+                            ('FAILED', f'Unknown command {cmd} ignored at {datetime.datetime.now().strftime("%H:%M:%S")}', env_id)
+                        )
+                        logger.warning(f"Unknown command '{cmd}' marked as FAILED.")
         except Exception as e:
             logger.error(f"Error in command worker: {e}")
             

@@ -41,7 +41,7 @@ export function PaywallBanner() {
     );
   }
 
-  if (isActive) return null;
+  if (isActive && !trialGrace?.inGracePeriod) return null;
 
   const inGrace = trialGrace?.inGracePeriod;
   const isGraceExpired = trialGrace?.isGraceExpired;
@@ -72,7 +72,11 @@ export function PaywallBanner() {
             : "bg-primary hover:bg-primary/90 text-primary-foreground"
         )}
       >
-        <span>{inGrace ? 'Select Plan & Save Accounts' : 'View Plans'}</span>
+        <span>
+          {inGrace
+            ? (trialGrace?.isSubscriptionGrace ? 'Renew Subscription' : 'Select Plan & Save Accounts')
+            : 'View Plans'}
+        </span>
         <ArrowRight className="h-3.5 w-3.5" />
       </Link>
     </div>

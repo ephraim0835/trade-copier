@@ -56,6 +56,7 @@ interface InFlightTradeCopy {
   executedVolume?: number;
   subOrderTicket?: bigint | null;
   subPositionId?: bigint | null;
+  intendedRisk?: number | null;
   createdAt: Date;
 }
 
@@ -70,8 +71,12 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
   private masterAccountsCache = new Map<string, CachedMasterAccount>();
   private lastSubCacheRefresh = 0;
 
-  // In-memory active signals and copy mappings (O(1) lookups for modify/close)
+  // In-memory active signals and copy mappings keyed by composite `${masterAccountId}:${ticket}` (BUG-001)
   private readonly activeSignalsByTicket = new Map<string, InFlightTradeSignal>();
+
+  public getSignalKey(masterAccountId: string, ticket: string | number | bigint): string {
+    return `${masterAccountId}:${ticket.toString()}`;
+  }
 
   private readonly demoOnly: boolean;
   private readonly lotCalculator: LotCalculatorService;
@@ -188,11 +193,13 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
         const u = (a as any).user;
         const subRecord = u?.subscription;
         const now = Date.now();
+        const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
         const isExpired = subRecord ? (
           subRecord.status === 'EXPIRED' ||
           subRecord.status === 'CANCELED' ||
           subRecord.status === 'PAST_DUE' ||
-          (subRecord.status === 'TRIAL' && subRecord.currentPeriodEnd && new Date(subRecord.currentPeriodEnd).getTime() < now)
+          (subRecord.status === 'TRIAL' && subRecord.currentPeriodEnd && new Date(subRecord.currentPeriodEnd).getTime() < now) ||
+          (subRecord.status === 'ACTIVE' && subRecord.currentPeriodEnd && new Date(subRecord.currentPeriodEnd).getTime() + THREE_DAYS_MS < now)
         ) : false;
         
         // Ensure copySettings is never null so trades are never skipped
@@ -298,6 +305,28 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
 
   private buildRiskProfile(sub: CachedSubAccount, master?: CachedMasterAccount) {
     const copySettings = sub.copySettings || ({} as any);
+
+    let activeTradesCount = 0;
+    let dailyRiskSum = 0;
+    const startOfTodayMs = new Date().setUTCHours(0, 0, 0, 0);
+
+    for (const signal of this.activeSignalsByTicket.values()) {
+      for (const copy of signal.copies.values()) {
+        if (copy.subAccountId === sub.id) {
+          const isActive =
+            copy.state === CopyState.APPROVED ||
+            copy.state === CopyState.WAITING_FOR_SL ||
+            copy.state === CopyState.RECOVERING;
+          if (isActive) {
+            activeTradesCount++;
+            if (copy.createdAt.getTime() >= startOfTodayMs) {
+              dailyRiskSum += copy.intendedRisk || 0;
+            }
+          }
+        }
+      }
+    }
+
     return {
       equity: sub.equity > 0 ? sub.equity : 10000,
       balance: sub.balance > 0 ? sub.balance : 10000,
@@ -318,8 +347,8 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
       requireTp: copySettings.requireTp ?? false,
       missingSlTimeoutSec: copySettings.missingSlTimeoutSec ?? 60,
       maxRecoveryRRDegradation: copySettings.maxRecoveryRRDegradation ?? 0.5,
-      currentDailyRisk: 0,
-      currentActiveTrades: 0,
+      currentDailyRisk: dailyRiskSum,
+      currentActiveTrades: activeTradesCount,
     };
   }
 
@@ -413,15 +442,13 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
   async processOpen(masterAccountId: string, dto: MasterSignalDto, backendReceivedAt: number) {
     this.logger.debug(`[HOTPATH] Processing OPEN for master: ${masterAccountId}, ticket: ${dto.ticket}, seq: ${dto.sequenceNumber}`);
 
-    // 1. In-memory Idempotency check
-    const existing = this.hotDispatch.checkIdempotency(dto.eventId);
-    if (existing) {
-      this.logger.log(`Signal ${dto.ticket} already processed (eventId: ${dto.eventId}). Idempotent return.`);
-      return { success: true, message: 'Already processed' };
+    // 1. In-memory Idempotency and sequence duplicate check (BUG-002)
+    const seq = dto.sequenceNumber || 1;
+    if (this.hotDispatch.isDuplicateOrProcessed(masterAccountId, dto.ticket, seq, dto.eventId)) {
+      this.logger.log(`Signal ${dto.ticket} already processed (seq: ${seq}, eventId: ${dto.eventId}). Idempotent return.`);
+      return { success: true, duplicate: true, message: 'Already processed' };
     }
-
-    // 2. Validate monotonic sequence
-    this.hotDispatch.validateMonotonicSequence(masterAccountId, dto.ticket, dto.sequenceNumber || 1);
+    this.hotDispatch.updateSequence(masterAccountId, dto.ticket, seq);
 
     const now = new Date();
     const signalId = crypto.randomUUID();
@@ -508,6 +535,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
         subAccountId: sub.id,
         state: decision.state,
         requestedVolume: finalVolume,
+        intendedRisk: intendedRisk || 0,
         createdAt: now,
       };
       inFlightSignal.copies.set(tradeCopyId, inFlightCopy);
@@ -565,8 +593,9 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
         this.logger.log(`[HOTPATH] Copy ${tradeCopyId} for sub ${sub.id} is WAITING_FOR_SL (Timer: ${timeoutSec}s)`);
 
         // Automatically expire if Master does not provide SL within timeoutSec
+        const signalKey = this.getSignalKey(masterAccountId, dto.ticket);
         setTimeout(() => {
-          const currentSignal = this.activeSignalsByTicket.get(dto.ticket.toString());
+          const currentSignal = this.activeSignalsByTicket.get(signalKey);
           const currentCopy = currentSignal?.copies.get(tradeCopyId);
           if (currentCopy && currentCopy.state === CopyState.WAITING_FOR_SL) {
             currentCopy.state = CopyState.REJECTED;
@@ -580,8 +609,9 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    // Register active signal in memory
-    this.activeSignalsByTicket.set(dto.ticket.toString(), inFlightSignal);
+    // Register active signal in memory with composite key (BUG-001)
+    const signalKey = this.getSignalKey(masterAccountId, dto.ticket);
+    this.activeSignalsByTicket.set(signalKey, inFlightSignal);
 
     // 5. Asynchronous persistence to Supabase
     const signalData = {
@@ -615,10 +645,15 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
   async processModify(masterAccountId: string, dto: MasterModifyDto, backendReceivedAt: number) {
     this.logger.debug(`[HOTPATH] Processing MODIFY for master: ${masterAccountId}, ticket: ${dto.ticket}, seq: ${dto.sequenceNumber}`);
 
-    // Monotonic sequence check
-    this.hotDispatch.validateMonotonicSequence(masterAccountId, dto.ticket, dto.sequenceNumber);
+    // Idempotency / duplicate sequence check (BUG-002)
+    if (this.hotDispatch.isDuplicateOrProcessed(masterAccountId, dto.ticket, dto.sequenceNumber, dto.eventId)) {
+      this.logger.log(`Modify ${dto.ticket} already processed (seq: ${dto.sequenceNumber}, eventId: ${dto.eventId}). Idempotent return.`);
+      return { success: true, duplicate: true, message: 'Event already processed' };
+    }
+    this.hotDispatch.updateSequence(masterAccountId, dto.ticket, dto.sequenceNumber);
 
-    const signal = this.activeSignalsByTicket.get(dto.ticket.toString());
+    const signalKey = this.getSignalKey(masterAccountId, dto.ticket);
+    const signal = this.activeSignalsByTicket.get(signalKey);
     if (!signal) {
       this.logger.warn(`Active signal ${dto.ticket} not in memory. Querying DB fallback asynchronously.`);
     }
@@ -766,8 +801,8 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
       }
     } else {
       this.logger.warn(`[HOTPATH] Signal ${dto.ticket} not found in RAM for MODIFY. Querying DB fallback asynchronously.`);
-      this.prisma.tradeSignal.findUnique({
-        where: { ticket: BigInt(dto.ticket) },
+      this.prisma.tradeSignal.findFirst({
+        where: { masterAcctId: masterAccountId, ticket: BigInt(dto.ticket) },
         include: { copies: true },
       }).then(async (dbSignal) => {
         if (dbSignal) {
@@ -833,9 +868,15 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
   async processClose(masterAccountId: string, dto: MasterCloseDto, backendReceivedAt: number) {
     this.logger.debug(`[HOTPATH] Processing CLOSE for master: ${masterAccountId}, ticket: ${dto.ticket}, vol: ${dto.volume}`);
 
-    this.hotDispatch.validateMonotonicSequence(masterAccountId, dto.ticket, dto.sequenceNumber);
+    // Idempotency / duplicate sequence check (BUG-002)
+    if (this.hotDispatch.isDuplicateOrProcessed(masterAccountId, dto.ticket, dto.sequenceNumber, dto.eventId)) {
+      this.logger.log(`Close ${dto.ticket} already processed (seq: ${dto.sequenceNumber}, eventId: ${dto.eventId}). Idempotent return.`);
+      return { success: true, duplicate: true, message: 'Event already processed' };
+    }
+    this.hotDispatch.updateSequence(masterAccountId, dto.ticket, dto.sequenceNumber);
 
-    const signal = this.activeSignalsByTicket.get(dto.ticket.toString());
+    const signalKey = this.getSignalKey(masterAccountId, dto.ticket);
+    const signal = this.activeSignalsByTicket.get(signalKey);
     const now = new Date();
     const telemetry = this.calculateMasterTelemetry(dto, backendReceivedAt);
     const executionCommandsData: HotCommandData[] = [];
@@ -905,8 +946,8 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
     } else {
       this.logger.warn(`[HOTPATH] Signal ${dto.ticket} not found in active RAM cache. Finding trade copies in persistent store.`);
       // Async fallback to find trade copies from DB if active signal cache was evicted/restarted
-      this.prisma.tradeSignal.findUnique({
-        where: { ticket: BigInt(dto.ticket) },
+      this.prisma.tradeSignal.findFirst({
+        where: { masterAcctId: masterAccountId, ticket: BigInt(dto.ticket) },
         include: { copies: true },
       }).then(async (dbSignal) => {
         if (dbSignal) {
@@ -949,6 +990,10 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
         }
       }).catch(err => this.logger.error(`Error querying fallback trade signal: ${err.message}`));
     }
+
+    if (signal && dto.volume !== undefined && dto.volume >= signal.volume) {
+      this.activeSignalsByTicket.delete(signalKey);
+    }
     
     if (executionCommandsData.length > 0) {
       this.asyncPersistence.enqueueTask('UPDATE_SIGNAL_CLOSE', {
@@ -966,14 +1011,20 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
   async processTrigger(masterAccountId: string, dto: MasterTriggerDto, backendReceivedAt: number) {
     this.logger.debug(`[HOTPATH] Processing TRIGGER for master: ${masterAccountId}, order: ${dto.orderTicket} -> pos: ${dto.positionTicket}`);
 
-    this.hotDispatch.validateMonotonicSequence(masterAccountId, dto.orderTicket, dto.sequenceNumber);
+    // Idempotency / duplicate sequence check (BUG-002)
+    if (this.hotDispatch.isDuplicateOrProcessed(masterAccountId, dto.orderTicket, dto.sequenceNumber, dto.eventId)) {
+      this.logger.log(`Trigger ${dto.orderTicket} already processed (seq: ${dto.sequenceNumber}, eventId: ${dto.eventId}). Idempotent return.`);
+      return { success: true, duplicate: true, message: 'Event already processed' };
+    }
+    this.hotDispatch.updateSequence(masterAccountId, dto.orderTicket, dto.sequenceNumber);
 
-    const signal = this.activeSignalsByTicket.get(dto.orderTicket.toString());
+    const oldKey = this.getSignalKey(masterAccountId, dto.orderTicket);
+    const signal = this.activeSignalsByTicket.get(oldKey);
     if (signal) {
       signal.ticket = BigInt(dto.positionTicket);
       signal.sequenceNumber = dto.sequenceNumber;
-      this.activeSignalsByTicket.delete(dto.orderTicket.toString());
-      this.activeSignalsByTicket.set(dto.positionTicket.toString(), signal);
+      this.activeSignalsByTicket.delete(oldKey);
+      this.activeSignalsByTicket.set(this.getSignalKey(masterAccountId, dto.positionTicket), signal);
 
       for (const copy of signal.copies.values()) {
         if (copy.subOrderTicket) {
@@ -991,6 +1042,7 @@ export class MasterSignalService implements OnModuleInit, OnModuleDestroy {
       positionTicket: dto.positionTicket,
       sequenceNumber: dto.sequenceNumber,
       orderTicket: dto.orderTicket,
+      masterSignalId: signal?.id,
     });
 
     return { success: true, message: 'Trigger processed, mapped to new position ticket without duplicate market order' };

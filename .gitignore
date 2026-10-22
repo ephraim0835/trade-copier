@@ -15,11 +15,14 @@ out/
 .env.development.local
 .env.test.local
 .env.production.local
+.env*
+**/.env*
 
 # Debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+*.log
 
 # OS
 .DS_Store
@@ -36,12 +39,22 @@ packages/database/.env
 .turbo/
 
 .vercel
-.env*
+
+# Security, keys, certificates and credentials
+*.key
+*.pem
+ssh key/
+*.ini
+SECURITY_AUDIT_REPORT.md
+scratch/
 
 apps/web/.env
+apps/web/.env.local
+apps/web/.env*.local
 apps/api/.env
+apps/vps-manager/.env
 apps/api/data/*.jsonl
-*.log
+apps/api/data/
 check_*.py
 test_*.py
 fix_*.py

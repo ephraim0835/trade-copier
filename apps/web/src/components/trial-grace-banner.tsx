@@ -85,14 +85,18 @@ export function TrialGraceBanner({ status }: TrialGraceBannerProps) {
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-bold text-sm text-foreground">
-                5-Day Free Trial Expired — 3-Day Grace Period
+                {status.isSubscriptionGrace
+                  ? 'Subscription Renewal Due — 3-Day Grace Period'
+                  : '5-Day Free Trial Expired — 3-Day Grace Period'}
               </span>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-amber-500/20 text-amber-500 border border-amber-500/30">
-                {timeLabel} Left to Pick a Plan
+                {timeLabel} Left to {status.isSubscriptionGrace ? 'Renew' : 'Pick a Plan'}
               </span>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed max-w-2xl">
-              Trade copying is currently paused. You have <strong>{timeLabel}</strong> remaining to select a plan before your existing connected MT5 accounts and configurations are automatically cleared.
+              {status.isSubscriptionGrace
+                ? `Your subscription renewal is past due. Automated trade copying remains active during your 3-day grace period. You have ${timeLabel} left to complete renewal before trade copying is paused.`
+                : `Trade copying is currently paused. You have ${timeLabel} remaining to select a plan before your existing connected MT5 accounts and configurations are automatically cleared.`}
             </p>
           </div>
         </div>
@@ -102,7 +106,7 @@ export function TrialGraceBanner({ status }: TrialGraceBannerProps) {
           className="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs shadow-md transition-all self-stretch sm:self-auto text-center justify-center"
         >
           <Sparkles className="w-4 h-4" />
-          Select a Plan & Keep Accounts
+          {status.isSubscriptionGrace ? 'Renew Subscription' : 'Select a Plan & Keep Accounts'}
           <ArrowRight className="w-3.5 h-3.5" />
         </Link>
       </div>
@@ -118,10 +122,14 @@ export function TrialGraceBanner({ status }: TrialGraceBannerProps) {
         </div>
         <div className="flex flex-col gap-1">
           <span className="font-bold text-sm text-foreground">
-            Trial & 3-Day Grace Period Expired
+            {status.isSubscriptionGrace
+              ? 'Subscription & 3-Day Grace Period Expired'
+              : 'Trial & 3-Day Grace Period Expired'}
           </span>
           <p className="text-xs text-muted-foreground leading-relaxed max-w-2xl">
-            Your 3-day grace period has ended without selecting a plan. Existing connected accounts have been cleared. Select a plan to connect new terminals and resume automated copying.
+            {status.isSubscriptionGrace
+              ? 'Your 3-day renewal grace period has ended without payment. Automated trade copying is paused. Renew your subscription to immediately resume automated copying.'
+              : 'Your 3-day grace period has ended without selecting a plan. Existing connected accounts have been cleared. Select a plan to connect new terminals and resume automated copying.'}
           </p>
         </div>
       </div>
@@ -130,7 +138,7 @@ export function TrialGraceBanner({ status }: TrialGraceBannerProps) {
         href="/pricing"
         className="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs shadow-md transition-all self-stretch sm:self-auto text-center justify-center"
       >
-        Choose a Plan to Reconnect
+        {status.isSubscriptionGrace ? 'Renew Plan to Resume' : 'Choose a Plan to Reconnect'}
         <ArrowRight className="w-3.5 h-3.5" />
       </Link>
     </div>

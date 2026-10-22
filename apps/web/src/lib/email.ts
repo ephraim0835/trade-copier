@@ -4,7 +4,18 @@ const resend = new Resend(process.env.RESEND_API_KEY || 're_dummy');
 const FROM = 'Plaiz Markets <noreply@plaiz-markets.online>';
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://plaiz-markets.online';
 
+function escapeHtml(unsafe: string | null | undefined): string {
+  if (!unsafe) return '';
+  return String(unsafe)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 export async function sendVerificationEmail(email: string, name: string, token: string, expiresAtMs?: number) {
+  const safeName = escapeHtml(name) || 'there';
   const expParam = expiresAtMs ? `&exp=${expiresAtMs}` : '';
   const link = `${BASE_URL}/verify-email/confirm?token=${token}${expParam}`;
   await resend.emails.send({
@@ -15,7 +26,7 @@ export async function sendVerificationEmail(email: string, name: string, token: 
       title: 'Verify your email',
       preheader: 'Your 5-Day Free Trial is waiting (trading days only, weekends excluded).',
       body: `
-        <p style="margin:0 0 16px;font-size:16px;color:#a1a1aa;">Hi ${name || 'there'},</p>
+        <p style="margin:0 0 16px;font-size:16px;color:#a1a1aa;">Hi ${safeName},</p>
         <p style="margin:0 0 16px;font-size:16px;color:#a1a1aa;">
           Welcome to <strong style="color:#fff;">Plaiz Markets</strong>! Your <strong style="color:#10b981;">5-Day Free Trial</strong> (5 full trading days, weekends excluded) is ready to be activated.
         </p>
@@ -31,6 +42,7 @@ export async function sendVerificationEmail(email: string, name: string, token: 
 }
 
 export async function sendPasswordResetEmail(email: string, name: string, token: string) {
+  const safeName = escapeHtml(name) || 'there';
   const link = `${BASE_URL}/reset-password?token=${token}`;
   await resend.emails.send({
     from: FROM,
@@ -40,7 +52,7 @@ export async function sendPasswordResetEmail(email: string, name: string, token:
       title: 'Reset your password',
       preheader: 'We received a request to reset your password.',
       body: `
-        <p style="margin:0 0 16px;font-size:16px;color:#a1a1aa;">Hi ${name || 'there'},</p>
+        <p style="margin:0 0 16px;font-size:16px;color:#a1a1aa;">Hi ${safeName},</p>
         <p style="margin:0 0 32px;font-size:16px;color:#a1a1aa;">
           We received a request to reset the password for your <strong style="color:#fff;">Plaiz Markets</strong> account. 
           Click the button below to choose a new password.
@@ -54,6 +66,8 @@ export async function sendPasswordResetEmail(email: string, name: string, token:
 }
 
 export async function sendPasswordResetCode(email: string, name: string, code: string) {
+  const safeName = escapeHtml(name) || 'there';
+  const safeCode = escapeHtml(code);
   await resend.emails.send({
     from: FROM,
     to: email,
@@ -69,11 +83,11 @@ export async function sendPasswordResetCode(email: string, name: string, code: s
             <td style="background:#18181b;border:1px solid #27272a;border-radius:24px;padding:48px 40px;text-align:center;">
               <h1 style="margin:0 0 24px;font-size:24px;font-weight:700;color:#fff;">Password Reset Code</h1>
               <p style="margin:0 0 32px;font-size:16px;color:#a1a1aa;">
-                Hi ${name || 'there'},<br/><br/>
+                Hi ${safeName},<br/><br/>
                 You requested to change your password. Use the verification code below to proceed:
               </p>
               <div style="background:#27272a;padding:16px;border-radius:12px;display:inline-block;margin-bottom:32px;">
-                <span style="font-size:32px;font-weight:800;color:#fff;letter-spacing:8px;">${code}</span>
+                <span style="font-size:32px;font-weight:800;color:#fff;letter-spacing:8px;">${safeCode}</span>
               </div>
               <p style="margin:0;font-size:12px;color:#52525b;">This code expires in 10 minutes. If you didn't request this, please secure your account.</p>
             </td>
@@ -104,6 +118,11 @@ export async function sendSubscriptionReceiptEmail({
   referenceId: string;
   periodEnd?: Date | null;
 }) {
+  const safeName = escapeHtml(name) || 'Trader';
+  const safePlan = escapeHtml(planName);
+  const safeRef = escapeHtml(referenceId);
+  const safeCurrency = escapeHtml(currency);
+  const safeAmount = escapeHtml(String(amount));
   const formattedDate = periodEnd 
     ? new Date(periodEnd).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
     : 'In 30 days';
@@ -111,25 +130,25 @@ export async function sendSubscriptionReceiptEmail({
   await resend.emails.send({
     from: FROM,
     to: email,
-    subject: `🎉 Payment Receipt & Dispute Reference #${referenceId} | Plaiz Markets`,
+    subject: `🎉 Payment Receipt & Dispute Reference #${safeRef} | Plaiz Markets`,
     html: emailTemplate({
       title: 'Thank You for Your Subscription!',
-      preheader: `Payment confirmed for ${planName.toUpperCase()} plan. Your Dispute Reference ID is ${referenceId}.`,
+      preheader: `Payment confirmed for ${safePlan.toUpperCase()} plan. Your Dispute Reference ID is ${safeRef}.`,
       body: `
-        <p style="margin:0 0 16px;font-size:16px;color:#a1a1aa;">Hi ${name || 'Trader'},</p>
+        <p style="margin:0 0 16px;font-size:16px;color:#a1a1aa;">Hi ${safeName},</p>
         <p style="margin:0 0 20px;font-size:16px;color:#a1a1aa;line-height:1.6;">
-          Thank you for choosing <strong style="color:#fff;">Plaiz Markets</strong>! We have received your payment, and your <strong style="color:#10b981;">${planName.toUpperCase()}</strong> plan is now fully active. All trading copier features, multi-account bridges, and risk protection are unlocked.
+          Thank you for choosing <strong style="color:#fff;">Plaiz Markets</strong>! We have received your payment, and your <strong style="color:#10b981;">${safePlan.toUpperCase()}</strong> plan is now fully active. All trading copier features, multi-account bridges, and risk protection are unlocked.
         </p>
 
         <!-- Receipt & Dispute Details Box -->
         <table width="100%" cellpadding="0" cellspacing="0" style="background:#27272a;border-radius:16px;padding:20px;margin-bottom:24px;border:1px solid #3f3f46;">
           <tr>
             <td style="padding:8px 0;font-size:14px;color:#a1a1aa;border-bottom:1px solid #3f3f46;">Plan Activated:</td>
-            <td style="padding:8px 0;font-size:14px;color:#fff;font-weight:700;text-align:right;border-bottom:1px solid #3f3f46;text-transform:uppercase;">${planName}</td>
+            <td style="padding:8px 0;font-size:14px;color:#fff;font-weight:700;text-align:right;border-bottom:1px solid #3f3f46;text-transform:uppercase;">${safePlan}</td>
           </tr>
           <tr>
             <td style="padding:8px 0;font-size:14px;color:#a1a1aa;border-bottom:1px solid #3f3f46;">Amount Paid:</td>
-            <td style="padding:8px 0;font-size:14px;color:#10b981;font-weight:700;text-align:right;border-bottom:1px solid #3f3f46;">${currency.toUpperCase()} ${amount}</td>
+            <td style="padding:8px 0;font-size:14px;color:#10b981;font-weight:700;text-align:right;border-bottom:1px solid #3f3f46;">${safeCurrency.toUpperCase()} ${safeAmount}</td>
           </tr>
           <tr>
             <td style="padding:8px 0;font-size:14px;color:#a1a1aa;border-bottom:1px solid #3f3f46;">Next Renewal Date:</td>
@@ -137,13 +156,13 @@ export async function sendSubscriptionReceiptEmail({
           </tr>
           <tr>
             <td style="padding:8px 0;font-size:14px;color:#a1a1aa;">Official Dispute Reference ID:</td>
-            <td style="padding:8px 0;font-size:14px;color:#38bdf8;font-family:monospace;font-weight:700;text-align:right;">${referenceId}</td>
+            <td style="padding:8px 0;font-size:14px;color:#38bdf8;font-family:monospace;font-weight:700;text-align:right;">${safeRef}</td>
           </tr>
         </table>
 
         <div style="background:rgba(59, 130, 246, 0.1);border:1px solid rgba(59, 130, 246, 0.25);border-radius:12px;padding:14px;margin-bottom:24px;">
           <p style="margin:0;font-size:13px;color:#93c5fd;line-height:1.5;">
-            🛡️ <strong>Dispute Protection:</strong> Please retain your Reference ID (<strong>${referenceId}</strong>) in case of any billing questions, reconciliation, or payment disputes. Our support team can instantly verify your payment with this ID.
+            🛡️ <strong>Dispute Protection:</strong> Please retain your Reference ID (<strong>${safeRef}</strong>) in case of any billing questions, reconciliation, or payment disputes. Our support team can instantly verify your payment with this ID.
           </p>
         </div>
       `,
@@ -179,13 +198,23 @@ export async function sendAdminSubscriptionAlert({
   flwTransactionId?: string | null;
   flwCustomerId?: string | null;
 }) {
+  const safeRef = escapeHtml(referenceId);
+  const safeUserEmail = escapeHtml(userEmail);
+  const safeUserName = escapeHtml(userName) || 'N/A';
+  const safePlan = escapeHtml(planName);
+  const safeCurrency = escapeHtml(currency);
+  const safeAmount = escapeHtml(String(amount));
+  const safeTxRef = escapeHtml(flwTxRef) || 'N/A';
+  const safeTxId = escapeHtml(flwTransactionId) || 'N/A';
+  const safeCustId = escapeHtml(flwCustomerId) || 'N/A';
+
   await resend.emails.send({
     from: FROM,
     to: adminEmail,
-    subject: `[Admin Dispute Log] New Subscription #${referenceId} — ${userEmail}`,
+    subject: `[Admin Dispute Log] New Subscription #${safeRef} — ${safeUserEmail}`,
     html: emailTemplate({
       title: 'New Subscription & Dispute Reference Recorded',
-      preheader: `Dispute Log: Reference ${referenceId} for user ${userEmail}`,
+      preheader: `Dispute Log: Reference ${safeRef} for user ${safeUserEmail}`,
       body: `
         <p style="margin:0 0 16px;font-size:16px;color:#a1a1aa;">Admin Notification,</p>
         <p style="margin:0 0 20px;font-size:16px;color:#a1a1aa;">
@@ -195,35 +224,35 @@ export async function sendAdminSubscriptionAlert({
         <table width="100%" cellpadding="0" cellspacing="0" style="background:#27272a;border-radius:16px;padding:20px;margin-bottom:24px;border:1px solid #3f3f46;">
           <tr>
             <td style="padding:6px 0;font-size:13px;color:#a1a1aa;">Dispute Reference ID:</td>
-            <td style="padding:6px 0;font-size:13px;color:#38bdf8;font-family:monospace;font-weight:700;text-align:right;">${referenceId}</td>
+            <td style="padding:6px 0;font-size:13px;color:#38bdf8;font-family:monospace;font-weight:700;text-align:right;">${safeRef}</td>
           </tr>
           <tr>
             <td style="padding:6px 0;font-size:13px;color:#a1a1aa;">Subscriber Email:</td>
-            <td style="padding:6px 0;font-size:13px;color:#fff;text-align:right;">${userEmail}</td>
+            <td style="padding:6px 0;font-size:13px;color:#fff;text-align:right;">${safeUserEmail}</td>
           </tr>
           <tr>
             <td style="padding:6px 0;font-size:13px;color:#a1a1aa;">Subscriber Name:</td>
-            <td style="padding:6px 0;font-size:13px;color:#fff;text-align:right;">${userName || 'N/A'}</td>
+            <td style="padding:6px 0;font-size:13px;color:#fff;text-align:right;">${safeUserName}</td>
           </tr>
           <tr>
             <td style="padding:6px 0;font-size:13px;color:#a1a1aa;">Plan Tier:</td>
-            <td style="padding:6px 0;font-size:13px;color:#fff;text-align:right;text-transform:uppercase;">${planName}</td>
+            <td style="padding:6px 0;font-size:13px;color:#fff;text-align:right;text-transform:uppercase;">${safePlan}</td>
           </tr>
           <tr>
             <td style="padding:6px 0;font-size:13px;color:#a1a1aa;">Amount Paid:</td>
-            <td style="padding:6px 0;font-size:13px;color:#10b981;font-weight:700;text-align:right;">${currency.toUpperCase()} ${amount}</td>
+            <td style="padding:6px 0;font-size:13px;color:#10b981;font-weight:700;text-align:right;">${safeCurrency.toUpperCase()} ${safeAmount}</td>
           </tr>
           <tr>
             <td style="padding:6px 0;font-size:13px;color:#a1a1aa;">Flutterwave TxRef:</td>
-            <td style="padding:6px 0;font-size:13px;color:#a1a1aa;font-family:monospace;text-align:right;">${flwTxRef || 'N/A'}</td>
+            <td style="padding:6px 0;font-size:13px;color:#a1a1aa;font-family:monospace;text-align:right;">${safeTxRef}</td>
           </tr>
           <tr>
             <td style="padding:6px 0;font-size:13px;color:#a1a1aa;">Flutterwave Tx ID:</td>
-            <td style="padding:6px 0;font-size:13px;color:#a1a1aa;font-family:monospace;text-align:right;">${flwTransactionId || 'N/A'}</td>
+            <td style="padding:6px 0;font-size:13px;color:#a1a1aa;font-family:monospace;text-align:right;">${safeTxId}</td>
           </tr>
           <tr>
             <td style="padding:6px 0;font-size:13px;color:#a1a1aa;">Customer ID:</td>
-            <td style="padding:6px 0;font-size:13px;color:#a1a1aa;font-family:monospace;text-align:right;">${flwCustomerId || 'N/A'}</td>
+            <td style="padding:6px 0;font-size:13px;color:#a1a1aa;font-family:monospace;text-align:right;">${safeCustId}</td>
           </tr>
         </table>
       `,
@@ -235,7 +264,6 @@ export async function sendAdminSubscriptionAlert({
     console.error('Failed to send admin subscription alert email:', err);
   });
 }
-
 
 function emailTemplate({ title, preheader, body, ctaLabel, ctaUrl, footer }: {
   title: string;

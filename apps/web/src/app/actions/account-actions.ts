@@ -44,19 +44,24 @@ export async function createMt5Account(data: {
       };
     }
 
+    // Sanitize credentials to prevent newline injection (SEC-020)
+    const cleanLogin = data.login.replace(/[\r\n]/g, '').trim();
+    const cleanBroker = data.broker.replace(/[\r\n]/g, '').trim();
+    const cleanServer = data.server.replace(/[\r\n]/g, '').trim();
+
     // Check if account with same login, broker, server already exists
     const existing = await prisma.mt5Account.findFirst({
       where: {
-        login: data.login,
-        broker: data.broker,
-        server: data.server,
+        login: cleanLogin,
+        broker: cleanBroker,
+        server: cleanServer,
       }
     });
 
     if (existing && existing.userId !== user.id && user.role !== 'ADMIN' && user.role !== 'OWNER') {
       return {
         success: false,
-        error: `Account ${data.login} on ${data.server} is already linked to another user account.`
+        error: `Account ${cleanLogin} on ${cleanServer} is already linked to another user account.`
       };
     }
 
@@ -88,10 +93,16 @@ export async function createMt5Account(data: {
       });
 
       const isReconnectingExisting = existing && existing.userId === user.id;
+      const isSwitchingRole = Boolean(isReconnectingExisting && existing.role !== data.role);
 
-      if (!isReconnectingExisting) {
+      // Validate tier limits when creating new OR switching role on existing account (SEC-018)
+      if (!isReconnectingExisting || isSwitchingRole) {
+        const relevantAccounts = isSwitchingRole
+          ? userAccounts.filter(a => a.id !== existing?.id)
+          : userAccounts;
+
         if (data.role === 'MASTER') {
-          const currentMasters = userAccounts.filter(a => a.role === 'MASTER').length;
+          const currentMasters = relevantAccounts.filter(a => a.role === 'MASTER').length;
           if (currentMasters >= maxMasters) {
             let limitMsg = '';
             if (isTrial || planId === 'trial') {
@@ -110,7 +121,7 @@ export async function createMt5Account(data: {
             };
           }
         } else if (data.role === 'SUB') {
-          const currentSubs = userAccounts.filter(a => a.role === 'SUB').length;
+          const currentSubs = relevantAccounts.filter(a => a.role === 'SUB').length;
           if (currentSubs >= maxSubs) {
             let limitMsg = '';
             if (isTrial || planId === 'trial') {
@@ -154,10 +165,10 @@ export async function createMt5Account(data: {
       account = await prisma.mt5Account.create({
         data: {
           userId: user.id,
-          login: data.login,
+          login: cleanLogin,
           password: encryptedPassword,
-          broker: data.broker,
-          server: data.server,
+          broker: cleanBroker,
+          server: cleanServer,
           role: data.role,
           isActive: true, // Auto-start the terminal upon creation
           isDemo: data.isDemo ?? true, // Default to demo for safety if not specified
@@ -595,11 +606,24 @@ export async function retryAccountConnection(accountId: string) {
     }
 
     const user = await prisma.user.findUnique({
-      where: { email: session.user.email }
+      where: { email: session.user.email },
+      include: { subscription: true }
     });
 
     if (!user) {
       return { success: false, error: 'User not found' };
+    }
+
+    // Automatically enforce 3-day grace period cleanup if expired
+    await enforceTrialGraceCleanup(user.id);
+
+    const trialGrace = getTrialGraceStatus(user);
+    if (!trialGrace.canConnectAccounts && user.role !== 'ADMIN' && user.role !== 'OWNER') {
+      return {
+        success: false,
+        error: trialGrace.bannerMessage || 'Your subscription or trial has expired. Please select a plan on the Pricing page to reconnect accounts.',
+        code: 'PAYWALL_REQUIRED'
+      };
     }
 
     const whereClause: any = { id: accountId };
@@ -674,10 +698,10 @@ export async function updateAccountCredentials(data: {
     };
 
     if (data.login && data.login.trim()) {
-      updateData.login = data.login.trim();
+      updateData.login = data.login.replace(/[\r\n]/g, '').trim();
     }
     if (data.server && data.server.trim()) {
-      updateData.server = data.server.trim();
+      updateData.server = data.server.replace(/[\r\n]/g, '').trim();
     }
     if (data.password && data.password.trim()) {
       updateData.password = encrypt(data.password.trim());
@@ -756,19 +780,66 @@ export async function updateAccountRiskSettings(
     }
 
     const cleanData: any = {};
-    if (copySettingsData.riskType !== undefined) cleanData.riskType = String(copySettingsData.riskType);
-    if (copySettingsData.fixedLotSize !== undefined) cleanData.fixedLotSize = Number(copySettingsData.fixedLotSize);
-    if (copySettingsData.lotMultiplier !== undefined) cleanData.lotMultiplier = Number(copySettingsData.lotMultiplier);
-    if (copySettingsData.riskPercentage !== undefined) cleanData.riskPercentage = Number(copySettingsData.riskPercentage);
-    if (copySettingsData.roundingTolerancePct !== undefined) cleanData.roundingTolerancePct = Number(copySettingsData.roundingTolerancePct);
+    if (copySettingsData.riskType !== undefined) {
+      const allowed = ['FIXED_LOT', 'MULTIPLIER', 'RISK_PERCENT', 'EQUITY_PERCENT'];
+      const rt = String(copySettingsData.riskType).toUpperCase();
+      if (!allowed.includes(rt)) {
+        return { success: false, error: 'Invalid risk calculation type.' };
+      }
+      cleanData.riskType = rt;
+    }
+    if (copySettingsData.fixedLotSize !== undefined) {
+      const num = Number(copySettingsData.fixedLotSize);
+      if (isNaN(num) || num < 0.01 || num > 100) {
+        return { success: false, error: 'Fixed lot size must be between 0.01 and 100.0.' };
+      }
+      cleanData.fixedLotSize = num;
+    }
+    if (copySettingsData.lotMultiplier !== undefined) {
+      const num = Number(copySettingsData.lotMultiplier);
+      if (isNaN(num) || num < 0.01 || num > 50) {
+        return { success: false, error: 'Lot multiplier must be between 0.01 and 50.0.' };
+      }
+      cleanData.lotMultiplier = num;
+    }
+    if (copySettingsData.riskPercentage !== undefined) {
+      const num = Number(copySettingsData.riskPercentage);
+      if (isNaN(num) || num < 0.01 || num > 100) {
+        return { success: false, error: 'Risk percentage must be between 0.01% and 100%.' };
+      }
+      cleanData.riskPercentage = num;
+    }
+    if (copySettingsData.roundingTolerancePct !== undefined) {
+      const num = Number(copySettingsData.roundingTolerancePct);
+      if (!isNaN(num)) cleanData.roundingTolerancePct = Math.max(0, Math.min(100, num));
+    }
     if (copySettingsData.dailyRiskEnabled !== undefined) cleanData.dailyRiskEnabled = Boolean(copySettingsData.dailyRiskEnabled);
-    if (copySettingsData.maxDailyRisk !== undefined) cleanData.maxDailyRisk = Number(copySettingsData.maxDailyRisk);
+    if (copySettingsData.maxDailyRisk !== undefined) {
+      const num = Number(copySettingsData.maxDailyRisk);
+      if (!isNaN(num)) cleanData.maxDailyRisk = Math.max(0, Math.min(100, num));
+    }
     if (copySettingsData.maxTradesEnabled !== undefined) cleanData.maxTradesEnabled = Boolean(copySettingsData.maxTradesEnabled);
-    if (copySettingsData.maxActiveTrades !== undefined) cleanData.maxActiveTrades = Number(copySettingsData.maxActiveTrades);
+    if (copySettingsData.maxActiveTrades !== undefined) {
+      const num = parseInt(String(copySettingsData.maxActiveTrades), 10);
+      if (!isNaN(num)) cleanData.maxActiveTrades = Math.max(1, Math.min(500, num));
+    }
     if (copySettingsData.requireTp !== undefined) cleanData.requireTp = Boolean(copySettingsData.requireTp);
-    if (copySettingsData.missingSlTimeoutSec !== undefined) cleanData.missingSlTimeoutSec = Number(copySettingsData.missingSlTimeoutSec);
-    if (copySettingsData.maxRecoveryRRDegradation !== undefined) cleanData.maxRecoveryRRDegradation = Number(copySettingsData.maxRecoveryRRDegradation);
-    if (copySettingsData.maxLotCap !== undefined) cleanData.maxLotCap = copySettingsData.maxLotCap ? Number(copySettingsData.maxLotCap) : null;
+    if (copySettingsData.missingSlTimeoutSec !== undefined) {
+      const num = parseInt(String(copySettingsData.missingSlTimeoutSec), 10);
+      if (!isNaN(num)) cleanData.missingSlTimeoutSec = Math.max(0, Math.min(3600, num));
+    }
+    if (copySettingsData.maxRecoveryRRDegradation !== undefined) {
+      const num = Number(copySettingsData.maxRecoveryRRDegradation);
+      if (!isNaN(num)) cleanData.maxRecoveryRRDegradation = Math.max(0, Math.min(100, num));
+    }
+    if (copySettingsData.maxLotCap !== undefined) {
+      if (copySettingsData.maxLotCap === null || copySettingsData.maxLotCap === 0) {
+        cleanData.maxLotCap = null;
+      } else {
+        const num = Number(copySettingsData.maxLotCap);
+        if (!isNaN(num) && num > 0) cleanData.maxLotCap = Math.min(100, num);
+      }
+    }
 
     await prisma.copySettings.upsert({
       where: { mt5AccountId: accountId },

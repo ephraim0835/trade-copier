@@ -30,7 +30,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Reset code expired. Please request a new one.' }, { status: 400 });
     }
 
-    if (user.resetToken !== code) {
+    if (user.resetToken !== `code_${code.trim()}`) {
       return NextResponse.json({ error: 'Invalid verification code' }, { status: 400 });
     }
 

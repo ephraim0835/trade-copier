@@ -1,7 +1,7 @@
 import { withAuth } from "next-auth/middleware";
 
 export default withAuth({
-  secret: process.env.NEXTAUTH_SECRET || 'trade_copier_secure_nextauth_secret_2026',
+  secret: process.env.NEXTAUTH_SECRET,
   pages: {
     signIn: "/login",
   },

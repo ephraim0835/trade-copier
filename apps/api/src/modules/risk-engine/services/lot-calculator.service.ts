@@ -116,7 +116,22 @@ export class LotCalculatorService {
 
     // Capital in USD calculations
     const subCurrency = (sub.currency || 'USD').toUpperCase();
-    const subBaseBalance = sub.balance > 0 ? sub.balance : (sub.equity > 0 ? sub.equity : 1000);
+    const subBaseBalance = sub.balance > 0 ? sub.balance : (sub.equity && sub.equity > 0 ? sub.equity : 0);
+    if (subBaseBalance <= 0) {
+      warnings.push('Account balance and equity are zero or uninitialized. Trade skipped to protect account.');
+      return {
+        finalVolume: 0,
+        rawCalculatedVolume: 0,
+        cashRiskUSD: 0,
+        cashRiskAccountCurrency: 0,
+        lossPerLotUSD: 0,
+        slDistance: 0,
+        calculationMethod: 'FALLBACK_PROPORTIONAL',
+        marginClamped: false,
+        maxLotClamped: false,
+        warnings,
+      };
+    }
     const subCapitalUSD = this.currencyService.toUSD(subBaseBalance, subCurrency);
 
     const masterCurrency = (master?.currency || 'USD').toUpperCase();
@@ -222,6 +237,28 @@ export class LotCalculatorService {
     if (settings.maxLotCap && settings.maxLotCap > 0 && rawVol > settings.maxLotCap) {
       maxLotClamped = true;
       warnings.push(`Risk-percentage volume (${rawVol.toFixed(2)}) capped by user Max Lot Cap (${settings.maxLotCap.toFixed(2)}).`);
+    }
+
+    // Small account protection: If raw calculated volume is below broker minLot and rounding up breaches risk limit
+    if (rawVol > 0 && rawVol < minLot && lossPerLotUSD > 0) {
+      const minLotRiskUSD = minLot * lossPerLotUSD;
+      if (minLotRiskUSD > cashRiskUSD * 1.50) {
+        warnings.push(
+          `Trade skipped: Minimum lot size (${minLot.toFixed(2)}) risks $${minLotRiskUSD.toFixed(2)}, which exceeds user maximum permitted risk of $${cashRiskUSD.toFixed(2)}.`
+        );
+        return {
+          finalVolume: 0,
+          rawCalculatedVolume: rawVol,
+          cashRiskUSD,
+          cashRiskAccountCurrency,
+          lossPerLotUSD,
+          slDistance,
+          calculationMethod,
+          marginClamped: false,
+          maxLotClamped,
+          warnings,
+        };
+      }
     }
 
     const finalVolume = this.stepAndClamp(rawVol, minLot, maxLot, lotStep);

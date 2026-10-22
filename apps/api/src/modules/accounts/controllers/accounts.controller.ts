@@ -1,4 +1,6 @@
-import { Controller, Patch, Param, Body, Post, Get, UseGuards, Request, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Controller, Patch, Param, Body, Post, Get, UseGuards, Request, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
+import * as crypto from 'crypto';
+import * as bcrypt from 'bcrypt';
 import { AccountsService } from '../services/accounts.service';
 import { UpdateCopySettingsDto } from '../dto/update-copy-settings.dto';
 import { UpdateTelemetryDto } from '../dto/update-telemetry.dto';
@@ -60,12 +62,38 @@ export class AccountsController {
   @Post('internal/ea-token')
   async generateEaToken(@Body() body: { accountId: string }, @Request() req: any) {
     const serviceKey = process.env.INTERNAL_MANAGER_SECRET;
-    if (!serviceKey || req.headers.authorization !== `Bearer ${serviceKey}`) {
+    if (!serviceKey) {
+      throw new ForbiddenException(`Internal manager secret is not configured on server.`);
+    }
+
+    const authHeader = req.headers.authorization || '';
+    const expected = `Bearer ${serviceKey}`;
+    const givenBuf = Buffer.from(authHeader);
+    const expectedBuf = Buffer.from(expected);
+
+    if (givenBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(givenBuf, expectedBuf)) {
       throw new ForbiddenException(`Invalid auth header or missing internal secret.`);
     }
-    const crypto = require('crypto');
-    const bcrypt = require('bcrypt');
-    const secret = crypto.randomBytes(16).toString('hex');
+
+    if (!body?.accountId || typeof body.accountId !== 'string') {
+      throw new BadRequestException('Valid accountId is required.');
+    }
+
+    const account = await this.prisma.mt5Account.findUnique({
+      where: { id: body.accountId },
+      select: { id: true, isActive: true },
+    });
+
+    if (!account) {
+      throw new NotFoundException('Account not found.');
+    }
+
+    // Prune older tokens for this account to prevent infinite token accumulation (SEC-019)
+    await this.prisma.eaToken.deleteMany({
+      where: { mt5AccountId: body.accountId },
+    }).catch(() => {});
+
+    const secret = crypto.randomBytes(24).toString('hex');
     const hash = await bcrypt.hash(secret, 10);
     const token = await this.prisma.eaToken.create({
       data: {

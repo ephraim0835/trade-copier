@@ -109,7 +109,6 @@ export class AccountsService {
       }
 
       const updateData: any = {
-        isActive: true,
         connectionStatus: 'ONLINE',
         provisioningError: null,
         lastHeartbeatAt: new Date(),

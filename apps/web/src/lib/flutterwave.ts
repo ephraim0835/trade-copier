@@ -14,22 +14,32 @@ export function getFlutterwaveConfig(): FlutterwaveConfig {
   const mode = (
     process.env.FLW_MODE || 
     process.env.NEXT_PUBLIC_FLW_MODE || 
-    'test'
+    ''
   ).toLowerCase().trim();
 
-  const isLive = mode === 'live';
+  const secretKey = (
+    process.env.FLW_LIVE_SECRET_KEY || 
+    process.env.FLW_SECRET_KEY || 
+    ''
+  ).trim();
 
-  const secretKey = isLive
-    ? (process.env.FLW_LIVE_SECRET_KEY || process.env.FLW_SECRET_KEY || '')
-    : (process.env.FLW_SECRET_KEY || '');
+  const publicKey = (
+    process.env.NEXT_PUBLIC_FLW_PUBLIC_KEY ||
+    process.env.FLW_LIVE_PUBLIC_KEY || 
+    process.env.FLW_PUBLIC_KEY || 
+    ''
+  ).trim();
 
-  const publicKey = isLive
-    ? (process.env.FLW_LIVE_PUBLIC_KEY || process.env.FLW_PUBLIC_KEY || '')
-    : (process.env.FLW_PUBLIC_KEY || '');
+  const encryptionKey = (
+    process.env.FLW_LIVE_ENCRYPTION_KEY || 
+    process.env.FLW_ENCRYPTION_KEY || 
+    ''
+  ).trim();
 
-  const encryptionKey = isLive
-    ? (process.env.FLW_LIVE_ENCRYPTION_KEY || process.env.FLW_ENCRYPTION_KEY || '')
-    : (process.env.FLW_ENCRYPTION_KEY || '');
+  // If the secret key starts with live prefix FLWSECK- (and not FLWSECK_TEST), it is inherently LIVE.
+  const isKeyExplicitlyLive = (secretKey.startsWith('FLWSECK-') && !secretKey.includes('_TEST')) ||
+                              (publicKey.startsWith('FLWPUBK-') && !publicKey.includes('_TEST'));
+  const isLive = mode === 'live' || isKeyExplicitlyLive;
 
   return {
     isLive,

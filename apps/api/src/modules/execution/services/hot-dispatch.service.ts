@@ -269,11 +269,28 @@ export class HotDispatchService implements IHotDispatchQueue, OnModuleInit, OnMo
     return null;
   }
 
+  isDuplicateOrProcessed(masterAccountId: string, masterTicket: bigint | string, sequenceNumber: number, eventId?: string): boolean {
+    if (eventId && this.checkIdempotency(eventId)) {
+      return true;
+    }
+    const seqKey = `${masterAccountId}:${masterTicket.toString()}`;
+    const highest = this.highestSequenceMap.get(seqKey);
+    return highest !== undefined && sequenceNumber <= highest;
+  }
+
+  updateSequence(masterAccountId: string, masterTicket: bigint | string, sequenceNumber: number): void {
+    const seqKey = `${masterAccountId}:${masterTicket.toString()}`;
+    const highest = this.highestSequenceMap.get(seqKey) || 0;
+    if (sequenceNumber > highest) {
+      this.highestSequenceMap.set(seqKey, sequenceNumber);
+    }
+  }
+
   validateMonotonicSequence(masterAccountId: string, masterTicket: bigint | string, sequenceNumber: number): void {
     const seqKey = `${masterAccountId}:${masterTicket.toString()}`;
     const highest = this.highestSequenceMap.get(seqKey) || 0;
-    if (sequenceNumber <= highest) {
-      throw new BadRequestException(`Stale/duplicate sequence ${sequenceNumber} <= current ${highest} for ticket ${masterTicket}`);
+    if (sequenceNumber < highest) {
+      throw new BadRequestException(`Stale sequence ${sequenceNumber} < current ${highest} for ticket ${masterTicket}`);
     }
     this.highestSequenceMap.set(seqKey, sequenceNumber);
   }

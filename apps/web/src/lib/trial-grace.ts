@@ -16,6 +16,7 @@ export interface TrialGraceStatus {
   canCopyTrades: boolean;
   bannerTitle?: string;
   bannerMessage?: string;
+  isSubscriptionGrace?: boolean;
 }
 
 /**
@@ -67,9 +68,13 @@ export function getTrialGraceStatus(user: {
     currentPeriodEnd?: Date | null;
   } | null;
 }): TrialGraceStatus {
+  const now = Date.now();
+  const currentPeriodEnd = user.subscription?.currentPeriodEnd ? new Date(user.subscription.currentPeriodEnd) : null;
+  const isPeriodEnded = currentPeriodEnd ? currentPeriodEnd.getTime() <= now : false;
+
   const isAdmin = user.role === 'ADMIN' || user.role === 'OWNER';
   const isInternalFree = user.subscription?.status === 'INTERNAL_FREE';
-  const isActivePaid = user.subscription?.status === 'ACTIVE';
+  const isActivePaid = user.subscription?.status === 'ACTIVE' && !isPeriodEnded;
 
   if (isAdmin || isInternalFree || isActivePaid) {
     return {
@@ -86,6 +91,63 @@ export function getTrialGraceStatus(user: {
       isGraceExpired: false,
       canConnectAccounts: true,
       canCopyTrades: true,
+    };
+  }
+
+  // Handle active subscription past renewal date (with 3-day grace period)
+  if (user.subscription?.status === 'ACTIVE' && isPeriodEnded && currentPeriodEnd) {
+    const periodEndMs = currentPeriodEnd.getTime();
+    const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000; // 3 Days = 72 Hours
+    const graceEndMs = periodEndMs + THREE_DAYS_MS;
+    const gracePeriodEndsAt = new Date(graceEndMs);
+
+    const inGracePeriod = now <= graceEndMs;
+    const isGraceExpired = now > graceEndMs;
+
+    const msRemaining = Math.max(0, graceEndMs - now);
+    const graceHoursRemaining = Math.floor(msRemaining / (1000 * 60 * 60));
+    const graceDaysRemaining = Math.ceil(msRemaining / (1000 * 60 * 60 * 24));
+    const timeLabel = graceDaysRemaining > 1 ? `${graceDaysRemaining} days` : `${graceHoursRemaining} hours`;
+
+    if (inGracePeriod) {
+      return {
+        isTrial: false,
+        isPaidOrAdmin: false,
+        isTrialExpired: false,
+        trialEndsAt: null,
+        trialDaysRemaining: 0,
+        trialHoursRemaining: 0,
+        inGracePeriod: true,
+        gracePeriodEndsAt,
+        graceHoursRemaining,
+        graceDaysRemaining,
+        isGraceExpired: false,
+        canConnectAccounts: true,
+        canCopyTrades: true, // 3-day grace period preserves trade copying while user renews
+        bannerTitle: `Subscription Renewal Due — 3-Day Grace Period Active (${timeLabel} remaining)`,
+        bannerMessage: `Your subscription is due for renewal. You have ${timeLabel} remaining in your 3-day grace period to complete payment before automated trade copying is paused.`,
+        isSubscriptionGrace: true,
+      };
+    }
+
+    // 3-Day grace period expired
+    return {
+      isTrial: false,
+      isPaidOrAdmin: false,
+      isTrialExpired: true,
+      trialEndsAt: null,
+      trialDaysRemaining: 0,
+      trialHoursRemaining: 0,
+      inGracePeriod: false,
+      gracePeriodEndsAt,
+      graceHoursRemaining,
+      graceDaysRemaining,
+      isGraceExpired: true,
+      canConnectAccounts: false,
+      canCopyTrades: false,
+      bannerTitle: 'Subscription & 3-Day Grace Period Expired',
+      bannerMessage: 'Your subscription renewal and 3-day grace period have expired. Automated trade copying is paused. Please renew your plan to reactivate copying.',
+      isSubscriptionGrace: true,
     };
   }
 
@@ -111,8 +173,6 @@ export function getTrialGraceStatus(user: {
   }
 
   const isTrial = user.subscription?.status === 'TRIAL' || user.subscription?.planId === 'trial';
-  const currentPeriodEnd = user.subscription?.currentPeriodEnd ? new Date(user.subscription.currentPeriodEnd) : null;
-  const now = Date.now();
 
   if (!isTrial || !currentPeriodEnd) {
     const isExpiredStatus = user.subscription?.status === 'EXPIRED';
@@ -209,8 +269,73 @@ export async function enforceTrialGraceCleanup(userId: string) {
     if (!user) return;
     const status = getTrialGraceStatus(user);
 
-    if (status.isGraceExpired && user.accounts.length > 0) {
-      console.log(`[GracePeriod] Clearing ${user.accounts.length} accounts for user ${userId} whose 3-day grace period expired.`);
+    // Handle Active Subscription Grace & Alerts (if subscription isn't renewed)
+    if (user.subscription && user.subscription.status === 'ACTIVE' && user.subscription.currentPeriodEnd) {
+      const periodEnd = new Date(user.subscription.currentPeriodEnd);
+      const isPeriodEnded = periodEnd.getTime() <= Date.now();
+
+      if (isPeriodEnded) {
+        const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+        const graceEndMs = periodEnd.getTime() + THREE_DAYS_MS;
+        const gracePeriodEndsAt = new Date(graceEndMs);
+        const inGrace = Date.now() <= graceEndMs;
+
+        if (inGrace) {
+          // Check if grace period alert was already sent for this billing period
+          const existingAlert = await prisma.userNotification.findFirst({
+            where: {
+              userId,
+              title: { contains: 'Subscription Renewal Due' },
+              createdAt: { gte: periodEnd }
+            }
+          });
+
+          if (!existingAlert) {
+            const formattedGraceDate = gracePeriodEndsAt.toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric'
+            });
+
+            // In-App Alert Notification (strictly in-app to prevent phishing/spoofing attacks)
+            await prisma.userNotification.create({
+              data: {
+                userId,
+                title: 'Subscription Renewal Due — 3-Day Grace Period Active',
+                message: `Your ${user.subscription.planId?.toUpperCase() || ''} subscription is due for renewal. A 3-day grace period is active until ${formattedGraceDate}. Automated trade copying will remain active during this period. Please complete renewal to avoid copying interruption.`,
+                type: 'ALERT',
+                actionUrl: '/pricing',
+              }
+            }).catch((e) => console.error('Could not create grace notification:', e));
+          }
+        } else {
+          // Grace period is expired (> 3 days past currentPeriodEnd)
+          const existingExpiredAlert = await prisma.userNotification.findFirst({
+            where: {
+              userId,
+              title: { contains: 'Subscription Grace Period Expired' },
+              createdAt: { gte: gracePeriodEndsAt }
+            }
+          });
+
+          if (!existingExpiredAlert) {
+            await prisma.userNotification.create({
+              data: {
+                userId,
+                title: 'Subscription Grace Period Expired — Copying Paused',
+                message: 'Your 3-day subscription grace period has ended without renewal. Automated trade copying is now paused. Please renew your subscription to resume copying.',
+                type: 'ALERT',
+                actionUrl: '/pricing',
+              }
+            }).catch((e) => console.error('Could not create expired notification:', e));
+          }
+        }
+      }
+    }
+
+    // Trial grace expiration: clear MT5 accounts only for trial users who never selected a plan
+    if (status.isTrial && status.isGraceExpired && user.accounts.length > 0) {
+      console.log(`[GracePeriod] Clearing ${user.accounts.length} accounts for trial user ${userId} whose 3-day grace period expired.`);
 
       // 1. Delete account subscriptions linking
       await prisma.accountSubscription.deleteMany({

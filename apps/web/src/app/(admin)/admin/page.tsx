@@ -3,10 +3,25 @@ import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
 import { AdminLiveOverview } from '@/components/admin-live-overview';
 import { formatUserFriendlyError } from '@/lib/error-formatter';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/lib/auth';
+import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminOverviewPage() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) redirect('/login');
+
+  const currentUser = await prisma.user.findUnique({
+    where: { email: session.user.email },
+    select: { role: true },
+  });
+
+  if (!currentUser || (currentUser.role !== 'ADMIN' && currentUser.role !== 'OWNER')) {
+    redirect('/dashboard');
+  }
+
   let totalUsers = 0;
   let activeSubs = 0;
   let activeMasters = 0;
@@ -28,7 +43,12 @@ export default async function AdminOverviewPage() {
       select: { planId: true }
     });
     payingSubscribers = activeSubscriptions.length;
-    mrr = activeSubscriptions.reduce((sum, s) => sum + (s.planId === 'pro' ? 39 : 26), 0);
+    mrr = activeSubscriptions.reduce((sum, s) => {
+      const plan = (s.planId || '').toLowerCase();
+      if (plan === 'elite') return sum + 99;
+      if (plan === 'pro') return sum + 49;
+      return sum + 29; // Starter / Basic default
+    }, 0);
 
     // 1. Audit log risk rejections
     const auditLogs = await prisma.auditLog.findMany({

@@ -396,19 +396,19 @@ export function RevenueClient({ users, discounts }: RevenueClientProps) {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
               <div className="p-2.5 rounded-lg bg-card border border-border/40">
                 <span className="text-[10px] text-muted-foreground block">25 Pro Users</span>
-                <span className="text-sm font-bold text-foreground num-tabular">{formatMoney(25 * 39)}</span>
+                <span className="text-sm font-bold text-foreground num-tabular">{formatMoney(25 * 49)}</span>
               </div>
               <div className="p-2.5 rounded-lg bg-card border border-border/40">
                 <span className="text-[10px] text-muted-foreground block">50 Pro Users</span>
-                <span className="text-sm font-bold text-foreground num-tabular">{formatMoney(50 * 39)}</span>
+                <span className="text-sm font-bold text-foreground num-tabular">{formatMoney(50 * 49)}</span>
               </div>
               <div className="p-2.5 rounded-lg bg-card border border-border/40">
                 <span className="text-[10px] text-muted-foreground block">100 Pro Users</span>
-                <span className="text-sm font-bold text-primary num-tabular">{formatMoney(100 * 39)}</span>
+                <span className="text-sm font-bold text-primary num-tabular">{formatMoney(100 * 49)}</span>
               </div>
               <div className="p-2.5 rounded-lg bg-card border border-border/40">
                 <span className="text-[10px] text-muted-foreground block">250 Pro Users</span>
-                <span className="text-sm font-bold text-emerald-500 num-tabular">{formatMoney(250 * 39)}</span>
+                <span className="text-sm font-bold text-emerald-500 num-tabular">{formatMoney(250 * 49)}</span>
               </div>
             </div>
           </div>

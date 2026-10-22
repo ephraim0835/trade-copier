@@ -333,8 +333,12 @@ export class AsyncPersistenceService implements OnModuleInit, OnModuleDestroy {
               sequenceNumber,
             },
           });
+          const whereClause: any = { masterOrderTicket: BigInt(orderTicket) };
+          if (signalId) {
+            whereClause.masterSignalId = signalId;
+          }
           await tx.executionCommand.updateMany({
-            where: { masterOrderTicket: BigInt(orderTicket) },
+            where: whereClause,
             data: { masterPositionTicket: BigInt(positionTicket) },
           });
         });

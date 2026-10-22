@@ -22,18 +22,16 @@ export async function POST() {
     }
 
     // Generate a secure 6-digit code using CSPRNG
+    // Generate a secure 6-digit code using CSPRNG
     const code = crypto.randomInt(100000, 1000000).toString();
     
-    // Hash the code before saving it (using simple SHA-256 for the token, not argon2 because it's short-lived and we compare securely)
-    // Actually, since it's just a 6 digit code for password reset, we can just save it directly or hash it.
-    // For simplicity and since it expires in 10 mins, let's just save it.
-    const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + 10);
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
+    // Namespace with code_ prefix so public link token reset can NEVER match in-app codes (SEC-015)
     await prisma.user.update({
       where: { email },
       data: {
-        resetToken: code,
+        resetToken: `code_${code}`,
         resetTokenExpiresAt: expiresAt
       }
     });

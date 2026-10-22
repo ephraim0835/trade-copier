@@ -14,13 +14,48 @@ async function checkAdmin() {
     where: { email: session.user.email }
   });
   
-  if (!user || (user.role !== 'ADMIN' && user.role !== 'OWNER')) {
+  if (!user || (user.role !== Role.ADMIN && user.role !== Role.OWNER)) {
     throw new Error("Forbidden: Admin privileges required.");
   }
+
+  return user;
 }
 
 export async function updateUserRole(userId: string, role: Role) {
-  await checkAdmin();
+  const admin = await checkAdmin();
+  
+  if (admin.id === userId) {
+    throw new Error("Forbidden: You cannot modify your own role.");
+  }
+
+  const targetUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, role: true }
+  });
+  if (!targetUser) {
+    throw new Error("User not found.");
+  }
+
+  // Only OWNER can alter roles to or from ADMIN and OWNER
+  const isPrivilegedChange =
+    targetUser.role === Role.ADMIN ||
+    targetUser.role === Role.OWNER ||
+    role === Role.ADMIN ||
+    role === Role.OWNER;
+
+  if (isPrivilegedChange && admin.role !== Role.OWNER) {
+    throw new Error("Forbidden: Only an OWNER can grant or modify administrative roles.");
+  }
+
+  // Disallow demoting the last remaining OWNER
+  if (targetUser.role === Role.OWNER && role !== Role.OWNER) {
+    const ownerCount = await prisma.user.count({
+      where: { role: Role.OWNER }
+    });
+    if (ownerCount <= 1) {
+      throw new Error("Forbidden: Cannot demote the last remaining OWNER.");
+    }
+  }
   
   await prisma.user.update({
     where: { id: userId },
@@ -61,7 +96,34 @@ export async function revokeSubscription(userId: string) {
 }
 
 export async function deleteUser(userId: string) {
-  await checkAdmin();
+  const admin = await checkAdmin();
+  
+  if (admin.id === userId) {
+    throw new Error("Forbidden: You cannot delete your own account from the admin panel.");
+  }
+
+  const targetUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, role: true }
+  });
+  if (!targetUser) {
+    throw new Error("User not found.");
+  }
+
+  // Disallow deleting an OWNER if it's the last OWNER
+  if (targetUser.role === Role.OWNER) {
+    const ownerCount = await prisma.user.count({
+      where: { role: Role.OWNER }
+    });
+    if (ownerCount <= 1) {
+      throw new Error("Forbidden: Cannot delete the last remaining OWNER.");
+    }
+  }
+
+  // An ADMIN cannot delete an ADMIN or OWNER
+  if ((targetUser.role === Role.ADMIN || targetUser.role === Role.OWNER) && admin.role !== Role.OWNER) {
+    throw new Error("Forbidden: Only an OWNER can delete administrative accounts.");
+  }
   
   // Note: Prisma needs cascading deletes enabled for this to work natively if there are relations.
   try {

@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { CheckoutButton } from '@/components/checkout-button';
 import { getPlanActionLabel } from '@/lib/plan-tiers';
+import { useSubscription } from '@/components/subscription-provider';
 
 interface SettingsControlsProps {
   email?: string;
@@ -30,6 +31,7 @@ export function SettingsControls({
   subsCount = 0,
 }: SettingsControlsProps) {
   const { currency, setCurrency, exchangeRate } = useCurrency();
+  const { trialGrace } = useSubscription();
   const effectiveRate = exchangeRate > 0 ? exchangeRate : 1350;
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -178,7 +180,11 @@ export function SettingsControls({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-[15px] font-semibold text-foreground">Subscription & Plan Status</h3>
-                {localStatus === 'ACTIVE' ? (
+                {localStatus === 'ACTIVE' && trialGrace?.inGracePeriod ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                    Grace Period • {(subscription?.planId || 'PRO').toUpperCase()}
+                  </span>
+                ) : localStatus === 'ACTIVE' ? (
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
                     Active • {(subscription?.planId || 'PRO').toUpperCase()}
                   </span>
@@ -286,14 +292,31 @@ export function SettingsControls({
               {subscription?.currentPeriodEnd && localStatus === 'ACTIVE' && (
                 <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1 font-medium">
                   <Clock className="w-3 h-3 text-primary" />
-                  Next renewal on:{' '}
-                  <strong className="text-foreground">
-                    {new Date(subscription.currentPeriodEnd).toLocaleDateString(undefined, {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                    })}
-                  </strong>
+                  {trialGrace?.inGracePeriod ? (
+                    <span className="text-amber-500 font-semibold">
+                      Renewal due • 3-Day Grace Period ends on{' '}
+                      <strong className="text-foreground">
+                        {trialGrace.gracePeriodEndsAt
+                          ? new Date(trialGrace.gracePeriodEndsAt).toLocaleDateString(undefined, {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                            })
+                          : ''}
+                      </strong>
+                    </span>
+                  ) : (
+                    <>
+                      Next renewal on:{' '}
+                      <strong className="text-foreground">
+                        {new Date(subscription.currentPeriodEnd).toLocaleDateString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })}
+                      </strong>
+                    </>
+                  )}
                 </p>
               )}
               {isTrial && subscription?.currentPeriodEnd && (

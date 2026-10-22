@@ -144,7 +144,9 @@ export async function sendVerification(tokenOrEmail: string) {
  * Only at this step is the user account actually committed and saved to the database.
  */
 export async function confirmVerification(token: string) {
-  if (!token) return { error: 'No verification token provided.' };
+  if (!token || typeof token !== 'string' || token.trim().length < 16) {
+    return { error: 'No verification token provided.' };
+  }
 
   try {
     // A. Check modern encrypted pending signup token
@@ -278,14 +280,23 @@ export async function requestPasswordReset(email: string) {
 
 // Reset password with token
 export async function resetPassword(token: string, newPassword: string) {
+  if (!token || typeof token !== 'string' || token.trim().length < 32 || token.startsWith('code_')) {
+    return { error: 'Invalid or expired reset link.' };
+  }
+
+  if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 8) {
+    return { error: 'Password must be at least 8 characters long.' };
+  }
+
+  const cleanToken = token.trim();
   const user = await prisma.user.findFirst({
-    where: { resetToken: token },
+    where: { 
+      resetToken: cleanToken,
+      resetTokenExpiresAt: { gt: new Date() }
+    },
   });
 
   if (!user) return { error: 'Invalid or expired reset link.' };
-  if (!user.resetTokenExpiresAt || user.resetTokenExpiresAt < new Date()) {
-    return { error: 'This reset link has expired. Please request a new one.' };
-  }
 
   const hashedPassword = await argon2.hash(newPassword);
   await prisma.user.update({
