@@ -2,8 +2,9 @@
 
 import { useCurrency } from '@/components/currency-provider';
 import { useTheme } from 'next-themes';
-import { Globe, Moon, Sun, Monitor, Check, Mail, Lock, ShieldCheck, Key, CreditCard, Sparkles, CheckCircle2, ArrowUpRight, BarChart3, Clock, MessageCircle } from 'lucide-react';
+import { Globe, Moon, Sun, Monitor, Check, Mail, Lock, ShieldCheck, Key, CreditCard, Sparkles, CheckCircle2, ArrowUpRight, BarChart3, Clock, MessageCircle, AlertTriangle, Loader2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { CheckoutButton } from '@/components/checkout-button';
 
@@ -36,6 +37,37 @@ export function SettingsControls({
   const [resetCode, setResetCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [timer, setTimer] = useState(0);
+
+  const router = useRouter();
+  const [localStatus, setLocalStatus] = useState<string>(subscription?.status || 'UNSUBSCRIBED');
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const [cancelSuccess, setCancelSuccess] = useState<string | null>(null);
+
+  const handleCancelSubscription = async () => {
+    setIsCancelling(true);
+    setCancelError(null);
+    try {
+      const res = await fetch('/api/billing/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to cancel subscription.');
+      }
+      setLocalStatus('CANCELED');
+      setCancelSuccess('Your subscription has been cancelled and copier benefits have been stopped immediately.');
+      setCancelModalOpen(false);
+      router.refresh();
+    } catch (err: any) {
+      console.error('Cancel subscription error:', err);
+      setCancelError(err.message || 'Failed to cancel subscription.');
+    } finally {
+      setIsCancelling(false);
+    }
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -92,12 +124,15 @@ export function SettingsControls({
 
   if (!mounted) return null;
 
-  const isTrial = subscription?.status === 'TRIAL' || subscription?.planId === 'trial';
+  const isTrial = (localStatus || subscription?.status) === 'TRIAL' || subscription?.planId === 'trial';
   const currentPlan = (subscription?.planId || (isTrial ? 'trial' : 'starter')).toLowerCase();
   
   let maxMasters = 1;
   let maxSubs = 3;
-  if (isTrial || currentPlan === 'trial') {
+  if (localStatus === 'CANCELED' || localStatus === 'EXPIRED') {
+    maxMasters = 0;
+    maxSubs = 0;
+  } else if (isTrial || currentPlan === 'trial') {
     maxMasters = 1;
     maxSubs = 1;
   } else if (currentPlan === 'pro') {
@@ -114,6 +149,23 @@ export function SettingsControls({
   return (
     <div className="flex flex-col gap-10">
 
+      {/* Cancellation Notice Banner */}
+      {cancelSuccess && (
+        <div className="p-4 rounded-2xl bg-destructive/10 border border-destructive/30 text-destructive text-xs font-medium flex items-center justify-between gap-3 animate-in fade-in">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-destructive" />
+            <span>{cancelSuccess}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCancelSuccess(null)}
+            className="p-1 rounded-lg hover:bg-destructive/10 text-destructive"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* SUBSCRIPTION & BILLING */}
       <div className="flex flex-col gap-6 pb-8 border-b border-border/30">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -124,13 +176,17 @@ export function SettingsControls({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-[15px] font-semibold text-foreground">Subscription & Plan Status</h3>
-                {subscription?.status === 'ACTIVE' ? (
+                {localStatus === 'ACTIVE' ? (
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                    Active • {(subscription.planId || 'PRO').toUpperCase()}
+                    Active • {(subscription?.planId || 'PRO').toUpperCase()}
                   </span>
-                ) : subscription?.status === 'INTERNAL_FREE' ? (
+                ) : localStatus === 'INTERNAL_FREE' ? (
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase bg-purple-500/10 text-purple-400 border border-purple-500/20">
-                    Complimentary • {(subscription.planId || 'PRO').toUpperCase()}
+                    Complimentary • {(subscription?.planId || 'PRO').toUpperCase()}
+                  </span>
+                ) : localStatus === 'CANCELED' ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase bg-destructive/10 text-destructive border border-destructive/20">
+                    Cancelled • Copying Stopped
                   </span>
                 ) : isTrial ? (
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
@@ -148,29 +204,44 @@ export function SettingsControls({
             </div>
           </div>
 
-          {(role === 'ADMIN' || role === 'OWNER') && (
-            <Link
-              href="/admin/revenue"
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 transition-colors shrink-0"
-            >
-              <BarChart3 className="w-3.5 h-3.5" />
-              Revenue Tracker
-              <ArrowUpRight className="w-3.5 h-3.5 opacity-70" />
-            </Link>
-          )}
+          <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
+            {(role === 'ADMIN' || role === 'OWNER') && (
+              <Link
+                href="/admin/revenue"
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 transition-colors shrink-0"
+              >
+                <BarChart3 className="w-3.5 h-3.5" />
+                Revenue Tracker
+                <ArrowUpRight className="w-3.5 h-3.5 opacity-70" />
+              </Link>
+            )}
+
+            {localStatus === 'ACTIVE' && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCancelError(null);
+                  setCancelModalOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-destructive/90 hover:text-destructive border border-destructive/30 hover:border-destructive/60 bg-destructive/5 hover:bg-destructive/10 transition-colors cursor-pointer shrink-0"
+              >
+                Cancel Subscription
+              </button>
+            )}
+          </div>
         </div>
 
         {/* PROMINENT CURRENT MEMBERSHIP CARD */}
         <div className="ml-0 md:ml-14 p-5 rounded-2xl bg-card border border-border/60 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-start gap-3.5">
             <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${
-              subscription?.status === 'ACTIVE' || subscription?.status === 'INTERNAL_FREE'
+              localStatus === 'ACTIVE' || localStatus === 'INTERNAL_FREE'
                 ? 'bg-emerald-500/10 text-emerald-500'
                 : isTrial
                 ? 'bg-blue-500/10 text-blue-500'
                 : 'bg-destructive/10 text-destructive'
             }`}>
-              {subscription?.status === 'ACTIVE' || subscription?.status === 'INTERNAL_FREE' ? (
+              {localStatus === 'ACTIVE' || localStatus === 'INTERNAL_FREE' ? (
                 <CheckCircle2 className="w-5 h-5" />
               ) : isTrial ? (
                 <Clock className="w-5 h-5" />
@@ -182,30 +253,47 @@ export function SettingsControls({
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Current Membership</span>
                 <span className="font-extrabold text-sm text-foreground">
-                  {subscription?.status === 'ACTIVE'
+                  {localStatus === 'ACTIVE'
                     ? (currentPlan === 'elite' ? 'Elite Plan ($99/mo)' : currentPlan === 'pro' ? 'Pro Plan ($49/mo)' : 'Starter Plan ($29/mo)')
-                    : subscription?.status === 'INTERNAL_FREE'
+                    : localStatus === 'INTERNAL_FREE'
                     ? `Complimentary ${currentPlan.toUpperCase()} (Full Admin Access)`
+                    : localStatus === 'CANCELED'
+                    ? 'Cancelled (All Copying Benefits Deactivated)'
                     : isTrial
                     ? '5-Day Free Trial (1 Master + 1 Sub)'
                     : 'No Active Plan / Unsubscribed'}
                 </span>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {currentPlan === 'elite'
+                {localStatus === 'CANCELED'
+                  ? 'Your subscription is cancelled. Automated trade copying is paused. Pick a plan to reconnect accounts.'
+                  : currentPlan === 'elite'
                   ? 'Capacity: Up to 5 Masters & 25 Followers • <10ms Ultra-Execution • VIP Support'
                   : currentPlan === 'pro'
                   ? 'Capacity: Up to 3 Masters & 10 Followers • <15ms Priority Bridge • Drawdown Guard'
                   : isTrial
                   ? 'Capacity: 1 Master & 1 Follower • Full Symbol Mapper & Risk Multipliers'
-                  : subscription?.status === 'ACTIVE'
+                  : localStatus === 'ACTIVE'
                   ? 'Capacity: 1 Master & 3 Followers • Full Symbol Mapper & Risk Multipliers'
                   : 'Trade copying is currently paused. Select a plan below to activate automated routing.'}
               </p>
-              {subscription?.currentPeriodEnd && (
+              {subscription?.currentPeriodEnd && localStatus === 'ACTIVE' && (
                 <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1 font-medium">
                   <Clock className="w-3 h-3 text-primary" />
-                  {isTrial ? 'Trial expires on: ' : 'Next renewal on: '}
+                  Next renewal on:{' '}
+                  <strong className="text-foreground">
+                    {new Date(subscription.currentPeriodEnd).toLocaleDateString(undefined, {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                  </strong>
+                </p>
+              )}
+              {isTrial && subscription?.currentPeriodEnd && (
+                <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1 font-medium">
+                  <Clock className="w-3 h-3 text-primary" />
+                  Trial expires on:{' '}
                   <strong className="text-foreground">
                     {new Date(subscription.currentPeriodEnd).toLocaleDateString(undefined, {
                       month: 'short',
@@ -219,7 +307,18 @@ export function SettingsControls({
           </div>
 
           <div className="shrink-0 flex items-center gap-2">
-            {(!subscription || !['ACTIVE', 'INTERNAL_FREE'].includes(subscription.status)) && (
+            {localStatus === 'ACTIVE' ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setCancelError(null);
+                  setCancelModalOpen(true);
+                }}
+                className="px-3.5 py-2 rounded-xl text-xs font-semibold text-destructive hover:bg-destructive/10 border border-destructive/30 hover:border-destructive transition-colors cursor-pointer"
+              >
+                Cancel Subscription
+              </button>
+            ) : (!['ACTIVE', 'INTERNAL_FREE'].includes(localStatus)) && (
               <Link
                 href="/pricing"
                 className="px-4 py-2 rounded-xl text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md shadow-primary/20"
@@ -615,6 +714,97 @@ export function SettingsControls({
           )}
         </div>
       </div>
+
+      {/* CANCEL SUBSCRIPTION CONFIRMATION MODAL */}
+      {cancelModalOpen && (
+        <div 
+          className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => {
+            if (!isCancelling) setCancelModalOpen(false);
+          }}
+        >
+          <div 
+            className="relative w-full max-w-md bg-card border border-border/60 rounded-3xl p-6 sm:p-7 shadow-2xl flex flex-col gap-5 text-left"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header with warning icon */}
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-destructive/10 border border-destructive/20 flex items-center justify-center text-destructive shrink-0">
+                  <AlertTriangle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-foreground">Cancel Subscription?</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Plan: <strong className="text-foreground uppercase">{currentPlan}</strong>
+                  </p>
+                </div>
+              </div>
+
+              {!isCancelling && (
+                <button
+                  type="button"
+                  onClick={() => setCancelModalOpen(false)}
+                  className="p-1.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Warning Message Box */}
+            <div className="p-4 rounded-2xl bg-destructive/10 border border-destructive/25 text-xs text-foreground flex flex-col gap-2.5">
+              <span className="font-bold text-destructive flex items-center gap-1.5 text-sm">
+                <ShieldCheck className="w-4 h-4" />
+                Immediate Loss of All Copier Benefits
+              </span>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                If you confirm cancellation, your subscription will be terminated <strong>immediately</strong>:
+              </p>
+              <ul className="list-disc pl-5 space-y-1.5 text-[11px] text-muted-foreground/90">
+                <li>Automated trade copying to all follower accounts will stop right away.</li>
+                <li>Master signals will no longer route to your connected terminals.</li>
+                <li>Drawdown protection, symbol mapping, and risk multipliers will be deactivated.</li>
+                <li>No further monthly renewal charges will be billed on your payment card.</li>
+              </ul>
+            </div>
+
+            {cancelError && (
+              <div className="p-3 rounded-xl bg-destructive/15 border border-destructive/30 text-destructive text-xs font-medium">
+                {cancelError}
+              </div>
+            )}
+
+            {/* Confirmation Action Buttons */}
+            <div className="flex flex-col-reverse sm:flex-row items-center gap-2.5 pt-2">
+              <button
+                type="button"
+                disabled={isCancelling}
+                onClick={() => setCancelModalOpen(false)}
+                className="w-full sm:flex-1 py-2.5 px-4 rounded-xl text-xs font-semibold bg-secondary hover:bg-secondary/80 text-foreground transition-colors disabled:opacity-50 cursor-pointer text-center"
+              >
+                Nevermind, Keep Subscription
+              </button>
+
+              <button
+                type="button"
+                disabled={isCancelling}
+                onClick={handleCancelSubscription}
+                className="w-full sm:flex-1 py-2.5 px-4 rounded-xl text-xs font-bold bg-destructive hover:bg-destructive/90 text-destructive-foreground transition-all shadow-md shadow-destructive/20 disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                {isCancelling ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Cancelling...</span>
+                  </>
+                ) : (
+                  <span>Yes, Cancel Immediately</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

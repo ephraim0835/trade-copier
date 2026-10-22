@@ -42,6 +42,7 @@ export function VerifyClient() {
 
         setPlanId(data.subscription?.planId || 'pro');
         setState('SUCCESS');
+        router.refresh();
       } catch (err: any) {
         console.error('Verify error:', err);
         setErrorMsg(err.message || 'Payment could not be verified.');

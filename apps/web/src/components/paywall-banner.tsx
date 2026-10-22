@@ -7,8 +7,11 @@ import { cn } from '@/lib/utils';
 import { usePathname } from 'next/navigation';
 
 export function PaywallBanner() {
-  const { isActive, trialGrace } = useSubscription();
+  const { isActive, isAdmin, trialGrace } = useSubscription();
   const pathname = usePathname();
+
+  // If user is paid subscriber or admin, do not show any trial or paywall banner
+  if (trialGrace?.isPaidOrAdmin || isAdmin) return null;
 
   // If on active 5-day trial, show helpful banner on inner pages
   if (trialGrace?.isTrial && !trialGrace?.isTrialExpired) {

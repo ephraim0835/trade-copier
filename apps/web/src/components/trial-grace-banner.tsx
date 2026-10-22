@@ -12,7 +12,8 @@ interface TrialGraceBannerProps {
 export function TrialGraceBanner({ status }: TrialGraceBannerProps) {
   const [dismissed, setDismissed] = React.useState(false);
 
-  if (dismissed) return null;
+  // If dismissed or user is active subscriber/admin, never show trial banner
+  if (dismissed || status.isPaidOrAdmin) return null;
 
   // Active 5-Day Free Trial
   if (status.isTrial && !status.isTrialExpired) {

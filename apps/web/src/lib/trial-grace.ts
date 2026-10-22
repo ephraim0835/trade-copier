@@ -69,7 +69,7 @@ export function getTrialGraceStatus(user: {
 }): TrialGraceStatus {
   const isAdmin = user.role === 'ADMIN' || user.role === 'OWNER';
   const isInternalFree = user.subscription?.status === 'INTERNAL_FREE';
-  const isActivePaid = user.subscription?.status === 'ACTIVE' && user.subscription?.planId !== 'trial';
+  const isActivePaid = user.subscription?.status === 'ACTIVE';
 
   if (isAdmin || isInternalFree || isActivePaid) {
     return {
@@ -86,6 +86,27 @@ export function getTrialGraceStatus(user: {
       isGraceExpired: false,
       canConnectAccounts: true,
       canCopyTrades: true,
+    };
+  }
+
+  // Handle explicitly cancelled subscription
+  if (user.subscription?.status === 'CANCELED') {
+    return {
+      isTrial: false,
+      isPaidOrAdmin: false,
+      isTrialExpired: true,
+      trialEndsAt: null,
+      trialDaysRemaining: 0,
+      trialHoursRemaining: 0,
+      inGracePeriod: false,
+      gracePeriodEndsAt: null,
+      graceHoursRemaining: 0,
+      graceDaysRemaining: 0,
+      isGraceExpired: true,
+      canConnectAccounts: false,
+      canCopyTrades: false,
+      bannerTitle: 'Subscription Cancelled',
+      bannerMessage: 'Your subscription has been cancelled. Automated trade copying is paused. Select a plan to reactivate copying.',
     };
   }
 

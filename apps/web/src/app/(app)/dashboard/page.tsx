@@ -338,7 +338,7 @@ export default async function DashboardOverview() {
       )}
 
       {/* 3-DAY TRIAL GRACE PERIOD BANNER */}
-      <TrialGraceBanner status={trialGrace} />
+      {!trialGrace.isPaidOrAdmin && <TrialGraceBanner status={trialGrace} />}
 
       {/* MAIN COMPOSITION */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 lg:gap-12 relative z-10 mt-2">
