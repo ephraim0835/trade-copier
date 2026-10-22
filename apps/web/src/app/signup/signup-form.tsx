@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Lock, Mail, Eye, EyeOff, User, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { signIn } from "next-auth/react";
 import { sendVerification, registerUser } from "@/app/actions/email-auth-actions";
 
 export function SignupForm() {

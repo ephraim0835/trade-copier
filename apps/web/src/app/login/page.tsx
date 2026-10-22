@@ -1,23 +1,10 @@
 import { LoginForm } from "./login-form";
-import { getServerSession } from "next-auth/next";
-import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
-export default async function LoginPage() {
-  const session = await getServerSession();
-  
-  // If already authenticated AND exists in DB, redirect to dashboard
-  if (session?.user?.email) {
-    const { prisma } = await import('@/lib/prisma');
-    const dbUser = await prisma.user.findUnique({
-      where: { email: session.user.email }
-    });
-    
-    if (dbUser) {
-      redirect("/dashboard");
-    }
-  }
+export const dynamic = "force-static";
+
+export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col relative overflow-hidden">

@@ -121,7 +121,18 @@ export function LoginForm() {
         <div className="text-center mt-6">
           <p className="text-[13px] text-muted-foreground">
             Don't have an account?{' '}
-            <Link href="/signup" prefetch={true} className="text-foreground font-medium hover:text-primary transition-colors">
+            <Link 
+              href="/signup" 
+              prefetch={true} 
+              onClick={() => {
+                setTimeout(() => {
+                  if (window.location.pathname !== '/signup') {
+                    window.location.href = '/signup';
+                  }
+                }, 300);
+              }}
+              className="text-foreground font-semibold hover:text-primary transition-colors cursor-pointer"
+            >
               Create one now
             </Link>
           </p>

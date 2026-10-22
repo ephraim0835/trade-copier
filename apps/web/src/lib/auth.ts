@@ -5,13 +5,18 @@ const RAW_API_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'h
 const API_URL = RAW_API_URL.replace(/\/api\/v1\/?$/, '').replace(/\/+$/, '');
 
 async function refreshAccessToken(refreshToken: string) {
-  const res = await fetch(`${API_URL}/auth/refresh`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refresh_token: refreshToken }),
-  });
-  if (!res.ok) return null;
-  return res.json(); // { access_token, refresh_token, access_token_expires_at }
+  try {
+    const res = await fetch(`${API_URL}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
 }
 
 export const authOptions: NextAuthOptions = {
@@ -65,7 +70,8 @@ export const authOptions: NextAuthOptions = {
               username: credentials.email,
               password: credentials.password
             }),
-            headers: { "Content-Type": "application/json" }
+            headers: { "Content-Type": "application/json" },
+            signal: AbortSignal.timeout(4000),
           });
 
           if (res.ok) {

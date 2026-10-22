@@ -1,16 +1,10 @@
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth";
-import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { SignupForm } from "./signup-form";
 
-export default async function SignupPage() {
-  const session = await getServerSession(authOptions);
-  
-  if (session?.user?.email) {
-    redirect("/dashboard");
-  }
+export const dynamic = "force-static";
+
+export default function SignupPage() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col relative overflow-hidden">
