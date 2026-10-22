@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { CheckoutButton } from '@/components/checkout-button';
+import { getPlanActionLabel } from '@/lib/plan-tiers';
 
 interface SettingsControlsProps {
   email?: string;
@@ -362,14 +363,14 @@ export function SettingsControls({
         <div className="ml-0 md:ml-14 grid grid-cols-1 md:grid-cols-3 gap-3.5">
           {/* Plan 1: Starter */}
           <div className={`p-4 rounded-2xl border flex flex-col justify-between transition-all ${
-            subscription?.status === 'ACTIVE' && (subscription?.planId === 'starter' || subscription?.planId === 'basic')
+            localStatus === 'ACTIVE' && (subscription?.planId === 'starter' || subscription?.planId === 'basic')
               ? 'bg-primary/5 border-primary shadow-sm'
               : 'bg-card/40 border-border/40 hover:border-border/80'
           }`}>
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Starter</span>
-                {subscription?.status === 'ACTIVE' && (subscription?.planId === 'starter' || subscription?.planId === 'basic') && (
+                {localStatus === 'ACTIVE' && (subscription?.planId === 'starter' || subscription?.planId === 'basic') && (
                   <span className="flex items-center gap-1 text-[10px] font-bold text-primary">
                     <CheckCircle2 className="w-3 h-3" /> Current
                   </span>
@@ -387,15 +388,17 @@ export function SettingsControls({
             </div>
             <CheckoutButton
               planId="starter"
+              currentPlanId={subscription?.planId}
+              currentStatus={localStatus}
               className="w-full py-2 px-3 rounded-xl text-xs font-bold transition-all bg-secondary hover:bg-secondary/80 text-foreground border border-border/50"
             >
-              {subscription?.status === 'ACTIVE' && (subscription?.planId === 'starter' || subscription?.planId === 'basic') ? 'Renew Starter' : 'Select Starter'}
+              {getPlanActionLabel('starter', subscription?.planId, localStatus)}
             </CheckoutButton>
           </div>
 
           {/* Plan 2: Pro */}
           <div className={`p-4 rounded-2xl border relative flex flex-col justify-between transition-all ${
-            subscription?.status === 'ACTIVE' && subscription?.planId === 'pro'
+            localStatus === 'ACTIVE' && subscription?.planId === 'pro'
               ? 'bg-primary/10 border-primary shadow-sm'
               : 'bg-card/60 border-primary/30 hover:border-primary/60'
           }`}>
@@ -405,7 +408,7 @@ export function SettingsControls({
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-primary">Pro Plan</span>
-                {subscription?.status === 'ACTIVE' && subscription?.planId === 'pro' && (
+                {localStatus === 'ACTIVE' && subscription?.planId === 'pro' && (
                   <span className="flex items-center gap-1 text-[10px] font-bold text-primary">
                     <CheckCircle2 className="w-3 h-3" /> Current
                   </span>
@@ -423,22 +426,24 @@ export function SettingsControls({
             </div>
             <CheckoutButton
               planId="pro"
+              currentPlanId={subscription?.planId}
+              currentStatus={localStatus}
               className="w-full py-2 px-3 rounded-xl text-xs font-bold transition-all bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/20"
             >
-              {subscription?.status === 'ACTIVE' && subscription?.planId === 'pro' ? 'Renew Pro' : 'Upgrade to Pro'}
+              {getPlanActionLabel('pro', subscription?.planId, localStatus)}
             </CheckoutButton>
           </div>
 
           {/* Plan 3: Elite */}
           <div className={`p-4 rounded-2xl border flex flex-col justify-between transition-all ${
-            subscription?.status === 'ACTIVE' && subscription?.planId === 'elite'
+            localStatus === 'ACTIVE' && subscription?.planId === 'elite'
               ? 'bg-primary/10 border-primary shadow-sm'
               : 'bg-card/40 border-border/40 hover:border-border/80'
           }`}>
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-foreground">Elite</span>
-                {subscription?.status === 'ACTIVE' && subscription?.planId === 'elite' && (
+                {localStatus === 'ACTIVE' && subscription?.planId === 'elite' && (
                   <span className="flex items-center gap-1 text-[10px] font-bold text-primary">
                     <CheckCircle2 className="w-3 h-3" /> Current
                   </span>
@@ -456,9 +461,11 @@ export function SettingsControls({
             </div>
             <CheckoutButton
               planId="elite"
+              currentPlanId={subscription?.planId}
+              currentStatus={localStatus}
               className="w-full py-2 px-3 rounded-xl text-xs font-bold transition-all bg-secondary hover:bg-secondary/80 text-foreground border border-border/50"
             >
-              {subscription?.status === 'ACTIVE' && subscription?.planId === 'elite' ? 'Renew Elite' : 'Upgrade to Elite'}
+              {getPlanActionLabel('elite', subscription?.planId, localStatus)}
             </CheckoutButton>
           </div>
         </div>

@@ -8,23 +8,37 @@ interface SubscriptionContextType {
   isActive: boolean;
   isAdmin: boolean;
   trialGrace?: TrialGraceStatus;
+  planId?: string | null;
+  status?: string | null;
 }
 
-const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
+const defaultContext: SubscriptionContextType = {
+  isActive: false,
+  isAdmin: false,
+  trialGrace: undefined,
+  planId: null,
+  status: null,
+};
+
+const SubscriptionContext = createContext<SubscriptionContextType>(defaultContext);
 
 export function SubscriptionProvider({ 
   children, 
   isActive,
   isAdmin = false,
   trialGrace,
+  planId = null,
+  status = null,
 }: { 
   children: ReactNode; 
   isActive: boolean;
   isAdmin?: boolean;
   trialGrace?: TrialGraceStatus;
+  planId?: string | null;
+  status?: string | null;
 }) {
   return (
-    <SubscriptionContext.Provider value={{ isActive, isAdmin, trialGrace }}>
+    <SubscriptionContext.Provider value={{ isActive, isAdmin, trialGrace, planId, status }}>
       {children}
     </SubscriptionContext.Provider>
   );
@@ -32,8 +46,6 @@ export function SubscriptionProvider({
 
 export function useSubscription() {
   const context = useContext(SubscriptionContext);
-  if (context === undefined) {
-    throw new Error('useSubscription must be used within a SubscriptionProvider');
-  }
-  return context;
+  return context ?? defaultContext;
 }
+

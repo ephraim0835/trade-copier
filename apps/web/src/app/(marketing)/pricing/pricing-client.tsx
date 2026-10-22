@@ -20,7 +20,14 @@ import {
 import { useCurrency } from '@/components/currency-provider';
 import { PricingAction } from '@/components/pricing-action';
 
-export function PricingClient() {
+interface PricingClientProps {
+  userSubscription?: {
+    planId: string | null;
+    status: string;
+  } | null;
+}
+
+export function PricingClient({ userSubscription }: PricingClientProps = {}) {
   const { currency, setCurrency, exchangeRate } = useCurrency();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
@@ -268,7 +275,7 @@ export function PricingClient() {
               ))}
             </ul>
             
-            <PricingAction plan={plan} />
+            <PricingAction plan={plan} userSubscription={userSubscription} />
           </div>
         ))}
       </div>

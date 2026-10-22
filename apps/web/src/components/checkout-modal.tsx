@@ -20,6 +20,8 @@ import {
 import { useCurrency } from '@/components/currency-provider';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { getPlanActionLabel, getPlanActionType } from '@/lib/plan-tiers';
+import { useSubscription } from '@/components/subscription-provider';
 
 export type PlanTier = 'starter' | 'pro' | 'elite' | 'basic';
 
@@ -27,16 +29,51 @@ interface CheckoutModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialPlanId?: PlanTier;
+  currentPlanId?: string | null;
+  currentStatus?: string | null;
 }
 
 export function CheckoutModal({
   isOpen,
   onClose,
   initialPlanId = 'pro',
+  currentPlanId,
+  currentStatus,
 }: CheckoutModalProps) {
   const { data: session } = useSession();
   const router = useRouter();
+  const sub = useSubscription();
   const { currency: globalCurrency, setCurrency: setGlobalCurrency, exchangeRate } = useCurrency();
+
+  const [activePlanId, setActivePlanId] = useState<string | null | undefined>(currentPlanId ?? sub?.planId);
+  const [activeStatus, setActiveStatus] = useState<string | null | undefined>(currentStatus ?? sub?.status);
+
+  useEffect(() => {
+    if (currentPlanId !== undefined) {
+      setActivePlanId(currentPlanId);
+    } else if (sub?.planId !== undefined) {
+      setActivePlanId(sub.planId);
+    }
+    if (currentStatus !== undefined) {
+      setActiveStatus(currentStatus);
+    } else if (sub?.status !== undefined) {
+      setActiveStatus(sub.status);
+    }
+  }, [currentPlanId, currentStatus, sub?.planId, sub?.status]);
+
+  useEffect(() => {
+    if (isOpen && session?.user?.email && (activePlanId === undefined || activeStatus === undefined)) {
+      fetch('/api/billing/subscription')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.subscription) {
+            setActivePlanId(data.subscription.planId);
+            setActiveStatus(data.subscription.status);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isOpen, session?.user?.email, activePlanId, activeStatus]);
 
   const normalizePlan = (p: PlanTier): 'starter' | 'pro' | 'elite' => {
     if (p === 'basic' || p === 'starter') return 'starter';
@@ -237,7 +274,7 @@ export function CheckoutModal({
               </span>
             </div>
             <h2 className="text-xl md:text-2xl font-extrabold text-foreground tracking-tight">
-              Upgrade to {planQuota[selectedPlan].name}
+              {getPlanActionLabel(selectedPlan, activePlanId, activeStatus)} Plan
             </h2>
             <p className="text-xs text-muted-foreground mt-0.5">
               Automated ultra-low latency trade copying across all your MT5 accounts.
@@ -301,7 +338,15 @@ export function CheckoutModal({
                   : 'bg-card/40 border-border/40 hover:border-border/80'
               }`}
             >
-              <div className="text-xs font-bold text-foreground truncate">Starter</div>
+              <div className="text-xs font-bold text-foreground truncate flex items-center justify-between">
+                <span>Starter</span>
+                {(() => {
+                  const act = getPlanActionType('starter', activePlanId, activeStatus);
+                  if (act === 'RENEW') return <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">Current</span>;
+                  if (act === 'DOWNGRADE') return <span className="text-[9px] font-bold text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded-full">Downgrade</span>;
+                  return null;
+                })()}
+              </div>
               <div className="text-sm font-extrabold text-foreground mt-0.5">
                 {isNgn ? `₦${basePrices.starter.toLocaleString()}` : '$29'}<span className="text-[9px] text-muted-foreground font-normal">/mo</span>
               </div>
@@ -322,7 +367,12 @@ export function CheckoutModal({
             >
               <div className="text-xs font-bold text-primary flex items-center justify-between">
                 <span>Pro</span>
-                <Sparkles className="w-2.5 h-2.5" />
+                {(() => {
+                  const act = getPlanActionType('pro', activePlanId, activeStatus);
+                  if (act === 'RENEW') return <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">Current</span>;
+                  if (act === 'DOWNGRADE') return <span className="text-[9px] font-bold text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded-full">Downgrade</span>;
+                  return <Sparkles className="w-2.5 h-2.5" />;
+                })()}
               </div>
               <div className="text-sm font-extrabold text-foreground mt-0.5">
                 {isNgn ? `₦${basePrices.pro.toLocaleString()}` : '$49'}<span className="text-[9px] text-muted-foreground font-normal">/mo</span>
@@ -342,7 +392,15 @@ export function CheckoutModal({
                   : 'bg-card/40 border-border/40 hover:border-border/80'
               }`}
             >
-              <div className="text-xs font-bold text-foreground truncate">Elite</div>
+              <div className="text-xs font-bold text-foreground truncate flex items-center justify-between">
+                <span>Elite</span>
+                {(() => {
+                  const act = getPlanActionType('elite', activePlanId, activeStatus);
+                  if (act === 'RENEW') return <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">Current</span>;
+                  if (act === 'UPGRADE') return <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">Upgrade</span>;
+                  return null;
+                })()}
+              </div>
               <div className="text-sm font-extrabold text-foreground mt-0.5">
                 {isNgn ? `₦${basePrices.elite.toLocaleString()}` : '$99'}<span className="text-[9px] text-muted-foreground font-normal">/mo</span>
               </div>
@@ -583,7 +641,7 @@ export function CheckoutModal({
             ) : (
               <>
                 <Lock className="w-4 h-4" />
-                Proceed to Payment with Flutterwave
+                Proceed with {getPlanActionLabel(selectedPlan, activePlanId, activeStatus)}
                 <ArrowRight className="w-4 h-4 ml-0.5" />
               </>
             )}

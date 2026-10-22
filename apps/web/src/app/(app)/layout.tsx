@@ -59,7 +59,13 @@ export default async function AppLayout({
   return (
     <CurrencyProvider>
       <AuthProvider session={session}>
-        <SubscriptionProvider isActive={hasActiveSubscription} isAdmin={isAdmin} trialGrace={trialGrace}>
+        <SubscriptionProvider 
+          isActive={hasActiveSubscription} 
+          isAdmin={isAdmin} 
+          trialGrace={trialGrace}
+          planId={user?.subscription?.planId}
+          status={user?.subscription?.status}
+        >
           <RealtimeProvider>
             <div className="flex flex-col min-h-screen relative">
               <div className="flex flex-1 relative">
