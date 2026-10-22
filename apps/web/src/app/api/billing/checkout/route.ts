@@ -14,21 +14,30 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { planId, discountCode, currency = "USD" } = body;
 
-    let amount = 0;
+    let baseAmountUSD = 0;
     let planName = "";
     const selectedCurrency = (currency === "NGN") ? "NGN" : "USD";
 
     if (planId === "starter" || planId === "basic") {
-      amount = selectedCurrency === "NGN" ? 44000 : 29;
+      baseAmountUSD = 29;
       planName = "Starter Plan";
     } else if (planId === "pro") {
-      amount = selectedCurrency === "NGN" ? 75000 : 49;
+      baseAmountUSD = 49;
       planName = "Pro Plan";
     } else if (planId === "elite") {
-      amount = selectedCurrency === "NGN" ? 150000 : 99;
+      baseAmountUSD = 99;
       planName = "Elite Plan";
     } else {
       return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
+    }
+
+    // Convert dynamically using real-time dollar conversion rate
+    let amount = baseAmountUSD;
+    let liveExchangeRate = 1.0;
+    if (selectedCurrency === "NGN") {
+      const { getLiveRate } = await import("@/lib/currency");
+      liveExchangeRate = await getLiveRate("NGN");
+      amount = Math.round(baseAmountUSD * liveExchangeRate);
     }
 
     let appliedDiscount: any = null;
@@ -67,9 +76,10 @@ export async function POST(req: NextRequest) {
     // Generate a unique transaction reference
     const tx_ref = `tx-${user.id}-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
 
-    const flwSecret = process.env.FLW_SECRET_KEY;
+    const { getFlutterwaveConfig } = await import("@/lib/flutterwave");
+    const { secretKey: flwSecret, isLive } = getFlutterwaveConfig();
     if (!flwSecret) {
-      console.error("Missing FLW_SECRET_KEY in environment");
+      console.error("Missing Flutterwave secret key in environment");
       return NextResponse.json({ 
         error: "Billing gateway is not yet configured. Please set FLW_SECRET_KEY in your environment settings." 
       }, { status: 500 });
@@ -88,10 +98,13 @@ export async function POST(req: NextRequest) {
       amount,
       currency: selectedCurrency,
       redirect_url,
+      payment_options: "card,banktransfer,ussd,account,qr",
       meta: {
         userId: user.id,
         planId: planId,
-        currency: selectedCurrency
+        currency: selectedCurrency,
+        liveRate: liveExchangeRate,
+        isLiveGateway: isLive
       },
       customer: {
         email: user.email,

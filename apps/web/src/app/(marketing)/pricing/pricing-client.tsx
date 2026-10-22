@@ -21,10 +21,11 @@ import { useCurrency } from '@/components/currency-provider';
 import { PricingAction } from '@/components/pricing-action';
 
 export function PricingClient() {
-  const { currency, setCurrency } = useCurrency();
+  const { currency, setCurrency, exchangeRate } = useCurrency();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   const isNgn = currency === 'NGN';
+  const effectiveRate = exchangeRate > 0 ? exchangeRate : 1350;
 
   const pricingPlans = [
     {
@@ -32,7 +33,7 @@ export function PricingClient() {
       name: "Starter",
       description: "For individual traders running a focused copy setup.",
       priceUSD: 29,
-      priceNGN: 44000,
+      priceNGN: Math.round(29 * effectiveRate),
       mastersLimit: "1 Master Account",
       subsLimit: "Up to 3 Sub Accounts",
       speed: "<50ms Cloud Routing",
@@ -59,7 +60,7 @@ export function PricingClient() {
       name: "Pro",
       description: "For serious prop firm challengers & multi-account traders.",
       priceUSD: 49,
-      priceNGN: 75000,
+      priceNGN: Math.round(49 * effectiveRate),
       mastersLimit: "Up to 3 Master Accounts",
       subsLimit: "Up to 10 Sub Accounts",
       speed: "<15ms Dedicated Bridge",
@@ -86,7 +87,7 @@ export function PricingClient() {
       name: "Elite",
       description: "For fund managers, syndicates, and high-volume copy masters.",
       priceUSD: 99,
-      priceNGN: 150000,
+      priceNGN: Math.round(99 * effectiveRate),
       mastersLimit: "Up to 5 Master Accounts",
       subsLimit: "Up to 25 Sub Accounts",
       speed: "<10ms Priority Dedicated",
@@ -156,29 +157,38 @@ export function PricingClient() {
         </p>
 
         {/* Currency Switcher */}
-        <div className="inline-flex items-center p-1.5 bg-black/5 dark:bg-white/5 rounded-2xl border border-border/40 shadow-sm backdrop-blur-md">
-          <button
-            type="button"
-            onClick={() => setCurrency('USD')}
-            className={`px-5 py-2 text-xs md:text-sm font-bold rounded-xl transition-all duration-200 ${
-              currency === 'USD'
-                ? 'bg-card text-foreground shadow-md'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            USD ($)
-          </button>
-          <button
-            type="button"
-            onClick={() => setCurrency('NGN')}
-            className={`px-5 py-2 text-xs md:text-sm font-bold rounded-xl transition-all duration-200 ${
-              currency === 'NGN'
-                ? 'bg-card text-foreground shadow-md'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            NGN (₦)
-          </button>
+        <div className="flex flex-col items-center gap-2">
+          <div className="inline-flex items-center p-1.5 bg-black/5 dark:bg-white/5 rounded-2xl border border-border/40 shadow-sm backdrop-blur-md">
+            <button
+              type="button"
+              onClick={() => setCurrency('USD')}
+              className={`px-5 py-2 text-xs md:text-sm font-bold rounded-xl transition-all duration-200 ${
+                currency === 'USD'
+                  ? 'bg-card text-foreground shadow-md'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              USD ($)
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrency('NGN')}
+              className={`px-5 py-2 text-xs md:text-sm font-bold rounded-xl transition-all duration-200 ${
+                currency === 'NGN'
+                  ? 'bg-card text-foreground shadow-md'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              NGN (₦)
+            </button>
+          </div>
+
+          {/* Real-time FX Rate indicator */}
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/5 dark:bg-white/5 border border-border/30 text-[11px] text-muted-foreground">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Real-time Rate: <strong>$1.00 USD ≈ ₦{Math.round(effectiveRate).toLocaleString()}</strong></span>
+            <span className="text-[10px] opacity-60">• Auto-synced</span>
+          </div>
         </div>
 
         <div className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">

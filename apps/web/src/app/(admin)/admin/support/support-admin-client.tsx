@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useTransition } from 'react';
+import React, { useState, useMemo, useTransition, useEffect, useRef } from 'react';
 import { 
   MessageSquare, 
   Send, 
@@ -18,6 +18,7 @@ import {
   Laptop, 
   Zap, 
   Check, 
+  CheckCheck,
   Crown,
   Filter,
   CheckCircle,
@@ -128,11 +129,113 @@ export function SupportAdminClient({
   const [isPending, startTransition] = useTransition();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const selectedTicketIdRef = useRef<string>(selectedTicketId);
+
+  useEffect(() => {
+    selectedTicketIdRef.current = selectedTicketId;
+  }, [selectedTicketId]);
+
+  // Play subtle WhatsApp-style pop chime on incoming trader messages
+  const playWhatsAppPop = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(650, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(1100, ctx.currentTime + 0.08);
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.12);
+    } catch {
+      // Audio autoplay restriction
+    }
+  };
 
   // Currently selected ticket
   const selectedTicket = useMemo(() => {
     return tickets.find(t => t.id === selectedTicketId) || null;
   }, [tickets, selectedTicketId]);
+
+  // Real-time instant WhatsApp polling (1.5s interval) for active ticket
+  useEffect(() => {
+    if (!selectedTicketId) return;
+
+    let isMounted = true;
+    const pollActiveTicket = async () => {
+      try {
+        const res = await fetch(`/api/support/ticket-messages?ticketId=${selectedTicketId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.success && data.messages && isMounted) {
+          setTickets(prev => prev.map(t => {
+            if (t.id === selectedTicketId) {
+              const prevCount = t.messages.length;
+              const newCount = data.messages.length;
+              if (newCount > prevCount) {
+                const last = data.messages[newCount - 1];
+                if (last && (last.senderRole === 'USER' || last.senderId === t.userId)) {
+                  playWhatsAppPop();
+                }
+              }
+              return {
+                ...t,
+                status: data.status || t.status,
+                priority: data.priority || t.priority,
+                assignedAdmin: data.assignedAdmin || t.assignedAdmin,
+                messages: data.messages,
+              };
+            }
+            return t;
+          }));
+        }
+      } catch {
+        // Silent fail
+      }
+    };
+
+    const interval = setInterval(pollActiveTicket, 1500);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [selectedTicketId]);
+
+  // Auto-scroll when messages update
+  useEffect(() => {
+    if (selectedTicket?.messages && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [selectedTicket?.messages?.length]);
+
+  // Periodic overall tickets queue polling every 8s
+  useEffect(() => {
+    const listInterval = setInterval(async () => {
+      const res = await getAdminSupportTickets({ status: 'ALL' });
+      if (res.success && res.tickets) {
+        setTickets(prev => {
+          // Merge while preserving active optimistic messages
+          return (res.tickets as any[]).map(newT => {
+            const current = prev.find(p => p.id === newT.id);
+            if (!current) return newT;
+            // If current ticket has more or pending messages, keep them
+            if (current.messages.length > newT.messages.length) {
+              return { ...newT, messages: current.messages };
+            }
+            return newT;
+          });
+        });
+        if (res.counts) setCounts(res.counts as any);
+      }
+    }, 8000);
+    return () => clearInterval(listInterval);
+  }, []);
 
   // Refresh data from server
   const handleRefresh = async () => {
@@ -172,35 +275,70 @@ export function SupportAdminClient({
     });
   }, [tickets, activeTab, priorityFilter, searchQuery, currentAdminId]);
 
-  // Send admin reply
+  // Send admin reply with instant optimistic injection
   const handleSendReply = (resolveAfter: boolean = false) => {
     if (!selectedTicket || !replyMessage.trim() || isPending) return;
 
     const messageText = replyMessage.trim();
     setReplyMessage('');
 
+    // Instant optimistic message insertion
+    const tempId = `temp-${Date.now()}`;
+    const optimisticMessage: any = {
+      id: tempId,
+      ticketId: selectedTicket.id,
+      senderId: currentAdminId,
+      senderRole: 'ADMIN',
+      message: messageText,
+      createdAt: new Date().toISOString(),
+      isPending: true,
+    };
+
+    setTickets(prev => prev.map(t => {
+      if (t.id === selectedTicket.id) {
+        return {
+          ...t,
+          status: resolveAfter ? 'RESOLVED' : (t.status === 'OPEN' ? 'IN_PROGRESS' : t.status),
+          updatedAt: new Date(),
+          messages: [...t.messages, optimisticMessage],
+        };
+      }
+      return t;
+    }));
+
     startTransition(async () => {
-      const res = await sendTicketMessage(selectedTicket.id, messageText);
-      if (res.success && res.message) {
-        // Optimistically update local message list
-        setTickets(prev => prev.map(t => {
-          if (t.id === selectedTicket.id) {
-            return {
-              ...t,
-              status: resolveAfter ? 'RESOLVED' : (t.status === 'OPEN' ? 'IN_PROGRESS' : t.status),
-              updatedAt: new Date(),
-              messages: [...t.messages, res.message as any],
-            };
+      try {
+        const res = await fetch('/api/support/ticket-messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ticketId: selectedTicket.id,
+            message: messageText,
+          }),
+        });
+
+        const data = await res.json();
+        if (data.success && data.message) {
+          setTickets(prev => prev.map(t => {
+            if (t.id === selectedTicket.id) {
+              const filtered = t.messages.filter(m => m.id !== tempId);
+              return {
+                ...t,
+                messages: [...filtered, data.message],
+              };
+            }
+            return t;
+          }));
+
+          if (resolveAfter) {
+            await updateTicketStatus(selectedTicket.id, 'RESOLVED');
           }
-          return t;
-        }));
 
-        if (resolveAfter) {
-          await updateTicketStatus(selectedTicket.id, 'RESOLVED');
+          setActionSuccess(resolveAfter ? 'Reply sent & ticket resolved.' : 'Reply delivered to customer.');
+          setTimeout(() => setActionSuccess(null), 3000);
         }
-
-        setActionSuccess(resolveAfter ? 'Reply sent & ticket resolved.' : 'Reply delivered to customer.');
-        setTimeout(() => setActionSuccess(null), 3000);
+      } catch (err) {
+        console.error('Failed to send admin reply:', err);
       }
     });
   };
@@ -597,7 +735,7 @@ export function SupportAdminClient({
               </div>
 
               {/* CONVERSATION THREAD */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[460px]">
+              <div className="flex-1 overflow-y-auto p-4 space-y-3.5 max-h-[460px]">
                 {selectedTicket.messages.map((m) => {
                   const isStaff = (m.senderRole === 'ADMIN' || m.senderRole === 'OWNER') && m.senderId !== selectedTicket.user.id;
 
@@ -605,9 +743,9 @@ export function SupportAdminClient({
                     <div
                       key={m.id}
                       className={cn(
-                        "flex flex-col max-w-[85%] rounded-2xl p-3.5 text-xs",
+                        "flex flex-col max-w-[85%] rounded-2xl p-3.5 text-xs shadow-xs",
                         isStaff
-                          ? "ml-auto bg-primary text-primary-foreground rounded-tr-none shadow-sm"
+                          ? "ml-auto bg-primary text-primary-foreground rounded-tr-none"
                           : "mr-auto bg-black/5 dark:bg-white/5 border border-border/40 text-foreground rounded-tl-none"
                       )}
                     >
@@ -620,19 +758,29 @@ export function SupportAdminClient({
                             </>
                           ) : (
                             <>
-                              <User className="w-3 h-3" />
+                              <User className="w-3 h-3 text-primary" />
                               {selectedTicket.user.name || selectedTicket.user.email}
                             </>
                           )}
                         </span>
-                        <span className="font-mono">
-                          {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
+                        <div className="flex items-center gap-1 font-mono text-[9px]">
+                          <span>
+                            {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                          {isStaff && (
+                            (m as any).isPending ? (
+                              <Clock className="w-2.5 h-2.5 animate-spin" />
+                            ) : (
+                              <CheckCheck className="w-3.5 h-3.5 text-sky-200" />
+                            )
+                          )}
+                        </div>
                       </div>
-                      <p className="whitespace-pre-wrap leading-relaxed">{m.message}</p>
+                      <p className="whitespace-pre-wrap leading-relaxed select-text">{m.message}</p>
                     </div>
                   );
                 })}
+                <div ref={messagesEndRef} />
               </div>
 
               {/* QUICK CANNED RESPONSES */}
@@ -659,7 +807,13 @@ export function SupportAdminClient({
                   rows={3}
                   value={replyMessage}
                   onChange={(e) => setReplyMessage(e.target.value)}
-                  placeholder="Type an official reply to the trader..."
+                  onKeyDown={(e) => {
+                    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                      e.preventDefault();
+                      handleSendReply(false);
+                    }
+                  }}
+                  placeholder="Type an official reply to the trader... (Press Ctrl+Enter to send)"
                   className="w-full bg-black/5 dark:bg-white/5 border border-border/40 rounded-xl p-3 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 ring-primary/20 transition-all resize-none"
                 />
 

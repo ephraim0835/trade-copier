@@ -13,7 +13,9 @@ import {
   AlertCircle,
   ArrowRight,
   Zap,
-  MessageCircle
+  MessageCircle,
+  Copy,
+  Info
 } from 'lucide-react';
 import { useCurrency } from '@/components/currency-provider';
 import { useSession } from 'next-auth/react';
@@ -34,7 +36,7 @@ export function CheckoutModal({
 }: CheckoutModalProps) {
   const { data: session } = useSession();
   const router = useRouter();
-  const { currency: globalCurrency, setCurrency: setGlobalCurrency } = useCurrency();
+  const { currency: globalCurrency, setCurrency: setGlobalCurrency, exchangeRate } = useCurrency();
 
   const normalizePlan = (p: PlanTier): 'starter' | 'pro' | 'elite' => {
     if (p === 'basic' || p === 'starter') return 'starter';
@@ -55,6 +57,15 @@ export function CheckoutModal({
   const [discountError, setDiscountError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const copyToClipboard = (text: string, field: string) => {
+    if (navigator?.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+    }
+  };
 
   useEffect(() => {
     setSelectedPlan(normalizePlan(initialPlanId));
@@ -76,10 +87,11 @@ export function CheckoutModal({
   if (!isOpen) return null;
 
   const isNgn = currency === 'NGN';
+  const effectiveNgnRate = exchangeRate > 0 ? exchangeRate : 1350;
   const basePrices = {
-    starter: isNgn ? 44000 : 29,
-    pro: isNgn ? 75000 : 49,
-    elite: isNgn ? 150000 : 99,
+    starter: isNgn ? Math.round(29 * effectiveNgnRate) : 29,
+    pro: isNgn ? Math.round(49 * effectiveNgnRate) : 49,
+    elite: isNgn ? Math.round(99 * effectiveNgnRate) : 99,
   };
 
   const planQuota = {
@@ -269,6 +281,15 @@ export function CheckoutModal({
             </div>
           </div>
 
+          {/* Real-time Forex Conversion Indicator */}
+          <div className="flex items-center justify-between text-[11px] px-1 text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Real-time Rate: $1.00 USD ≈ ₦{Math.round(effectiveNgnRate).toLocaleString()}</span>
+            </span>
+            <span className="text-[10px] opacity-75">Updated live</span>
+          </div>
+
           <div className="grid grid-cols-3 gap-2">
             {/* Starter Option */}
             <button
@@ -282,7 +303,7 @@ export function CheckoutModal({
             >
               <div className="text-xs font-bold text-foreground truncate">Starter</div>
               <div className="text-sm font-extrabold text-foreground mt-0.5">
-                {isNgn ? '₦44k' : '$29'}<span className="text-[9px] text-muted-foreground font-normal">/mo</span>
+                {isNgn ? `₦${basePrices.starter.toLocaleString()}` : '$29'}<span className="text-[9px] text-muted-foreground font-normal">/mo</span>
               </div>
               <div className="text-[10px] text-muted-foreground mt-0.5 leading-tight">
                 1 M • 3 Subs
@@ -304,7 +325,7 @@ export function CheckoutModal({
                 <Sparkles className="w-2.5 h-2.5" />
               </div>
               <div className="text-sm font-extrabold text-foreground mt-0.5">
-                {isNgn ? '₦75k' : '$49'}<span className="text-[9px] text-muted-foreground font-normal">/mo</span>
+                {isNgn ? `₦${basePrices.pro.toLocaleString()}` : '$49'}<span className="text-[9px] text-muted-foreground font-normal">/mo</span>
               </div>
               <div className="text-[10px] text-muted-foreground mt-0.5 leading-tight">
                 3 M • 10 Subs
@@ -323,7 +344,7 @@ export function CheckoutModal({
             >
               <div className="text-xs font-bold text-foreground truncate">Elite</div>
               <div className="text-sm font-extrabold text-foreground mt-0.5">
-                {isNgn ? '₦150k' : '$99'}<span className="text-[9px] text-muted-foreground font-normal">/mo</span>
+                {isNgn ? `₦${basePrices.elite.toLocaleString()}` : '$99'}<span className="text-[9px] text-muted-foreground font-normal">/mo</span>
               </div>
               <div className="text-[10px] text-muted-foreground mt-0.5 leading-tight">
                 5 M • 25 Subs
@@ -466,6 +487,85 @@ export function CheckoutModal({
             <span className="leading-relaxed">{checkoutError}</span>
           </div>
         )}
+
+        {/* Flutterwave Sandbox / Card Guidance Helper */}
+        <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-xs flex flex-col gap-2.5 relative z-10">
+          <div className="flex items-center justify-between">
+            <span className="font-bold text-amber-500 flex items-center gap-1.5 text-[11px] uppercase tracking-wider">
+              <Info className="w-3.5 h-3.5" /> Flutterwave Test Card (Sandbox Active)
+            </span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-500 font-mono font-bold">
+              TEST GATEWAY
+            </span>
+          </div>
+
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            Real bank cards trigger <em>&quot;Sorry an error occurred while processing your card&quot;</em> in test mode. Click below to copy sandbox test card:
+          </p>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 font-mono text-[11px]">
+            <button
+              type="button"
+              onClick={() => copyToClipboard('5531886652142950', 'card')}
+              className="p-1.5 rounded-xl bg-card border border-border/60 hover:border-primary/60 flex items-center justify-between text-left transition-colors cursor-pointer"
+              title="Click to copy Card Number"
+            >
+              <div>
+                <div className="text-[9px] text-muted-foreground font-sans">CARD NO</div>
+                <div className="font-bold text-foreground truncate">5531••2950</div>
+              </div>
+              {copiedField === 'card' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3 h-3 text-muted-foreground" />}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => copyToClipboard('09/32', 'exp')}
+              className="p-1.5 rounded-xl bg-card border border-border/60 hover:border-primary/60 flex items-center justify-between text-left transition-colors cursor-pointer"
+              title="Click to copy Expiry Date"
+            >
+              <div>
+                <div className="text-[9px] text-muted-foreground font-sans">EXPIRY</div>
+                <div className="font-bold text-foreground">09/32</div>
+              </div>
+              {copiedField === 'exp' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3 h-3 text-muted-foreground" />}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => copyToClipboard('564', 'cvv')}
+              className="p-1.5 rounded-xl bg-card border border-border/60 hover:border-primary/60 flex items-center justify-between text-left transition-colors cursor-pointer"
+              title="Click to copy CVV"
+            >
+              <div>
+                <div className="text-[9px] text-muted-foreground font-sans">CVV</div>
+                <div className="font-bold text-foreground">564</div>
+              </div>
+              {copiedField === 'cvv' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3 h-3 text-muted-foreground" />}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => copyToClipboard('3310', 'pin')}
+              className="p-1.5 rounded-xl bg-card border border-border/60 hover:border-primary/60 flex items-center justify-between text-left transition-colors cursor-pointer"
+              title="Click to copy PIN"
+            >
+              <div>
+                <div className="text-[9px] text-muted-foreground font-sans">PIN / OTP</div>
+                <div className="font-bold text-foreground">3310 / 12345</div>
+              </div>
+              {copiedField === 'pin' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3 h-3 text-muted-foreground" />}
+            </button>
+          </div>
+
+          <div className="text-[10px] text-muted-foreground flex flex-col gap-0.5 pt-1.5 border-t border-amber-500/20">
+            <div>
+              <span className="font-bold text-foreground">🇳🇬 Paying with a Nigerian Bank?</span> Ensure you selected <strong>NGN (₦)</strong> above. Standard Naira cards reject foreign USD charges due to CBN FX policy.
+            </div>
+            <div>
+              <span className="font-bold text-foreground">💡 Tip:</span> On the Flutterwave screen, you can also select <strong>&quot;Pay with Bank Transfer&quot;</strong> or <strong>USSD</strong> for instant direct settlement.
+            </div>
+          </div>
+        </div>
 
         {/* Action Button */}
         <div className="flex flex-col gap-2.5 relative z-10">

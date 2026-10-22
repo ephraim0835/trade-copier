@@ -15,7 +15,9 @@ import {
   ChevronRight, 
   ArrowLeft, 
   ShieldCheck,
-  ExternalLink
+  ExternalLink,
+  Check,
+  CheckCheck
 } from 'lucide-react';
 import { 
   getUserSupportTickets, 
@@ -49,25 +51,66 @@ export function SupportWidget({
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const activeTicketIdRef = useRef<string | null>(null);
 
-  const fetchTickets = async () => {
-    setLoading(true);
+  // Play subtle WhatsApp-style pop chime on incoming messages
+  const playWhatsAppPop = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(650, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(1100, ctx.currentTime + 0.08);
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.12);
+    } catch {
+      // Ignore audio restriction
+    }
+  };
+
+  const fetchTickets = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const res = await getUserSupportTickets();
       if (res.success && res.tickets) {
         setTickets(res.tickets);
         // If viewing an active ticket, refresh its messages
-        if (activeTicket) {
-          const updated = res.tickets.find((t: any) => t.id === activeTicket.id);
-          if (updated) setActiveTicket(updated);
+        if (activeTicketIdRef.current) {
+          const updated = res.tickets.find((t: any) => t.id === activeTicketIdRef.current);
+          if (updated) {
+            setActiveTicket((prev: any) => {
+              if (!prev) return updated;
+              const prevMsgCount = prev.messages?.length || 0;
+              const newMsgCount = updated.messages?.length || 0;
+              if (newMsgCount > prevMsgCount) {
+                const last = updated.messages[newMsgCount - 1];
+                if (last && last.senderRole === 'ADMIN') {
+                  playWhatsAppPop();
+                }
+              }
+              return updated;
+            });
+          }
         }
       }
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
+
+  // Keep activeTicketIdRef in sync
+  useEffect(() => {
+    activeTicketIdRef.current = activeTicket?.id || null;
+  }, [activeTicket?.id]);
 
   useEffect(() => {
     if (isOpen) {
@@ -75,6 +118,13 @@ export function SupportWidget({
         document.body.classList.add('support-widget-open');
       }
       fetchTickets();
+      // Poll tickets list every 6 seconds when widget is open
+      const listPoll = setInterval(() => {
+        if (!activeTicketIdRef.current) {
+          fetchTickets(true);
+        }
+      }, 6000);
+      return () => clearInterval(listPoll);
     } else {
       if (typeof document !== 'undefined') {
         document.body.classList.remove('support-widget-open');
@@ -86,6 +136,48 @@ export function SupportWidget({
       }
     };
   }, [isOpen]);
+
+  // Real-time instant WhatsApp-like polling (1.5s interval) for active ticket
+  useEffect(() => {
+    if (!isOpen || !activeTicket?.id) return;
+
+    let isMounted = true;
+    const pollActiveTicket = async () => {
+      try {
+        const res = await fetch(`/api/support/ticket-messages?ticketId=${activeTicket.id}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.success && data.messages && isMounted) {
+          setActiveTicket((prev: any) => {
+            if (!prev || prev.id !== activeTicket.id) return prev;
+            const prevCount = (prev.messages || []).length;
+            const newCount = data.messages.length;
+            if (newCount > prevCount) {
+              const lastMsg = data.messages[newCount - 1];
+              if (lastMsg && lastMsg.senderRole === 'ADMIN') {
+                playWhatsAppPop();
+              }
+            }
+            return {
+              ...prev,
+              status: data.status || prev.status,
+              priority: data.priority || prev.priority,
+              assignedAdmin: data.assignedAdmin || prev.assignedAdmin,
+              messages: data.messages,
+            };
+          });
+        }
+      } catch {
+        // Silent fail
+      }
+    };
+
+    const interval = setInterval(pollActiveTicket, 1500);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [isOpen, activeTicket?.id]);
 
   useEffect(() => {
     if (activeTicket && messagesEndRef.current) {
@@ -132,21 +224,51 @@ export function SupportWidget({
 
   const handleSendReply = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!replyText.trim() || !activeTicket) return;
+    const text = replyText.trim();
+    if (!text || !activeTicket) return;
 
+    // 1. WhatsApp-style instant optimistic message injection
+    const tempId = `temp-${Date.now()}`;
+    const optimisticMessage = {
+      id: tempId,
+      ticketId: activeTicket.id,
+      senderId: 'me',
+      senderRole: 'USER',
+      message: text,
+      createdAt: new Date().toISOString(),
+      isPending: true,
+    };
+
+    setActiveTicket((prev: any) => ({
+      ...prev,
+      messages: [...(prev?.messages || []), optimisticMessage],
+    }));
+    setReplyText('');
     setSendingReply(true);
+
     try {
-      const res = await sendTicketMessage(activeTicket.id, replyText.trim());
-      if (res.success && res.message) {
-        setActiveTicket((prev: any) => ({
-          ...prev,
-          messages: [...(prev.messages || []), res.message],
-        }));
-        setReplyText('');
-        fetchTickets();
+      const res = await fetch('/api/support/ticket-messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticketId: activeTicket.id,
+          message: text,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success && data.message) {
+        setActiveTicket((prev: any) => {
+          if (!prev) return prev;
+          const filtered = (prev.messages || []).filter((m: any) => m.id !== tempId);
+          return {
+            ...prev,
+            messages: [...filtered, data.message],
+          };
+        });
       }
     } catch (err) {
-      console.error(err);
+      console.error('Error sending message:', err);
     } finally {
       setSendingReply(false);
     }
@@ -238,30 +360,45 @@ export function SupportWidget({
               /* Ticket Chat View */
               <div className="flex-1 flex flex-col min-h-0">
                 {/* Chat Top Bar */}
-                <div className="p-3.5 border-b border-border/30 flex items-center justify-between bg-black/5 dark:bg-white/5">
-                  <button
-                    type="button"
-                    onClick={() => setActiveTicket(null)}
-                    className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <ArrowLeft className="w-3.5 h-3.5" />
-                    <span>Back</span>
-                  </button>
-
-                  <div className="text-right">
-                    <span className="text-[11px] font-bold text-foreground block truncate max-w-[200px]">
-                      {activeTicket.subject}
-                    </span>
-                    <span className={`text-[9px] font-bold uppercase tracking-wider ${
-                      activeTicket.status === 'RESOLVED' ? 'text-emerald-500' : 'text-primary'
-                    }`}>
-                      {activeTicket.status} • {activeTicket.priority}
-                    </span>
+                <div className="p-3 border-b border-border/30 flex items-center justify-between bg-black/5 dark:bg-white/5">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTicket(null)}
+                      className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5 transition-colors shrink-0"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                    </button>
+                    <div className="w-7 h-7 rounded-full bg-emerald-500/20 text-emerald-500 flex items-center justify-center font-bold text-xs shrink-0 relative">
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 absolute -bottom-0.5 -right-0.5 ring-2 ring-card" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-foreground truncate block">
+                          Plaiz Support Desk
+                        </span>
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-500 font-bold">
+                          Online
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground truncate">
+                        {activeTicket.subject}
+                      </p>
+                    </div>
                   </div>
+
+                  <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${
+                    activeTicket.status === 'RESOLVED' 
+                      ? 'bg-emerald-500/10 text-emerald-500' 
+                      : 'bg-primary/10 text-primary'
+                  }`}>
+                    {activeTicket.status}
+                  </span>
                 </div>
 
                 {/* Messages Thread */}
-                <div className="flex-1 p-4 overflow-y-auto custom-scrollbar flex flex-col gap-3">
+                <div className="flex-1 p-4 overflow-y-auto custom-scrollbar flex flex-col gap-2.5 bg-black/[0.02] dark:bg-white/[0.01]">
                   {activeTicket.messages?.map((msg: any) => {
                     const isUser = msg.senderRole === 'USER' || msg.senderId === activeTicket.userId;
                     return (
@@ -269,22 +406,34 @@ export function SupportWidget({
                         key={msg.id}
                         className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}
                       >
-                        <div className="flex items-center gap-1.5 mb-1 px-1">
-                          <span className="text-[10px] font-bold text-muted-foreground">
-                            {isUser ? 'You' : (activeTicket.assignedAdmin?.name || 'Plaiz Support')}
+                        {!isUser && (
+                          <span className="text-[10px] font-bold text-muted-foreground px-1 mb-0.5 flex items-center gap-1">
+                            <Sparkles className="w-2.5 h-2.5 text-primary" />
+                            {activeTicket.assignedAdmin?.name || 'Plaiz Support Agent'}
                           </span>
-                          <span className="text-[9px] text-muted-foreground/70">
-                            {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </div>
+                        )}
                         <div
-                          className={`max-w-[85%] p-3 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap ${
+                          className={`max-w-[85%] px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap flex flex-col gap-1 shadow-xs ${
                             isUser
                               ? 'bg-primary text-primary-foreground rounded-tr-xs'
-                              : 'bg-secondary text-foreground border border-border/50 rounded-tl-xs'
+                              : 'bg-card text-foreground border border-border/50 rounded-tl-xs'
                           }`}
                         >
-                          {msg.message}
+                          <p className="select-text">{msg.message}</p>
+                          <div className={`flex items-center justify-end gap-1 text-[9px] select-none self-end ${
+                            isUser ? 'text-primary-foreground/75' : 'text-muted-foreground'
+                          }`}>
+                            <span>
+                              {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                            {isUser && (
+                              msg.isPending ? (
+                                <Clock className="w-2.5 h-2.5 animate-spin" />
+                              ) : (
+                                <CheckCheck className="w-3.5 h-3.5 text-sky-200" />
+                              )
+                            )}
+                          </div>
                         </div>
                       </div>
                     );

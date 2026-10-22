@@ -35,16 +35,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ valid: false, error: "This discount code has reached its maximum usage limit." }, { status: 400 });
     }
 
-    // Calculate base amounts
+    // Calculate base amounts dynamically using live forex exchange rate
     const isNgn = currency === "NGN";
-    let basePrice = 0;
-    if (planId === "starter" || planId === "basic") {
-      basePrice = isNgn ? 44000 : 29;
-    } else if (planId === "elite") {
-      basePrice = isNgn ? 150000 : 99;
-    } else {
-      // Default to pro
-      basePrice = isNgn ? 75000 : 49;
+    const usdBase = (planId === "starter" || planId === "basic") ? 29 : (planId === "elite" ? 99 : 49);
+    
+    let basePrice = usdBase;
+    if (isNgn) {
+      const { getLiveRate } = await import("@/lib/currency");
+      const liveNgnRate = await getLiveRate("NGN");
+      basePrice = Math.round(usdBase * liveNgnRate);
     }
 
     const discountMultiplier = (100 - discount.percentage) / 100;

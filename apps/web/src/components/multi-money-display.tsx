@@ -12,7 +12,7 @@ interface MultiMoneyDisplayProps {
 }
 
 export function MultiMoneyDisplay({ balances, className = '', colored = false, showSign = false, liveType }: MultiMoneyDisplayProps) {
-  const { currency, exchangeRate, formatMoney } = useCurrency();
+  const { currency, exchangeRate, formatMoney, convertAmount } = useCurrency();
   const [mounted, setMounted] = useState(false);
   const [localBalances, setLocalBalances] = useState(balances);
 
@@ -59,19 +59,10 @@ export function MultiMoneyDisplay({ balances, className = '', colored = false, s
     setLocalBalances(balances);
   }, [balances]);
 
-  // Calculate the total in the target currency
+  // Calculate the total in the target currency using live rates
   const total = localBalances.reduce((sum, balance) => {
-    let converted = balance.amount;
-    
-    // Normalize source currency to match supported standard
     const source = (balance.currency || 'USD').toUpperCase();
-    
-    if (source === 'NGN' && currency === 'USD') {
-      converted = balance.amount / exchangeRate;
-    } else if (source === 'USD' && currency === 'NGN') {
-      converted = balance.amount * exchangeRate;
-    }
-    
+    const converted = convertAmount(balance.amount, source, currency);
     return sum + converted;
   }, 0);
 

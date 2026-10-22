@@ -17,7 +17,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Transaction ID or reference required" }, { status: 400 });
     }
 
-    const flwSecret = process.env.FLW_SECRET_KEY;
+    const { getFlutterwaveConfig } = await import("@/lib/flutterwave");
+    const { secretKey: flwSecret } = getFlutterwaveConfig();
     if (!flwSecret) {
       return NextResponse.json({ error: "Billing gateway not configured" }, { status: 500 });
     }
