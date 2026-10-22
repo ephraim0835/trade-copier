@@ -473,13 +473,16 @@ model SupportTicket {
 }
 
 model TicketMessage {
-  id         String        @id @default(uuid())
-  ticketId   String
-  senderId   String
-  senderRole String        @default("USER") // USER, ADMIN, OWNER
-  message    String
-  createdAt  DateTime      @default(now())
-  ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  id             String        @id @default(uuid())
+  ticketId       String
+  senderId       String
+  senderRole     String        @default("USER") // USER, ADMIN, OWNER
+  message        String
+  attachmentUrl  String?
+  attachmentName String?
+  attachmentType String?
+  createdAt      DateTime      @default(now())
+  ticket         SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 
   @@index([ticketId])
 }

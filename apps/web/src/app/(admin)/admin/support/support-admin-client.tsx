@@ -23,7 +23,13 @@ import {
   Filter,
   CheckCircle,
   XCircle,
-  ExternalLink
+  ExternalLink,
+  Paperclip,
+  FileText,
+  Download,
+  Eye,
+  Loader2,
+  X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
@@ -33,6 +39,7 @@ import {
   assignTicketToAdmin, 
   getAdminSupportTickets 
 } from '@/app/actions/support-actions';
+import { processFileAttachment, AttachmentPayload } from '@/lib/attachment-helper';
 
 interface StaffUser {
   id: string;
@@ -50,6 +57,9 @@ interface TicketMessageItem {
   senderId: string;
   senderRole: string;
   message: string;
+  attachmentUrl?: string | null;
+  attachmentName?: string | null;
+  attachmentType?: string | null;
   createdAt: string | Date;
 }
 
@@ -132,8 +142,53 @@ export function SupportAdminClient({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const selectedTicketIdRef = useRef<string>(selectedTicketId);
 
+  // Attachment states for Admin replies
+  const [pendingAttachment, setPendingAttachment] = useState<AttachmentPayload | null>(null);
+  const [isAttaching, setIsAttaching] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; title?: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsAttaching(true);
+    try {
+      const att = await processFileAttachment(file);
+      setPendingAttachment(att);
+    } catch (err: any) {
+      alert(err.message || 'File upload error');
+    } finally {
+      setIsAttaching(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleReplyPaste = async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].kind === 'file') {
+        const file = items[i].getAsFile();
+        if (file) {
+          e.preventDefault();
+          setIsAttaching(true);
+          try {
+            const att = await processFileAttachment(file);
+            setPendingAttachment(att);
+          } catch (err: any) {
+            console.error('Admin attachment paste error:', err);
+          } finally {
+            setIsAttaching(false);
+          }
+          break;
+        }
+      }
+    }
+  };
+
   useEffect(() => {
     selectedTicketIdRef.current = selectedTicketId;
+    setPendingAttachment(null);
   }, [selectedTicketId]);
 
   // Play subtle WhatsApp-style pop chime on incoming trader messages
@@ -275,12 +330,14 @@ export function SupportAdminClient({
     });
   }, [tickets, activeTab, priorityFilter, searchQuery, currentAdminId]);
 
-  // Send admin reply with instant optimistic injection
+  // Send admin reply with instant optimistic injection and attachments
   const handleSendReply = (resolveAfter: boolean = false) => {
-    if (!selectedTicket || !replyMessage.trim() || isPending) return;
+    if (!selectedTicket || (!replyMessage.trim() && !pendingAttachment) || isPending) return;
 
     const messageText = replyMessage.trim();
+    const attachmentToSend = pendingAttachment;
     setReplyMessage('');
+    setPendingAttachment(null);
 
     // Instant optimistic message insertion
     const tempId = `temp-${Date.now()}`;
@@ -290,6 +347,9 @@ export function SupportAdminClient({
       senderId: currentAdminId,
       senderRole: 'ADMIN',
       message: messageText,
+      attachmentUrl: attachmentToSend?.url || null,
+      attachmentName: attachmentToSend?.name || null,
+      attachmentType: attachmentToSend?.type || null,
       createdAt: new Date().toISOString(),
       isPending: true,
     };
@@ -314,6 +374,9 @@ export function SupportAdminClient({
           body: JSON.stringify({
             ticketId: selectedTicket.id,
             message: messageText,
+            attachmentUrl: attachmentToSend?.url || undefined,
+            attachmentName: attachmentToSend?.name || undefined,
+            attachmentType: attachmentToSend?.type || undefined,
           }),
         });
 
@@ -618,7 +681,7 @@ export function SupportAdminClient({
                     {lastMsg && (
                       <p className="text-[11px] text-muted-foreground line-clamp-1 italic">
                         {(lastMsg.senderRole === 'ADMIN' || lastMsg.senderRole === 'OWNER') && lastMsg.senderId !== t.userId ? 'Staff: ' : 'User: '}
-                        {lastMsg.message}
+                        {lastMsg.message || (lastMsg.attachmentName ? `📎 [Attachment: ${lastMsg.attachmentName}]` : '')}
                       </p>
                     )}
 
@@ -749,7 +812,7 @@ export function SupportAdminClient({
                           : "mr-auto bg-black/5 dark:bg-white/5 border border-border/40 text-foreground rounded-tl-none"
                       )}
                     >
-                      <div className="flex items-center justify-between gap-3 mb-1 text-[10px] opacity-80">
+                      <div className="flex items-center justify-between gap-3 mb-1.5 text-[10px] opacity-80">
                         <span className="font-bold flex items-center gap-1">
                           {isStaff ? (
                             <>
@@ -776,7 +839,50 @@ export function SupportAdminClient({
                           )}
                         </div>
                       </div>
-                      <p className="whitespace-pre-wrap leading-relaxed select-text">{m.message}</p>
+
+                      {/* Attachment Rendering */}
+                      {m.attachmentUrl && (
+                        <div className="mb-2">
+                          {m.attachmentType?.startsWith('image/') || m.attachmentUrl.startsWith('data:image/') ? (
+                            <div 
+                              className="relative group rounded-xl overflow-hidden cursor-zoom-in border border-black/10 dark:border-white/10 max-w-[300px]"
+                              onClick={() => setLightboxImage({ url: m.attachmentUrl!, title: m.attachmentName || undefined })}
+                            >
+                              <img 
+                                src={m.attachmentUrl} 
+                                alt={m.attachmentName || 'Attachment preview'} 
+                                className="w-full max-h-48 object-cover rounded-xl transition-transform group-hover:scale-[1.02]"
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white text-[11px] font-semibold">
+                                <Eye className="w-4 h-4" /> Click to enlarge
+                              </div>
+                            </div>
+                          ) : (
+                            <a
+                              href={m.attachmentUrl}
+                              download={m.attachmentName || 'attachment'}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={cn(
+                                "flex items-center justify-between gap-3 p-2.5 rounded-xl border text-xs font-medium transition-colors max-w-[300px]",
+                                isStaff 
+                                  ? "bg-white/15 border-white/20 text-white hover:bg-white/25"
+                                  : "bg-black/5 dark:bg-white/5 border-border/60 text-foreground hover:bg-black/10"
+                              )}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <FileText className="w-4 h-4 shrink-0 text-amber-400" />
+                                <span className="truncate">{m.attachmentName || 'Download File'}</span>
+                              </div>
+                              <Download className="w-3.5 h-3.5 shrink-0 opacity-80" />
+                            </a>
+                          )}
+                        </div>
+                      )}
+
+                      {m.message && (
+                        <p className="whitespace-pre-wrap leading-relaxed select-text">{m.message}</p>
+                      )}
                     </div>
                   );
                 })}
@@ -803,31 +909,93 @@ export function SupportAdminClient({
 
               {/* REPLY INPUT AREA */}
               <div className="p-4 border-t border-border/40 bg-card flex flex-col gap-2.5">
+                {/* Hidden file input */}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  accept="image/*,.pdf,.txt,.log,.csv,.json"
+                  onChange={handleFileChange}
+                />
+
+                {/* Pending Attachment Preview Bar */}
+                {pendingAttachment && (
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-black/5 dark:bg-white/5 border border-border/40 text-xs animate-in fade-in slide-in-from-bottom-1">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {pendingAttachment.type.startsWith('image/') ? (
+                        <img 
+                          src={pendingAttachment.url} 
+                          alt="preview" 
+                          className="w-9 h-9 rounded-lg object-cover shrink-0 border border-border/40" 
+                        />
+                      ) : (
+                        <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                          <FileText className="w-4 h-4" />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <span className="font-bold text-foreground truncate block text-xs">
+                          {pendingAttachment.name}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {Math.round(pendingAttachment.size / 1024)} KB • Attached to reply
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setPendingAttachment(null)}
+                      className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-black/10 dark:hover:bg-white/10 transition-colors cursor-pointer"
+                      title="Remove attachment"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
                 <textarea
                   rows={3}
                   value={replyMessage}
                   onChange={(e) => setReplyMessage(e.target.value)}
+                  onPaste={handleReplyPaste}
                   onKeyDown={(e) => {
                     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
                       e.preventDefault();
                       handleSendReply(false);
                     }
                   }}
-                  placeholder="Type an official reply to the trader... (Press Ctrl+Enter to send)"
+                  placeholder={pendingAttachment ? "Add a message or send attachment... (Ctrl+Enter to send)" : "Type an official reply to the trader... (Press Ctrl+Enter to send, Ctrl+V to paste screenshot)"}
                   className="w-full bg-black/5 dark:bg-white/5 border border-border/40 rounded-xl p-3 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 ring-primary/20 transition-all resize-none"
                 />
 
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-[11px] text-muted-foreground">
-                    Sending will automatically notify the customer and update ticket status.
-                  </span>
-
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      disabled={!replyMessage.trim() || isPending}
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isAttaching || isPending}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border/50 text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5 text-xs font-medium transition-colors disabled:opacity-50 cursor-pointer"
+                      title="Attach Screenshot or Log File (or paste with Ctrl+V)"
+                    >
+                      {isAttaching ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                      ) : (
+                        <Paperclip className="w-3.5 h-3.5" />
+                      )}
+                      <span>Attach File / Screenshot</span>
+                    </button>
+                    <span className="text-[11px] text-muted-foreground hidden md:inline">
+                      (or paste screenshot directly with Ctrl+V)
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-end sm:self-auto">
+                    <button
+                      type="button"
+                      disabled={(!replyMessage.trim() && !pendingAttachment) || isPending}
                       onClick={() => handleSendReply(true)}
-                      className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors disabled:opacity-40 flex items-center gap-1.5 shadow-sm"
+                      className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors disabled:opacity-40 flex items-center gap-1.5 shadow-sm cursor-pointer"
                     >
                       <Check className="w-3.5 h-3.5" />
                       Send & Resolve
@@ -835,9 +1003,9 @@ export function SupportAdminClient({
 
                     <button
                       type="button"
-                      disabled={!replyMessage.trim() || isPending}
+                      disabled={(!replyMessage.trim() && !pendingAttachment) || isPending}
                       onClick={() => handleSendReply(false)}
-                      className="px-4 py-2 rounded-xl text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground transition-colors disabled:opacity-40 flex items-center gap-1.5 shadow-sm"
+                      className="px-4 py-2 rounded-xl text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground transition-colors disabled:opacity-40 flex items-center gap-1.5 shadow-sm cursor-pointer"
                     >
                       <Send className="w-3.5 h-3.5" />
                       Send Reply
@@ -857,6 +1025,46 @@ export function SupportAdminClient({
           )}
         </div>
       </div>
+
+      {/* Lightbox Image Preview Modal */}
+      {lightboxImage && (
+        <div 
+          className="fixed inset-0 z-[100005] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => setLightboxImage(null)}
+        >
+          <div 
+            className="relative max-w-4xl max-h-[90vh] flex flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between w-full mb-2 px-2 text-white text-xs">
+              <span className="font-bold truncate">{lightboxImage.title || 'Attached Screenshot'}</span>
+              <div className="flex items-center gap-2">
+                <a
+                  href={lightboxImage.url}
+                  download="support-attachment"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors flex items-center gap-1 text-[11px]"
+                >
+                  <Download className="w-3.5 h-3.5" /> Download
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setLightboxImage(null)}
+                  className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <img 
+              src={lightboxImage.url} 
+              alt="Fullscreen attachment" 
+              className="max-h-[82vh] max-w-full rounded-2xl object-contain shadow-2xl border border-white/10" 
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

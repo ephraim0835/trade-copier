@@ -69,6 +69,9 @@ export async function createSupportTicket(data: {
   category: string;
   message: string;
   priority?: string;
+  attachmentUrl?: string | null;
+  attachmentName?: string | null;
+  attachmentType?: string | null;
 }) {
   try {
     const session = await getServerSession(authOptions);
@@ -85,8 +88,8 @@ export async function createSupportTicket(data: {
       return { success: false, error: 'User not found' };
     }
 
-    if (!data.subject?.trim() || !data.message?.trim()) {
-      return { success: false, error: 'Subject and message are required.' };
+    if (!data.subject?.trim() || (!data.message?.trim() && !data.attachmentUrl)) {
+      return { success: false, error: 'Subject and message or attachment are required.' };
     }
 
     // Auto-escalate priority for Pro and Elite users
@@ -140,7 +143,10 @@ export async function createSupportTicket(data: {
           create: {
             senderId: user.id,
             senderRole: 'USER',
-            message: data.message.trim(),
+            message: data.message.trim() || (data.attachmentName ? `[Attached: ${data.attachmentName}]` : '[Attachment]'),
+            attachmentUrl: data.attachmentUrl || null,
+            attachmentName: data.attachmentName || null,
+            attachmentType: data.attachmentType || null,
           },
         },
       },
@@ -174,7 +180,15 @@ export async function createSupportTicket(data: {
   }
 }
 
-export async function sendTicketMessage(ticketId: string, message: string) {
+export async function sendTicketMessage(
+  ticketId: string, 
+  message: string,
+  attachment?: {
+    attachmentUrl?: string | null;
+    attachmentName?: string | null;
+    attachmentType?: string | null;
+  }
+) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
@@ -189,8 +203,9 @@ export async function sendTicketMessage(ticketId: string, message: string) {
       return { success: false, error: 'User not found' };
     }
 
-    if (!message?.trim()) {
-      return { success: false, error: 'Message cannot be empty.' };
+    const trimmed = (message || '').trim();
+    if (!trimmed && !attachment?.attachmentUrl) {
+      return { success: false, error: 'Message or attachment cannot be empty.' };
     }
 
     const ticket = await prisma.supportTicket.findUnique({
@@ -217,7 +232,10 @@ export async function sendTicketMessage(ticketId: string, message: string) {
         ticketId,
         senderId: user.id,
         senderRole,
-        message: message.trim(),
+        message: trimmed || (attachment?.attachmentName ? `[Attached: ${attachment.attachmentName}]` : '[Attachment]'),
+        attachmentUrl: attachment?.attachmentUrl || null,
+        attachmentName: attachment?.attachmentName || null,
+        attachmentType: attachment?.attachmentType || null,
       },
     });
 

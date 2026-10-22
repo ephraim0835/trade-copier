@@ -76,10 +76,11 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { ticketId, message } = body;
+    const { ticketId, message = '', attachmentUrl, attachmentName, attachmentType } = body;
 
-    if (!ticketId || !message?.trim()) {
-      return NextResponse.json({ error: 'ticketId and message required' }, { status: 400 });
+    const trimmedMessage = (message || '').trim();
+    if (!ticketId || (!trimmedMessage && !attachmentUrl)) {
+      return NextResponse.json({ error: 'ticketId and either a message or attachment are required' }, { status: 400 });
     }
 
     const user = await prisma.user.findUnique({
@@ -113,7 +114,10 @@ export async function POST(req: NextRequest) {
         ticketId,
         senderId: user.id,
         senderRole,
-        message: message.trim(),
+        message: trimmedMessage || (attachmentName ? `[Attached: ${attachmentName}]` : '[Attachment]'),
+        attachmentUrl: attachmentUrl || null,
+        attachmentName: attachmentName || null,
+        attachmentType: attachmentType || null,
       },
     });
 

@@ -17,7 +17,12 @@ import {
   ShieldCheck,
   ExternalLink,
   Check,
-  CheckCheck
+  CheckCheck,
+  Paperclip,
+  FileText,
+  Download,
+  Eye,
+  Image as ImageIcon
 } from 'lucide-react';
 import { 
   getUserSupportTickets, 
@@ -25,6 +30,7 @@ import {
   sendTicketMessage, 
   closeSupportTicket 
 } from '@/app/actions/support-actions';
+import { processFileAttachment, AttachmentPayload } from '@/lib/attachment-helper';
 
 interface SupportWidgetProps {
   // Default WhatsApp link - user can change or provide their own
@@ -42,6 +48,15 @@ export function SupportWidget({
   const [submitting, setSubmitting] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
+
+  // Attachment states
+  const [pendingAttachment, setPendingAttachment] = useState<AttachmentPayload | null>(null);
+  const [ticketAttachment, setTicketAttachment] = useState<AttachmentPayload | null>(null);
+  const [isAttaching, setIsAttaching] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; title?: string } | null>(null);
+
+  const chatFileInputRef = useRef<HTMLInputElement>(null);
+  const newTicketFileInputRef = useRef<HTMLInputElement>(null);
 
   // New Ticket Form State
   const [subject, setSubject] = useState('');
@@ -185,10 +200,63 @@ export function SupportWidget({
     }
   }, [activeTicket?.messages]);
 
+  const handleChatFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsAttaching(true);
+    try {
+      const att = await processFileAttachment(file);
+      setPendingAttachment(att);
+    } catch (err: any) {
+      alert(err.message || 'File upload error');
+    } finally {
+      setIsAttaching(false);
+      if (chatFileInputRef.current) chatFileInputRef.current.value = '';
+    }
+  };
+
+  const handleTicketFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsAttaching(true);
+    try {
+      const att = await processFileAttachment(file);
+      setTicketAttachment(att);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'File upload error');
+    } finally {
+      setIsAttaching(false);
+      if (newTicketFileInputRef.current) newTicketFileInputRef.current.value = '';
+    }
+  };
+
+  const handleChatPaste = async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].kind === 'file') {
+        const file = items[i].getAsFile();
+        if (file) {
+          e.preventDefault();
+          setIsAttaching(true);
+          try {
+            const att = await processFileAttachment(file);
+            setPendingAttachment(att);
+          } catch (err: any) {
+            console.error('Pasted file error:', err);
+          } finally {
+            setIsAttaching(false);
+          }
+          break;
+        }
+      }
+    }
+  };
+
   const handleCreateTicket = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!subject.trim() || !message.trim()) {
-      setErrorMsg('Please enter both subject and message.');
+    if (!subject.trim() || (!message.trim() && !ticketAttachment)) {
+      setErrorMsg('Please enter both subject and message or attachment.');
       return;
     }
 
@@ -199,6 +267,9 @@ export function SupportWidget({
         subject: subject.trim(),
         category,
         message: message.trim(),
+        attachmentUrl: ticketAttachment?.url,
+        attachmentName: ticketAttachment?.name,
+        attachmentType: ticketAttachment?.type,
       });
 
       if (!res.success) {
@@ -207,6 +278,7 @@ export function SupportWidget({
 
       setSubject('');
       setMessage('');
+      setTicketAttachment(null);
       setSuccessMsg('Ticket submitted successfully! Our support desk will reply promptly.');
       setTimeout(() => setSuccessMsg(null), 4000);
       
@@ -225,7 +297,11 @@ export function SupportWidget({
   const handleSendReply = async (e: React.FormEvent) => {
     e.preventDefault();
     const text = replyText.trim();
-    if (!text || !activeTicket) return;
+    if ((!text && !pendingAttachment) || !activeTicket) return;
+
+    const attachmentToSend = pendingAttachment;
+    setPendingAttachment(null);
+    setReplyText('');
 
     // 1. WhatsApp-style instant optimistic message injection
     const tempId = `temp-${Date.now()}`;
@@ -234,7 +310,10 @@ export function SupportWidget({
       ticketId: activeTicket.id,
       senderId: 'me',
       senderRole: 'USER',
-      message: text,
+      message: text || (attachmentToSend?.name ? `[Attached: ${attachmentToSend.name}]` : '[Attachment]'),
+      attachmentUrl: attachmentToSend?.url || null,
+      attachmentName: attachmentToSend?.name || null,
+      attachmentType: attachmentToSend?.type || null,
       createdAt: new Date().toISOString(),
       isPending: true,
     };
@@ -243,7 +322,6 @@ export function SupportWidget({
       ...prev,
       messages: [...(prev?.messages || []), optimisticMessage],
     }));
-    setReplyText('');
     setSendingReply(true);
 
     try {
@@ -253,6 +331,9 @@ export function SupportWidget({
         body: JSON.stringify({
           ticketId: activeTicket.id,
           message: text,
+          attachmentUrl: attachmentToSend?.url,
+          attachmentName: attachmentToSend?.name,
+          attachmentType: attachmentToSend?.type,
         }),
       });
 
@@ -413,13 +494,54 @@ export function SupportWidget({
                           </span>
                         )}
                         <div
-                          className={`max-w-[85%] px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap flex flex-col gap-1 shadow-xs ${
+                          className={`max-w-[85%] px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap flex flex-col gap-1.5 shadow-xs ${
                             isUser
                               ? 'bg-primary text-primary-foreground rounded-tr-xs'
                               : 'bg-card text-foreground border border-border/50 rounded-tl-xs'
                           }`}
                         >
-                          <p className="select-text">{msg.message}</p>
+                          {/* Image Attachment Preview */}
+                          {msg.attachmentUrl && (msg.attachmentType?.startsWith('image/') || msg.attachmentUrl.startsWith('data:image/')) && (
+                            <div 
+                              onClick={() => setLightboxImage({ url: msg.attachmentUrl, title: msg.attachmentName || 'Attached Screenshot' })}
+                              className="rounded-xl overflow-hidden border border-black/10 dark:border-white/10 max-h-60 cursor-pointer relative group bg-black/5"
+                            >
+                              <img 
+                                src={msg.attachmentUrl} 
+                                alt={msg.attachmentName || 'Attachment'} 
+                                className="w-full object-cover rounded-xl hover:scale-102 transition-transform duration-200" 
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-[11px] font-semibold gap-1.5">
+                                <Eye className="w-3.5 h-3.5" /> View Fullscreen
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Document / File Attachment */}
+                          {msg.attachmentUrl && !(msg.attachmentType?.startsWith('image/') || msg.attachmentUrl.startsWith('data:image/')) && (
+                            <a 
+                              href={msg.attachmentUrl} 
+                              download={msg.attachmentName || 'attachment'}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 text-xs font-semibold transition-colors ${
+                                isUser 
+                                  ? 'bg-white/10 border-white/20 text-white hover:bg-white/15' 
+                                  : 'bg-black/5 dark:bg-white/5 border-border/60 text-foreground hover:bg-black/10'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <FileText className="w-4 h-4 shrink-0 text-amber-400" />
+                                <span className="truncate">{msg.attachmentName || 'Download File'}</span>
+                              </div>
+                              <Download className="w-3.5 h-3.5 shrink-0 opacity-80" />
+                            </a>
+                          )}
+
+                          {msg.message && (
+                            <p className="select-text">{msg.message}</p>
+                          )}
+
                           <div className={`flex items-center justify-end gap-1 text-[9px] select-none self-end ${
                             isUser ? 'text-primary-foreground/75' : 'text-muted-foreground'
                           }`}>
@@ -441,33 +563,91 @@ export function SupportWidget({
                   <div ref={messagesEndRef} />
                 </div>
 
-                {/* Reply Input */}
+                {/* Reply Input with Attachment Support */}
                 <form 
                   onSubmit={handleSendReply} 
-                  className="p-3 sm:p-3.5 border-t border-border/40 bg-card flex items-center gap-2 shrink-0 z-20"
+                  className="p-3 sm:p-3.5 border-t border-border/40 bg-card flex flex-col gap-2 shrink-0 z-20"
                   style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 16px), 16px)' }}
                 >
-                  <input
-                    type="text"
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
-                    placeholder="Type your message..."
-                    className="flex-1 bg-background border border-border/50 rounded-xl px-3.5 py-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary min-w-0"
-                  />
-                  <button
-                    type="submit"
-                    disabled={sendingReply || !replyText.trim()}
-                    className="px-4 py-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-xs flex items-center gap-1.5 shadow-md shadow-primary/20 shrink-0 disabled:opacity-50 transition-all cursor-pointer"
-                  >
-                    {sendingReply ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <>
-                        <span>Send</span>
-                        <Send className="w-3.5 h-3.5" />
-                      </>
-                    )}
-                  </button>
+                  {/* Pending Attachment Preview Bar */}
+                  {pendingAttachment && (
+                    <div className="flex items-center justify-between p-2 rounded-xl bg-black/5 dark:bg-white/5 border border-border/40 text-xs animate-in fade-in slide-in-from-bottom-1">
+                      <div className="flex items-center gap-2 min-w-0">
+                        {pendingAttachment.type.startsWith('image/') ? (
+                          <img 
+                            src={pendingAttachment.url} 
+                            alt="preview" 
+                            className="w-8 h-8 rounded-lg object-cover shrink-0 border border-border/40" 
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                            <FileText className="w-4 h-4" />
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <span className="font-bold text-foreground truncate block text-[11px]">
+                            {pendingAttachment.name}
+                          </span>
+                          <span className="text-[9px] text-muted-foreground">
+                            {Math.round(pendingAttachment.size / 1024)} KB • Ready to send
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setPendingAttachment(null)}
+                        className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-black/10 dark:hover:bg-white/10"
+                        title="Remove attachment"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="file"
+                      ref={chatFileInputRef}
+                      className="hidden"
+                      accept="image/*,.pdf,.txt,.log,.csv,.json"
+                      onChange={handleChatFileChange}
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => chatFileInputRef.current?.click()}
+                      disabled={isAttaching || sendingReply}
+                      className="p-2.5 rounded-xl border border-border/50 text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5 transition-colors shrink-0 disabled:opacity-50 cursor-pointer"
+                      title="Attach Screenshot or Document (or paste with Ctrl+V)"
+                    >
+                      {isAttaching ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : <Paperclip className="w-4 h-4" />}
+                    </button>
+
+                    <input
+                      type="text"
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      onPaste={handleChatPaste}
+                      placeholder={pendingAttachment ? "Add a caption or send file..." : "Type your message... (Ctrl+V to paste screenshot)"}
+                      className="flex-1 bg-background border border-border/50 rounded-xl px-3.5 py-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary min-w-0"
+                    />
+
+                    <button
+                      type="submit"
+                      disabled={sendingReply || (!replyText.trim() && !pendingAttachment)}
+                      className="px-4 py-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-xs flex items-center gap-1.5 shadow-md shadow-primary/20 shrink-0 disabled:opacity-50 transition-all cursor-pointer"
+                    >
+                      {sendingReply ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <>
+                          <span>Send</span>
+                          <Send className="w-3.5 h-3.5" />
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </form>
               </div>
             ) : (
@@ -611,9 +791,63 @@ export function SupportWidget({
                           rows={4}
                           value={message}
                           onChange={(e) => setMessage(e.target.value)}
-                          placeholder="Describe your issue or question in detail..."
+                          onPaste={handleChatPaste}
+                          placeholder="Describe your issue or question in detail... (Ctrl+V to paste screenshot)"
                           className="flex-1 min-h-[110px] bg-background border border-border/50 rounded-xl p-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none"
                         />
+                      </div>
+
+                      {/* Attachment in New Ticket */}
+                      <div>
+                        <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                          Attachment (Screenshot or Terminal Log)
+                        </label>
+                        <input
+                          type="file"
+                          ref={newTicketFileInputRef}
+                          className="hidden"
+                          accept="image/*,.pdf,.txt,.log,.csv,.json"
+                          onChange={handleTicketFileChange}
+                        />
+
+                        {ticketAttachment ? (
+                          <div className="flex items-center justify-between p-2.5 rounded-xl bg-black/5 dark:bg-white/5 border border-border/50 text-xs">
+                            <div className="flex items-center gap-2 min-w-0">
+                              {ticketAttachment.type.startsWith('image/') ? (
+                                <img 
+                                  src={ticketAttachment.url} 
+                                  alt="preview" 
+                                  className="w-9 h-9 rounded-lg object-cover shrink-0 border border-border/40" 
+                                />
+                              ) : (
+                                <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                                  <FileText className="w-4 h-4" />
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <span className="font-bold text-foreground truncate block text-xs">{ticketAttachment.name}</span>
+                                <span className="text-[10px] text-muted-foreground">{Math.round(ticketAttachment.size / 1024)} KB • Attached</span>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setTicketAttachment(null)}
+                              className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-black/10 dark:hover:bg-white/10"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => newTicketFileInputRef.current?.click()}
+                            disabled={isAttaching}
+                            className="w-full py-2.5 px-3 rounded-xl border border-dashed border-border/70 hover:border-primary/60 text-xs text-muted-foreground hover:text-foreground flex items-center justify-center gap-2 transition-colors bg-black/[0.01] dark:bg-white/[0.01] cursor-pointer"
+                          >
+                            {isAttaching ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : <Paperclip className="w-4 h-4 text-primary" />}
+                            <span>Attach MT5 Screenshot or Log file (Max 10MB)</span>
+                          </button>
+                        )}
                       </div>
 
                       {errorMsg && (
@@ -649,6 +883,46 @@ export function SupportWidget({
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox Image Preview Modal */}
+      {lightboxImage && (
+        <div 
+          className="fixed inset-0 z-[100005] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => setLightboxImage(null)}
+        >
+          <div 
+            className="relative max-w-4xl max-h-[90vh] flex flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between w-full mb-2 px-2 text-white text-xs">
+              <span className="font-bold truncate">{lightboxImage.title || 'Attached Screenshot'}</span>
+              <div className="flex items-center gap-2">
+                <a
+                  href={lightboxImage.url}
+                  download="support-attachment"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors flex items-center gap-1 text-[11px]"
+                >
+                  <Download className="w-3.5 h-3.5" /> Download
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setLightboxImage(null)}
+                  className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <img 
+              src={lightboxImage.url} 
+              alt="Fullscreen attachment" 
+              className="max-h-[82vh] max-w-full rounded-2xl object-contain shadow-2xl border border-white/10" 
+            />
           </div>
         </div>
       )}
