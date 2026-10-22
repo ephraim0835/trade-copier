@@ -19,35 +19,62 @@ const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined
 
 export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   const [currency, setCurrencyState] = useState<CurrencyCode>('USD');
-  const [exchangeRate, setExchangeRate] = useState<number>(1350);
+  const [exchangeRate, setExchangeRate] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedRate = localStorage.getItem('plaiz-fx-ngn');
+        if (savedRate && !isNaN(Number(savedRate)) && Number(savedRate) > 100) {
+          return Number(savedRate);
+        }
+      } catch {}
+    }
+    return 1350;
+  });
   const [rates, setRates] = useState<Record<string, number>>(DEFAULT_RATES_TO_USD);
   const [isLoadingRates, setIsLoadingRates] = useState<boolean>(true);
 
+  const applyRates = (newRates: Record<string, number>) => {
+    setRates(newRates);
+    if (newRates.NGN && newRates.NGN > 0) {
+      setExchangeRate(newRates.NGN);
+      try {
+        localStorage.setItem('plaiz-fx-ngn', String(newRates.NGN));
+      } catch {}
+    }
+  };
+
   const fetchRates = async () => {
     try {
-      // First try local Next.js cached API endpoint
+      // 1. Try local Next.js cached API endpoint
       const res = await fetch('/api/currency/rates');
       if (res.ok) {
         const data = await res.json();
         if (data?.rates) {
-          setRates(data.rates);
-          if (data.rates.NGN) {
-            setExchangeRate(data.rates.NGN);
-          }
+          applyRates(data.rates);
           setIsLoadingRates(false);
           return;
         }
       }
 
-      // Fallback directly to public open forex feed
+      // 2. Fallback to primary public open forex feed
       const directRes = await fetch('https://open.er-api.com/v6/latest/USD');
       if (directRes.ok) {
         const directData = await directRes.json();
         if (directData?.rates) {
-          setRates(directData.rates);
-          if (directData.rates.NGN) {
-            setExchangeRate(directData.rates.NGN);
-          }
+          applyRates(directData.rates);
+          setIsLoadingRates(false);
+          return;
+        }
+      }
+
+      // 3. Fallback to secondary public forex feed
+      const secondaryRes = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
+      if (secondaryRes.ok) {
+        const secondaryData = await secondaryRes.json();
+        if (secondaryData?.rates) {
+          applyRates(secondaryData.rates);
+          setIsLoadingRates(false);
+          return;
         }
       }
     } catch (err) {

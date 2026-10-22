@@ -48,10 +48,36 @@ export async function fetchLiveRates(): Promise<Record<string, number>> {
           USD: 1.0,
         };
         lastFetchedAt = now;
+        return cachedRates;
       }
     }
   } catch (err) {
-    console.warn('[Currency] Live rates fetch failed, using cached/fallback rates:', err);
+    console.warn('[Currency] Primary live rates fetch failed, trying secondary stream:', err);
+  }
+
+  // Secondary stream: api.exchangerate-api.com
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4000);
+    const res = await fetch('https://api.exchangerate-api.com/v4/latest/USD', {
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.rates && typeof data.rates === 'object') {
+        cachedRates = {
+          ...DEFAULT_RATES_TO_USD,
+          ...data.rates,
+          USD: 1.0,
+        };
+        lastFetchedAt = now;
+        return cachedRates;
+      }
+    }
+  } catch (err) {
+    console.warn('[Currency] Secondary live rates fetch failed, using cached/fallback rates:', err);
   }
 
   return cachedRates;

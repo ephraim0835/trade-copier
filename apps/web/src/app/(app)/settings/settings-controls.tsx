@@ -29,7 +29,8 @@ export function SettingsControls({
   mastersCount = 0,
   subsCount = 0,
 }: SettingsControlsProps) {
-  const { currency, setCurrency } = useCurrency();
+  const { currency, setCurrency, exchangeRate } = useCurrency();
+  const effectiveRate = exchangeRate > 0 ? exchangeRate : 1350;
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
@@ -255,7 +256,11 @@ export function SettingsControls({
                 <span className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Current Membership</span>
                 <span className="font-extrabold text-sm text-foreground">
                   {localStatus === 'ACTIVE'
-                    ? (currentPlan === 'elite' ? 'Elite Plan ($99/mo)' : currentPlan === 'pro' ? 'Pro Plan ($49/mo)' : 'Starter Plan ($29/mo)')
+                    ? (currentPlan === 'elite' 
+                        ? `Elite Plan (${currency === 'NGN' ? `₦${Math.round(99 * effectiveRate).toLocaleString()}` : '$99'}/mo)` 
+                        : currentPlan === 'pro' 
+                        ? `Pro Plan (${currency === 'NGN' ? `₦${Math.round(49 * effectiveRate).toLocaleString()}` : '$49'}/mo)` 
+                        : `Starter Plan (${currency === 'NGN' ? `₦${Math.round(29 * effectiveRate).toLocaleString()}` : '$29'}/mo)`)
                     : localStatus === 'INTERNAL_FREE'
                     ? `Complimentary ${currentPlan.toUpperCase()} (Full Admin Access)`
                     : localStatus === 'CANCELED'
@@ -359,7 +364,41 @@ export function SettingsControls({
           </div>
         </div>
 
-        {/* Plans Grid: Starter ($29), Pro ($49), Elite ($99) */}
+        {/* Plans Grid Header with Live Rate Indicator */}
+        <div className="ml-0 md:ml-14 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/5 dark:bg-white/5 border border-border/30 text-[11px] text-muted-foreground">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Real-time Rate: <strong>$1.00 USD ≈ ₦{Math.round(effectiveRate).toLocaleString()}</strong></span>
+            <span className="text-[10px] opacity-60">• Auto-synced</span>
+          </div>
+
+          <div className="flex items-center bg-black/5 dark:bg-white/5 p-1 rounded-xl border border-border/40">
+            <button
+              type="button"
+              onClick={() => setCurrency('USD')}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${
+                currency === 'USD'
+                  ? 'bg-card text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              USD ($)
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrency('NGN')}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${
+                currency === 'NGN'
+                  ? 'bg-card text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              NGN (₦)
+            </button>
+          </div>
+        </div>
+
+        {/* Plans Grid */}
         <div className="ml-0 md:ml-14 grid grid-cols-1 md:grid-cols-3 gap-3.5">
           {/* Plan 1: Starter */}
           <div className={`p-4 rounded-2xl border flex flex-col justify-between transition-all ${
@@ -378,7 +417,7 @@ export function SettingsControls({
               </div>
               <div className="flex items-baseline gap-1 mb-1.5">
                 <span className="text-xl font-black tracking-tight text-foreground">
-                  {currency === 'NGN' ? '₦44,000' : '$29'}
+                  {currency === 'NGN' ? `₦${Math.round(29 * effectiveRate).toLocaleString()}` : '$29'}
                 </span>
                 <span className="text-[11px] text-muted-foreground font-medium">/mo</span>
               </div>
@@ -416,7 +455,7 @@ export function SettingsControls({
               </div>
               <div className="flex items-baseline gap-1 mb-1.5">
                 <span className="text-xl font-black tracking-tight text-foreground">
-                  {currency === 'NGN' ? '₦75,000' : '$49'}
+                  {currency === 'NGN' ? `₦${Math.round(49 * effectiveRate).toLocaleString()}` : '$49'}
                 </span>
                 <span className="text-[11px] text-muted-foreground font-medium">/mo</span>
               </div>
@@ -451,7 +490,7 @@ export function SettingsControls({
               </div>
               <div className="flex items-baseline gap-1 mb-1.5">
                 <span className="text-xl font-black tracking-tight text-foreground">
-                  {currency === 'NGN' ? '₦150,000' : '$99'}
+                  {currency === 'NGN' ? `₦${Math.round(99 * effectiveRate).toLocaleString()}` : '$99'}
                 </span>
                 <span className="text-[11px] text-muted-foreground font-medium">/mo</span>
               </div>

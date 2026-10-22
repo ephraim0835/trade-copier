@@ -2,11 +2,14 @@ import { Metadata } from 'next';
 import { PricingClient } from './pricing-client';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
+import { getLiveRate } from '@/lib/currency';
 
 export const metadata: Metadata = {
   title: 'Pricing Plans | Plaiz Markets',
   description: 'Choose your automated trade copier plan. Transparent pricing with instant Flutterwave activation and ultra-low latency execution.',
 };
+
+export const revalidate = 300; // Revalidate every 5 minutes
 
 export default async function PricingPage() {
   const session = await getServerSession(authOptions);
@@ -30,5 +33,12 @@ export default async function PricingPage() {
     }
   }
 
-  return <PricingClient userSubscription={userSubscription} />;
+  const initialExchangeRate = await getLiveRate('NGN');
+
+  return (
+    <PricingClient 
+      userSubscription={userSubscription} 
+      initialExchangeRate={initialExchangeRate}
+    />
+  );
 }

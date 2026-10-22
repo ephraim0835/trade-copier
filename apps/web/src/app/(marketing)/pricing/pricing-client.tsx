@@ -25,14 +25,17 @@ interface PricingClientProps {
     planId: string | null;
     status: string;
   } | null;
+  initialExchangeRate?: number;
 }
 
-export function PricingClient({ userSubscription }: PricingClientProps = {}) {
+export function PricingClient({ userSubscription, initialExchangeRate }: PricingClientProps = {}) {
   const { currency, setCurrency, exchangeRate } = useCurrency();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   const isNgn = currency === 'NGN';
-  const effectiveRate = exchangeRate > 0 ? exchangeRate : 1350;
+  const effectiveRate = exchangeRate > 0 && exchangeRate !== 1350 
+    ? exchangeRate 
+    : (initialExchangeRate && initialExchangeRate > 0 ? initialExchangeRate : (exchangeRate || 1350));
 
   const pricingPlans = [
     {
@@ -293,9 +296,15 @@ export function PricingClient({ userSubscription }: PricingClientProps = {}) {
               <thead>
                 <tr className="border-b border-border/40 bg-black/5 dark:bg-white/5">
                   <th className="py-4 px-6 font-bold text-foreground">Trading Feature</th>
-                  <th className="py-4 px-6 font-bold text-foreground">Starter ($29)</th>
-                  <th className="py-4 px-6 font-bold text-primary">Pro ($49)</th>
-                  <th className="py-4 px-6 font-bold text-foreground">Elite ($99)</th>
+                  <th className="py-4 px-6 font-bold text-foreground">
+                    Starter ({isNgn ? `₦${Math.round(29 * effectiveRate).toLocaleString()}` : '$29'})
+                  </th>
+                  <th className="py-4 px-6 font-bold text-primary">
+                    Pro ({isNgn ? `₦${Math.round(49 * effectiveRate).toLocaleString()}` : '$49'})
+                  </th>
+                  <th className="py-4 px-6 font-bold text-foreground">
+                    Elite ({isNgn ? `₦${Math.round(99 * effectiveRate).toLocaleString()}` : '$99'})
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/20 text-xs">
