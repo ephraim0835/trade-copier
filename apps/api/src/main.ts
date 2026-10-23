@@ -28,9 +28,17 @@ async function bootstrap() {
     throw new Error('FRONTEND_URLS must be defined in production');
   }
 
-  const allowedOrigins = frontendUrlsStr
-    ? frontendUrlsStr.split(',').map(u => u.trim())
-    : ['http://localhost:3000'];
+  const defaultOrigins = [
+    'http://localhost:3000',
+    'https://www.plaiz-markets.online',
+    'https://plaiz-markets.online',
+    'https://plaiz-markets.vercel.app'
+  ];
+
+  const allowedOrigins = Array.from(new Set([
+    ...defaultOrigins,
+    ...(frontendUrlsStr ? frontendUrlsStr.split(',').map(u => u.trim()) : [])
+  ]));
 
   app.enableCors({
     origin: allowedOrigins,
