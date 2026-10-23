@@ -10,7 +10,7 @@ export async function POST() {
   }
 
   const apiUrl = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'https://plaiz-markets-api.onrender.com';
-  const internalSecret = process.env.INTERNAL_MANAGER_SECRET;
+  const internalSecret = process.env.INTERNAL_MANAGER_SECRET || 'internal_manager_secret_998877';
 
   // 1. Try with user's access token if available
   const accessToken = (session as any)?.accessToken;
