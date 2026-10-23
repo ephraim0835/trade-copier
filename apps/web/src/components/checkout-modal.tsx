@@ -15,7 +15,8 @@ import {
   Zap,
   MessageCircle,
   Copy,
-  Info
+  Info,
+  ExternalLink
 } from 'lucide-react';
 import { useCurrency } from '@/components/currency-provider';
 import { useSession } from 'next-auth/react';
@@ -99,6 +100,7 @@ export function CheckoutModal({
   const [discountError, setDiscountError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [checkoutLink, setCheckoutLink] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   const copyToClipboard = (text: string, field: string) => {
@@ -123,6 +125,8 @@ export function CheckoutModal({
     if (!isOpen) {
       setDiscountError(null);
       setCheckoutError(null);
+      setCheckoutLink(null);
+      setIsSubmitting(false);
     }
   }, [isOpen]);
 
@@ -218,6 +222,8 @@ export function CheckoutModal({
   const handleCurrencySwitch = (newCurrency: 'USD' | 'NGN') => {
     setCurrency(newCurrency);
     setGlobalCurrency(newCurrency);
+    setCheckoutLink(null);
+    setCheckoutError(null);
     if (appliedDiscount) {
       setAppliedDiscount(null);
     }
@@ -231,11 +237,16 @@ export function CheckoutModal({
 
     setIsSubmitting(true);
     setCheckoutError(null);
+    setCheckoutLink(null);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
 
     try {
       const res = await fetch('/api/billing/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           planId: selectedPlan,
           currency,
@@ -243,6 +254,7 @@ export function CheckoutModal({
         }),
       });
 
+      clearTimeout(timeoutId);
       const data = await res.json();
 
       if (!res.ok) {
@@ -250,13 +262,25 @@ export function CheckoutModal({
       }
 
       if (data.link) {
-        window.location.href = data.link;
+        setCheckoutLink(data.link);
+        setIsSubmitting(false);
+        // Attempt immediate window redirect
+        try {
+          window.location.assign(data.link);
+        } catch {
+          window.location.href = data.link;
+        }
       } else {
         throw new Error('No payment checkout link returned.');
       }
     } catch (err: any) {
+      clearTimeout(timeoutId);
       console.error('Checkout error:', err);
-      setCheckoutError(err.message || 'Payment provider is currently unavailable. Please try again shortly.');
+      if (err.name === 'AbortError') {
+        setCheckoutError('Connection timed out while reaching the payment gateway. Please verify your connection or click retry.');
+      } else {
+        setCheckoutError(err.message || 'Payment provider is currently unavailable. Please try again shortly.');
+      }
       setIsSubmitting(false);
     }
   };
@@ -336,7 +360,11 @@ export function CheckoutModal({
             {/* Starter Option */}
             <button
               type="button"
-              onClick={() => setSelectedPlan('starter')}
+              onClick={() => {
+                setSelectedPlan('starter');
+                setCheckoutLink(null);
+                setCheckoutError(null);
+              }}
               className={`p-2.5 sm:p-3 rounded-2xl border text-left transition-all overflow-hidden flex flex-col justify-between ${
                 selectedPlan === 'starter'
                   ? 'bg-primary/5 border-primary shadow-sm ring-1 ring-primary/30'
@@ -366,7 +394,11 @@ export function CheckoutModal({
             {/* Pro Option */}
             <button
               type="button"
-              onClick={() => setSelectedPlan('pro')}
+              onClick={() => {
+                setSelectedPlan('pro');
+                setCheckoutLink(null);
+                setCheckoutError(null);
+              }}
               className={`p-2.5 sm:p-3 rounded-2xl border text-left relative transition-all overflow-hidden flex flex-col justify-between ${
                 selectedPlan === 'pro'
                   ? 'bg-primary/10 border-primary shadow-sm ring-1 ring-primary/40'
@@ -396,7 +428,11 @@ export function CheckoutModal({
             {/* Elite Option */}
             <button
               type="button"
-              onClick={() => setSelectedPlan('elite')}
+              onClick={() => {
+                setSelectedPlan('elite');
+                setCheckoutLink(null);
+                setCheckoutError(null);
+              }}
               className={`p-2.5 sm:p-3 rounded-2xl border text-left transition-all overflow-hidden flex flex-col justify-between ${
                 selectedPlan === 'elite'
                   ? 'bg-primary/10 border-primary shadow-sm ring-1 ring-primary/40'
@@ -662,27 +698,81 @@ export function CheckoutModal({
           </div>
         )}
 
-        {/* Action Button */}
+        {/* Action Button & Redirection State */}
         <div className="flex flex-col gap-2.5 relative z-10">
-          <button
-            type="button"
-            onClick={handleProceedToPayment}
-            disabled={isSubmitting}
-            className="w-full py-3.5 px-4 rounded-2xl text-xs md:text-sm font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            {isSubmitting ? (
-              <>
+          {checkoutLink ? (
+            <div className="flex flex-col gap-3 p-4 rounded-2xl bg-primary/10 border border-primary/30 text-center animate-in fade-in duration-200">
+              <div className="flex items-center justify-center gap-2 text-xs font-semibold text-primary">
                 <Loader2 className="w-4 h-4 animate-spin" />
                 Connecting to Flutterwave...
-              </>
-            ) : (
-              <>
-                <Lock className="w-4 h-4" />
-                Proceed with {getPlanActionLabel(selectedPlan, activePlanId, activeStatus)}
-                <ArrowRight className="w-4 h-4 ml-0.5" />
-              </>
-            )}
-          </button>
+              </div>
+              <p className="text-[11px] text-muted-foreground leading-snug">
+                If the payment screen did not open automatically, tap below:
+              </p>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <a
+                  href={checkoutLink}
+                  target="_top"
+                  rel="noopener noreferrer"
+                  className="flex-1 py-3 px-4 rounded-xl text-xs md:text-sm font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Open Checkout Now
+                </a>
+                <a
+                  href={checkoutLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="py-3 px-4 rounded-xl text-xs font-bold bg-secondary hover:bg-secondary/80 text-foreground border border-border/50 transition-all flex items-center justify-center gap-1.5"
+                >
+                  New Tab ↗
+                </a>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setCheckoutLink(null);
+                  setCheckoutError(null);
+                }}
+                className="text-[11px] text-muted-foreground hover:text-foreground underline transition-colors cursor-pointer"
+              >
+                Change details or re-generate link
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleProceedToPayment}
+              disabled={isSubmitting}
+              className="w-full py-3.5 px-4 rounded-2xl text-xs md:text-sm font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Connecting to Flutterwave...
+                </>
+              ) : (
+                <>
+                  <Lock className="w-4 h-4" />
+                  Proceed with {getPlanActionLabel(selectedPlan, activePlanId, activeStatus)}
+                  <ArrowRight className="w-4 h-4 ml-0.5" />
+                </>
+              )}
+            </button>
+          )}
+
+          {checkoutError && (
+            <div className="flex items-center justify-center gap-2 pt-1 text-[11px]">
+              <a
+                href={`https://wa.me/2347065917870?text=${encodeURIComponent(`Hi Plaiz Markets support, I need help subscribing to the ${selectedPlan} plan. Error: ${checkoutError}`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline font-semibold flex items-center gap-1"
+              >
+                <MessageCircle className="w-3.5 h-3.5 text-emerald-500" /> Need Help? Chat with Support on WhatsApp
+              </a>
+            </div>
+          )}
 
           <div className="flex items-center justify-center gap-4 text-[10px] text-muted-foreground">
             <span className="flex items-center gap-1">

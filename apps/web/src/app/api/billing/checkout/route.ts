@@ -98,7 +98,6 @@ export async function POST(req: NextRequest) {
       amount,
       currency: selectedCurrency,
       redirect_url,
-      payment_options: "card,banktransfer,ussd,account,qr",
       meta: {
         userId: user.id,
         planId: planId,
