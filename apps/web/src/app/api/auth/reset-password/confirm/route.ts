@@ -12,8 +12,8 @@ export async function POST(req: Request) {
 
     const { code, newPassword } = await req.json();
 
-    if (!code || !newPassword || newPassword.length < 6) {
-      return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
+    if (!code || !newPassword || typeof newPassword !== 'string' || newPassword.length < 8) {
+      return NextResponse.json({ error: 'Password must be at least 8 characters long.' }, { status: 400 });
     }
 
     const email = session.user.email;
