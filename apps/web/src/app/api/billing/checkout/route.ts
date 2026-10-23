@@ -80,16 +80,16 @@ export async function POST(req: NextRequest) {
     const { secretKey: flwSecret, isLive } = getFlutterwaveConfig();
     if (!flwSecret) {
       console.error("Missing Flutterwave secret key in environment");
-      return NextResponse.json({ 
-        error: "Billing gateway is not yet configured. Please set FLW_SECRET_KEY in your environment settings." 
+      return NextResponse.json({
+        error: "Billing gateway is not yet configured. Please set FLW_SECRET_KEY in your environment settings."
       }, { status: 500 });
     }
 
     // The base URL of the application (dynamically respects local dev vs production)
     const origin = req.nextUrl?.origin;
     const isLocal = origin && (origin.includes('localhost') || origin.includes('127.0.0.1'));
-    const appUrl = isLocal 
-      ? origin 
+    const appUrl = isLocal
+      ? origin
       : (process.env.NEXT_PUBLIC_APP_URL || process.env.FRONTEND_URL || origin || 'https://plaiz-markets.vercel.app');
     const redirect_url = `${appUrl}/billing/verify?tx_ref=${tx_ref}&plan=${planId}`;
 
@@ -98,6 +98,7 @@ export async function POST(req: NextRequest) {
       amount,
       currency: selectedCurrency,
       redirect_url,
+      payment_options: "card,banktransfer,ussd,account,qr",
       meta: {
         userId: user.id,
         planId: planId,

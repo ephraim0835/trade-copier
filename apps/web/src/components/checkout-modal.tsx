@@ -337,7 +337,7 @@ export function CheckoutModal({
             <button
               type="button"
               onClick={() => setSelectedPlan('starter')}
-              className={`p-3 rounded-2xl border text-left transition-all ${
+              className={`p-2.5 sm:p-3 rounded-2xl border text-left transition-all overflow-hidden flex flex-col justify-between ${
                 selectedPlan === 'starter'
                   ? 'bg-primary/5 border-primary shadow-sm ring-1 ring-primary/30'
                   : 'bg-card/40 border-border/40 hover:border-border/80'
@@ -352,10 +352,13 @@ export function CheckoutModal({
                   return null;
                 })()}
               </div>
-              <div className="text-sm font-extrabold text-foreground mt-0.5">
-                {isNgn ? `₦${basePrices.starter.toLocaleString()}` : '$29'}<span className="text-[9px] text-muted-foreground font-normal">/mo</span>
+              <div className="flex items-baseline flex-wrap gap-x-0.5 mt-0.5 min-w-0">
+                <span className={`font-black text-foreground tracking-tight ${isNgn ? 'text-xs' : 'text-sm'}`}>
+                  {isNgn ? `₦${basePrices.starter.toLocaleString()}` : '$29'}
+                </span>
+                <span className="text-[9px] text-muted-foreground font-normal shrink-0">/mo</span>
               </div>
-              <div className="text-[10px] text-muted-foreground mt-0.5 leading-tight">
+              <div className="text-[10px] text-muted-foreground mt-0.5 leading-tight truncate">
                 1 M • 3 Subs
               </div>
             </button>
@@ -364,7 +367,7 @@ export function CheckoutModal({
             <button
               type="button"
               onClick={() => setSelectedPlan('pro')}
-              className={`p-3 rounded-2xl border text-left relative transition-all ${
+              className={`p-2.5 sm:p-3 rounded-2xl border text-left relative transition-all overflow-hidden flex flex-col justify-between ${
                 selectedPlan === 'pro'
                   ? 'bg-primary/10 border-primary shadow-sm ring-1 ring-primary/40'
                   : 'bg-card/40 border-border/40 hover:border-border/80'
@@ -379,10 +382,13 @@ export function CheckoutModal({
                   return <Sparkles className="w-2.5 h-2.5" />;
                 })()}
               </div>
-              <div className="text-sm font-extrabold text-foreground mt-0.5">
-                {isNgn ? `₦${basePrices.pro.toLocaleString()}` : '$49'}<span className="text-[9px] text-muted-foreground font-normal">/mo</span>
+              <div className="flex items-baseline flex-wrap gap-x-0.5 mt-0.5 min-w-0">
+                <span className={`font-black text-foreground tracking-tight ${isNgn ? 'text-xs' : 'text-sm'}`}>
+                  {isNgn ? `₦${basePrices.pro.toLocaleString()}` : '$49'}
+                </span>
+                <span className="text-[9px] text-muted-foreground font-normal shrink-0">/mo</span>
               </div>
-              <div className="text-[10px] text-muted-foreground mt-0.5 leading-tight">
+              <div className="text-[10px] text-muted-foreground mt-0.5 leading-tight truncate">
                 3 M • 10 Subs
               </div>
             </button>
@@ -391,7 +397,7 @@ export function CheckoutModal({
             <button
               type="button"
               onClick={() => setSelectedPlan('elite')}
-              className={`p-3 rounded-2xl border text-left transition-all ${
+              className={`p-2.5 sm:p-3 rounded-2xl border text-left transition-all overflow-hidden flex flex-col justify-between ${
                 selectedPlan === 'elite'
                   ? 'bg-primary/10 border-primary shadow-sm ring-1 ring-primary/40'
                   : 'bg-card/40 border-border/40 hover:border-border/80'
@@ -406,10 +412,13 @@ export function CheckoutModal({
                   return null;
                 })()}
               </div>
-              <div className="text-sm font-extrabold text-foreground mt-0.5">
-                {isNgn ? `₦${basePrices.elite.toLocaleString()}` : '$99'}<span className="text-[9px] text-muted-foreground font-normal">/mo</span>
+              <div className="flex items-baseline flex-wrap gap-x-0.5 mt-0.5 min-w-0">
+                <span className={`font-black text-foreground tracking-tight ${isNgn ? 'text-xs' : 'text-sm'}`}>
+                  {isNgn ? `₦${basePrices.elite.toLocaleString()}` : '$99'}
+                </span>
+                <span className="text-[9px] text-muted-foreground font-normal shrink-0">/mo</span>
               </div>
-              <div className="text-[10px] text-muted-foreground mt-0.5 leading-tight">
+              <div className="text-[10px] text-muted-foreground mt-0.5 leading-tight truncate">
                 5 M • 25 Subs
               </div>
             </button>
