@@ -1,4 +1,4 @@
-import { Server, Users, ArrowRightLeft, ShieldAlert, AlertCircle, CheckCircle2, DollarSign } from 'lucide-react';
+import { Server, Users, ArrowRightLeft, ShieldAlert, AlertCircle, CheckCircle2, DollarSign, MessageSquare } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
 import { AdminLiveOverview } from '@/components/admin-live-overview';
@@ -29,11 +29,13 @@ export default async function AdminOverviewPage() {
   let systemEvents: any[] = [];
   let mrr = 0;
   let payingSubscribers = 0;
+  let openTickets = 0;
   
   try {
     totalUsers = await prisma.user.count();
     activeSubs = await prisma.mt5Account.count({ where: { role: 'SUB', isActive: true } });
     activeMasters = await prisma.mt5Account.count({ where: { role: 'MASTER', isActive: true } });
+    openTickets = await prisma.supportTicket.count({ where: { status: 'OPEN' } });
     latestVps = await prisma.vpsEnvironment.findFirst({
       orderBy: { lastHeartbeatAt: 'desc' },
     });
@@ -179,6 +181,9 @@ export default async function AdminOverviewPage() {
         <section className="plaiz-card p-6 flex flex-col">
           <h3 className="text-lg font-bold mb-4">Quick Navigation</h3>
           <div className="flex flex-col gap-3">
+            <Link href="/admin/support" className="plaiz-btn plaiz-btn-secondary w-full justify-start text-xs py-3 hover:border-primary/40 transition-all font-semibold text-foreground">
+              <MessageSquare className="w-4 h-4 mr-2 text-primary" /> Support & Helpdesk Hub {openTickets > 0 ? `(${openTickets} open tickets)` : '(All tickets resolved)'}
+            </Link>
             <Link href="/admin/revenue" className="plaiz-btn plaiz-btn-secondary w-full justify-start text-xs py-3 hover:border-emerald-500/40 transition-all font-semibold text-foreground">
               <DollarSign className="w-4 h-4 mr-2 text-emerald-500" /> Revenue & MRR Tracker ({payingSubscribers} active • ${mrr}/mo)
             </Link>

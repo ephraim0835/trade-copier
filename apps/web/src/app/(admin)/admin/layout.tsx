@@ -92,7 +92,7 @@ export default async function AdminLayout({
                <ThemeToggle />
             </div>
           </header>
-          <div className="flex-1 p-6 overflow-y-auto custom-scrollbar pb-24">
+          <div className="flex-1 p-3 sm:p-6 overflow-y-auto custom-scrollbar pb-28">
             {children}
           </div>
         </main>

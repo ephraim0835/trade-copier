@@ -19,6 +19,7 @@ import { TrialGraceBanner } from '@/components/trial-grace-banner';
 import { getTrialGraceStatus, enforceTrialGraceCleanup } from '@/lib/trial-grace';
 import { ReconnectButton } from '@/components/accounts/reconnect-button';
 import { convertToUSD } from '@/lib/currency';
+import { DashboardWalkthrough, WalkthroughTriggerButton } from '@/components/dashboard/dashboard-walkthrough';
 
 export const dynamic = 'force-dynamic';
 
@@ -255,7 +256,7 @@ export default async function DashboardOverview() {
       {/* Removed heavy blue gradients in favor of subtle environment lighting */}
 
       {/* HEADER: Calm & Intentional */}
-      <header className="relative z-50 flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <header id="tour-welcome" className="relative z-50 flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
           <div className="flex items-center gap-3 mb-2">
             <h1 className="text-2xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-br from-foreground to-foreground/80 dark:from-white dark:to-white/60">
@@ -288,6 +289,7 @@ export default async function DashboardOverview() {
         
         {/* Top Right Utilities */}
         <div className="flex flex-wrap items-center gap-3">
+          <WalkthroughTriggerButton />
           {accounts.length > 0 && (
             <BotControlSwitch
               initialBotStopped={user.botStopped ?? false}
@@ -349,7 +351,7 @@ export default async function DashboardOverview() {
         <div className="xl:col-span-7 flex flex-col gap-12">
           
           {/* GLASS VAULT: PREMIUM BALANCE & PNL CARD */}
-          <section className="relative group">
+          <section id="tour-vault" className="relative group">
             <div className="absolute inset-0 bg-gradient-to-br dark:from-primary/10 dark:via-transparent dark:to-transparent rounded-[24px] pointer-events-none transition-opacity duration-500"></div>
             <div className="relative bg-card dark:bg-slate-950/60 dark:backdrop-blur-3xl border border-border/50 dark:border-primary/20 rounded-[24px] p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-primary/5 overflow-hidden transition-all duration-500">
               
@@ -412,7 +414,7 @@ export default async function DashboardOverview() {
           </section>
 
           {/* MASTER ACCOUNT: Functional Digital Card */}
-          <section>
+          <section id="tour-master">
             <h3 className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground font-semibold mb-4">Master Source</h3>
             
             {masterAccount ? (
@@ -576,7 +578,7 @@ export default async function DashboardOverview() {
         <div className="xl:col-span-5 flex flex-col gap-10">
           
           {/* THE REAL CHART */}
-          <section className="plaiz-card p-6 rounded-[24px]">
+          <section id="tour-performance" className="plaiz-card p-6 rounded-[24px]">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">Performance</h3>
               {/* Fake timeframe controls removed as per user instruction for honest functionality */}
@@ -587,7 +589,7 @@ export default async function DashboardOverview() {
           </section>
 
           {/* RISK CONFIGURATION */}
-          <section className="plaiz-card bg-secondary/30 p-6 rounded-[20px]">
+          <section id="tour-risk" className="plaiz-card bg-secondary/30 p-6 rounded-[20px]">
              <div className="flex items-center justify-between mb-6">
               <h3 className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">Risk Engine</h3>
               <Link href="/risk">
@@ -652,7 +654,7 @@ export default async function DashboardOverview() {
       </div>
       
       {/* SUB ACCOUNTS PORTFOLIO */}
-      <section className="relative z-10 mt-4">
+      <section id="tour-subaccounts" className="relative z-10 mt-4">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground font-semibold px-1">Sub Accounts</h3>
           <Link href="/accounts" className="text-[11px] text-primary hover:underline font-medium px-1 flex items-center gap-1">Manage <ArrowRight className="w-3 h-3" /></Link>
@@ -732,6 +734,8 @@ export default async function DashboardOverview() {
         )}
       </section>
 
+      {/* Interactive skippable dashboard walkthrough for new users */}
+      <DashboardWalkthrough userId={user.id} hasAccounts={accounts.length > 0} />
     </div>
   );
 }

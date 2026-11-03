@@ -18,6 +18,7 @@ import {
   Server,
   DollarSign,
   CreditCard,
+  MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -43,9 +44,9 @@ const ADMIN_ITEM = { name: 'Admin',  href: '/admin', icon: Shield };
 // Admin-area specific nav
 const ADMIN_NAV_ITEMS = [
   { name: 'Overview', href: '/admin',                 icon: Activity },
-  { name: 'Revenue',  href: '/admin/revenue',         icon: DollarSign },
+  { name: 'Support',  href: '/admin/support',         icon: MessageSquare },
   { name: 'Users',    href: '/admin/users',           icon: Users },
-  { name: 'Infra',    href: '/admin/infrastructure',  icon: Server },
+  { name: 'Revenue',  href: '/admin/revenue',         icon: DollarSign },
   { name: 'Copier',   href: '/admin/copier',          icon: ShieldAlert },
   { name: 'Exit',     href: '/dashboard',             icon: Home },
 ];

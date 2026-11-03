@@ -358,7 +358,7 @@ export function SupportWidget({
   return (
     <>
       {/* Floating Support Button */}
-      <aside aria-label="Support Desk" className="fixed bottom-24 lg:bottom-6 right-4 sm:right-6 z-40">
+      <aside id="tour-support" aria-label="Support Desk" className="fixed bottom-24 lg:bottom-6 right-4 sm:right-6 z-40">
         <button
           type="button"
           onClick={() => setIsOpen(true)}
