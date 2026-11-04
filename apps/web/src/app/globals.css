@@ -179,4 +179,15 @@
   body.support-widget-open .bottom-nav-container {
     display: none !important;
   }
+
+  /* Automatically hide mobile bottom navigation bar when Walkthrough is open */
+  body.walkthrough-open .bottom-nav-container {
+    display: none !important;
+  }
+
+  /* Hide floating support button during walkthrough except on the step highlighting support */
+  body.walkthrough-open:not(.walkthrough-support-active) #tour-support {
+    display: none !important;
+  }
 }
+
