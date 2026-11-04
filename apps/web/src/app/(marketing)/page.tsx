@@ -23,22 +23,17 @@ export default async function MarketingHomepage({
       <section className="relative pt-24 pb-28 lg:pt-36 lg:pb-40 flex items-center justify-center flex-col text-center px-4 z-10">
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/15 via-background to-background"></div>
         
-        {/* Status Pills */}
-        <div className="flex flex-wrap items-center justify-center gap-2.5 mb-8 animate-fade-slide-up [animation-delay:100ms]">
+        {/* Status Pill */}
+        <div className="flex items-center justify-center mb-8 animate-fade-slide-up [animation-delay:100ms]">
           <div className="plaiz-pill plaiz-pill-neutral shadow-sm">
             <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
             <span>Cloud Trade Replication</span>
-          </div>
-
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-xs font-mono font-semibold shadow-xs">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-            <span>&lt;1ms Execution Latency</span>
           </div>
         </div>
         
         <h1 className="text-5xl md:text-7xl font-extrabold tracking-tighter max-w-4xl leading-[1.1] mb-6 animate-fade-slide-up [animation-delay:200ms]">
           Institutional Trade Copying, <br className="hidden md:block"/>
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-indigo-400 to-accent-foreground animate-shimmer">
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-blue-400 to-accent-foreground">
             Built for Scale.
           </span>
         </h1>
