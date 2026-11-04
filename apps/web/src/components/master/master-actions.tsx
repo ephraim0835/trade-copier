@@ -7,6 +7,7 @@ import { ConnectAccountModal } from '@/components/connect-account-modal';
 import { ProtectedAction } from '@/components/protected-action';
 import { deleteAccount } from '@/app/actions/account-actions';
 import { ReconnectButton } from '@/components/accounts/reconnect-button';
+import { formatUserFriendlyError } from '@/lib/error-formatter';
 
 interface MasterActionsProps {
   masterAccountId?: string;
@@ -31,7 +32,7 @@ export function MasterActions({ masterAccountId }: MasterActionsProps) {
       if (masterAccountId) {
         const res = await deleteAccount(masterAccountId);
         if (!res.success) {
-          setError(res.error || 'Failed to disconnect account');
+          setError(formatUserFriendlyError(res.error || 'Failed to disconnect account'));
         } else {
           router.refresh();
         }

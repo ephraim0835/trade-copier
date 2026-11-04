@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Save, AlertTriangle, Percent, Wifi } from 'lucide-react';
 import { MoneyDisplay } from '@/components/money-display';
 import { ReconnectButton } from '@/components/accounts/reconnect-button';
+import { getFriendlyErrorDetails } from '@/lib/error-formatter';
 
 export function RiskControls({ initialAccounts }: { initialAccounts: any[] }) {
   const router = useRouter();
@@ -119,15 +120,23 @@ export function RiskControls({ initialAccounts }: { initialAccounts: any[] }) {
                 </div>
               </div>
 
-              {isFailed && (
-                <div className="mb-6 p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-[11px] flex items-start gap-2.5">
-                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-destructive" />
-                  <div className="flex-1">
-                    <span className="font-semibold block mb-0.5">Connection Failed</span>
-                    <span className="text-destructive/90 leading-tight">{account.provisioningError || "The broker rejected authorization or account details. Please verify your login, password, and server."}</span>
+              {isFailed && (() => {
+                const details = getFriendlyErrorDetails(account.provisioningError);
+                return (
+                  <div className="mb-6 p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-[11px] flex items-start gap-2.5">
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-destructive" />
+                    <div className="flex-1">
+                      <span className="font-semibold block mb-0.5">{details.title}</span>
+                      <span className="text-destructive/90 leading-tight block">{details.message}</span>
+                      {details.suggestion && (
+                        <span className="text-[10px] text-muted-foreground block mt-1">
+                          Tip: {details.suggestion}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               <div className="flex flex-col gap-5">
                 <div className="flex items-center justify-between">

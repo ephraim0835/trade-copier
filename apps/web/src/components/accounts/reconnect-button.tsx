@@ -4,6 +4,7 @@ import { useState, useTransition, useEffect, useRef } from 'react';
 import { RefreshCw, Loader2, CheckCircle2, AlertCircle, Wifi } from 'lucide-react';
 import { retryAccountConnection, getAccountConnectionStatus } from '@/app/actions/account-actions';
 import { useRouter } from 'next/navigation';
+import { formatUserFriendlyError } from '@/lib/error-formatter';
 
 export interface ReconnectButtonProps {
   accountId: string;
@@ -66,7 +67,7 @@ export function ReconnectButton({
             setTimeout(() => setJustConnected(false), 4000);
           } else if (acc.connectionStatus === 'FAILED') {
             setIsConnecting(false);
-            setErrorMessage(acc.provisioningError || 'Broker rejected connection');
+            setErrorMessage(formatUserFriendlyError(acc.provisioningError || 'Broker rejected connection'));
             if (pollTimerRef.current) clearInterval(pollTimerRef.current);
           }
         }
@@ -97,7 +98,7 @@ export function ReconnectButton({
       const res = await retryAccountConnection(accountId);
       if (!res.success) {
         setIsConnecting(false);
-        setErrorMessage(res.error || 'Failed to trigger reconnect');
+        setErrorMessage(formatUserFriendlyError(res.error || 'Failed to trigger reconnect'));
       }
     });
   }

@@ -7,7 +7,7 @@ import { MoneyDisplay } from '@/components/money-display';
 import { ProtectedAction } from '@/components/protected-action';
 import { toggleAccountActive, deleteAccount, retryAccountConnection, getAccountConnectionStatus, updateAccountCredentials } from '@/app/actions/account-actions';
 import { useRouter } from 'next/navigation';
-import { getFriendlyErrorDetails } from '@/lib/error-formatter';
+import { formatUserFriendlyError, getFriendlyErrorDetails } from '@/lib/error-formatter';
 import { ReconnectButton } from '@/components/accounts/reconnect-button';
 
 interface SubAccountCardProps {
@@ -164,7 +164,7 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
     startTransition(async () => {
       const res = await deleteAccount(accountData.id);
       if (!res.success) {
-        setDeleteError(res.error || 'Failed to delete account');
+        setDeleteError(formatUserFriendlyError(res.error || 'Failed to delete account'));
       } else {
         router.refresh();
       }
@@ -195,10 +195,10 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
         setElapsedSeconds(0);
         router.refresh();
       } else {
-        setEditError(res.error || 'Failed to update credentials');
+        setEditError(formatUserFriendlyError(res.error || 'Failed to update credentials'));
       }
     } catch (err: any) {
-      setEditError(err.message || 'An error occurred');
+      setEditError(formatUserFriendlyError(err.message || 'An error occurred'));
     } finally {
       setIsSavingEdit(false);
     }

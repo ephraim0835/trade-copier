@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Play, Square, Pause, ShieldAlert, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { toggleBotStatus } from '@/app/actions/account-actions';
 import { useRouter } from 'next/navigation';
+import { formatUserFriendlyError } from '@/lib/error-formatter';
 
 interface BotControlSwitchProps {
   initialBotStopped: boolean;
@@ -32,7 +33,7 @@ export function BotControlSwitch({
       setShowConfirmModal(false);
       router.refresh();
     } catch (err: any) {
-      setErrorMsg(err.message || 'Error communicating with bot manager.');
+      setErrorMsg(formatUserFriendlyError(err.message || 'Error communicating with bot manager.'));
     } finally {
       setIsLoading(false);
     }
