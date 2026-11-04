@@ -39,6 +39,15 @@ const TOUR_STEPS: TourStep[] = [
     tip: 'Everything is synchronized in real time with our cloud VPS engine.',
   },
   {
+    id: 'tabs',
+    targetId: 'tour-tabs',
+    badge: 'Navigation Tabs',
+    title: 'Core App Navigation & Tabs',
+    description: 'Quickly switch between your Master Source, Follower Accounts, Live Open Positions, Institutional Risk Engine, Performance Charts, and Activity Stream.',
+    icon: Compass,
+    tip: 'On mobile, use the bottom navigation bar and tap "More" to access Risk, Performance, and Settings.',
+  },
+  {
     id: 'vault',
     targetId: 'tour-vault',
     badge: 'Portfolio Overview',
@@ -162,15 +171,23 @@ export function DashboardWalkthrough({ userId, hasAccounts = false }: DashboardW
       } else {
         document.body.classList.remove('walkthrough-support-active');
       }
+
+      if (currentStep?.id === 'tabs') {
+        document.body.classList.add('walkthrough-tabs-active');
+      } else {
+        document.body.classList.remove('walkthrough-tabs-active');
+      }
     } else {
       document.body.classList.remove('walkthrough-open');
       document.body.classList.remove('walkthrough-support-active');
+      document.body.classList.remove('walkthrough-tabs-active');
     }
 
     return () => {
       if (typeof document !== 'undefined') {
         document.body.classList.remove('walkthrough-open');
         document.body.classList.remove('walkthrough-support-active');
+        document.body.classList.remove('walkthrough-tabs-active');
       }
     };
   }, [isOpen, currentStepIndex]);
@@ -185,7 +202,12 @@ export function DashboardWalkthrough({ userId, hasAccounts = false }: DashboardW
     const currentStep = TOUR_STEPS[currentStepIndex];
     if (!currentStep) return;
 
-    const el = document.getElementById(currentStep.targetId);
+    let targetElementId = currentStep.targetId;
+    if (currentStep.id === 'tabs') {
+      targetElementId = window.innerWidth < 1024 ? 'tour-bottom-nav' : 'tour-sidebar-nav';
+    }
+
+    const el = document.getElementById(targetElementId);
     if (el) {
       const rect = el.getBoundingClientRect();
       setTargetRect(rect);
@@ -317,7 +339,11 @@ export function DashboardWalkthrough({ userId, hasAccounts = false }: DashboardW
             : "max-w-[440px]"
         )}
         style={!isMobile && targetRect ? (
-          isTargetNearBottom ? {
+          currentStep.id === 'tabs' ? {
+            // Desktop: position card cleanly to the right of the sidebar
+            top: Math.max(40, targetRect.top + 80),
+            left: Math.min(targetRect.right + 24, window.innerWidth - 460),
+          } : isTargetNearBottom ? {
             // Desktop: if target near bottom, position card ABOVE the target
             bottom: Math.max(20, window.innerHeight - targetRect.top + 16),
             left: Math.min(

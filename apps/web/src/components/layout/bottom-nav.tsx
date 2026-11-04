@@ -166,7 +166,7 @@ export function BottomNav({ isAdmin = false }: { isAdmin?: boolean }) {
       </div>
 
       {/* Bottom Bar */}
-      <div className="bottom-nav-container lg:hidden fixed bottom-0 left-0 right-0 z-50">
+      <div id="tour-bottom-nav" className="bottom-nav-container lg:hidden fixed bottom-0 left-0 right-0 z-50">
         <div className="absolute inset-0 bg-background/80 backdrop-blur-xl border-t border-border/50" />
         <div className="relative pb-safe">
           <nav className="flex items-center justify-around h-[64px] px-2">

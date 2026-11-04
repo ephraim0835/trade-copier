@@ -256,7 +256,7 @@ export default async function DashboardOverview() {
       {/* Removed heavy blue gradients in favor of subtle environment lighting */}
 
       {/* HEADER: Calm & Intentional */}
-      <header id="tour-welcome" className="relative z-50 flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <header id="tour-welcome" className="relative z-50 flex flex-col md:flex-row md:items-end justify-between gap-6 animate-fade-slide-up [animation-delay:50ms]">
         <div>
           <div className="flex items-center gap-3 mb-2">
             <h1 className="text-2xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-br from-foreground to-foreground/80 dark:from-white dark:to-white/60">
@@ -343,7 +343,7 @@ export default async function DashboardOverview() {
       {!trialGrace.isPaidOrAdmin && <TrialGraceBanner status={trialGrace} />}
 
       {/* MAIN COMPOSITION */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 lg:gap-12 relative z-10 mt-2">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 lg:gap-12 relative z-10 mt-2 animate-fade-slide-up [animation-delay:150ms]">
         
         {/* =========================================
             LEFT COLUMN (PRIMARY FOCUS) 
@@ -353,7 +353,7 @@ export default async function DashboardOverview() {
           {/* GLASS VAULT: PREMIUM BALANCE & PNL CARD */}
           <section id="tour-vault" className="relative group">
             <div className="absolute inset-0 bg-gradient-to-br dark:from-primary/10 dark:via-transparent dark:to-transparent rounded-[24px] pointer-events-none transition-opacity duration-500"></div>
-            <div className="relative bg-card dark:bg-slate-950/60 dark:backdrop-blur-3xl border border-border/50 dark:border-primary/20 rounded-[24px] p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-primary/5 overflow-hidden transition-all duration-500">
+            <div className="relative bg-card dark:bg-slate-950/60 dark:backdrop-blur-3xl border border-border/50 dark:border-primary/20 rounded-[24px] p-8 lg:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-primary/5 overflow-hidden transition-all duration-500 animate-vault-glow hover:border-primary/40">
               
               {/* Subtle accent glow */}
               <div className="hidden dark:block absolute -top-32 -right-32 w-80 h-80 bg-primary/20 rounded-full blur-[80px] pointer-events-none group-hover:bg-primary/25 transition-colors duration-700"></div>
@@ -418,7 +418,7 @@ export default async function DashboardOverview() {
             <h3 className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground font-semibold mb-4">Master Source</h3>
             
             {masterAccount ? (
-              <Link href="/master" className="group block plaiz-card p-6 rounded-[20px]">
+              <Link href="/master" className="group block plaiz-card p-6 rounded-[20px] hover:-translate-y-1 hover:shadow-xl hover:border-primary/40 transition-all duration-300">
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6 mb-8">
                   <div className="flex flex-col gap-3">
                     <div className="flex items-center gap-2">
@@ -509,7 +509,7 @@ export default async function DashboardOverview() {
                   const subFailed = sub.connectionStatus === 'FAILED' || !!sub.provisioningError;
 
                   return (
-                    <Link key={sub.id} href="/risk" className="group plaiz-card bg-secondary/30 p-4 rounded-[16px] flex flex-col sm:flex-row sm:items-center justify-between hover:bg-black/10 dark:hover:bg-white/5 border border-border/30 transition-all cursor-pointer gap-4">
+                    <Link key={sub.id} href="/risk" className="group plaiz-card bg-secondary/30 p-4 rounded-[16px] flex flex-col sm:flex-row sm:items-center justify-between hover:bg-black/10 dark:hover:bg-white/5 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md border border-border/30 transition-all cursor-pointer gap-4">
                       <div className="flex items-center gap-3">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                           subOnline ? 'bg-emerald-500/10 text-emerald-500' : subConnecting ? 'bg-amber-500/10 text-amber-500' : 'bg-destructive/10 text-destructive'
@@ -578,7 +578,7 @@ export default async function DashboardOverview() {
         <div className="xl:col-span-5 flex flex-col gap-10">
           
           {/* THE REAL CHART */}
-          <section id="tour-performance" className="plaiz-card p-6 rounded-[24px]">
+          <section id="tour-performance" className="plaiz-card p-6 rounded-[24px] hover:border-primary/30 hover:shadow-lg transition-all duration-300">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">Performance</h3>
               {/* Fake timeframe controls removed as per user instruction for honest functionality */}
@@ -589,7 +589,7 @@ export default async function DashboardOverview() {
           </section>
 
           {/* RISK CONFIGURATION */}
-          <section id="tour-risk" className="plaiz-card bg-secondary/30 p-6 rounded-[20px]">
+          <section id="tour-risk" className="plaiz-card bg-secondary/30 p-6 rounded-[20px] hover:border-primary/30 hover:shadow-lg transition-all duration-300">
              <div className="flex items-center justify-between mb-6">
               <h3 className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">Risk Engine</h3>
               <Link href="/risk">

@@ -15,32 +15,44 @@ export default async function MarketingHomepage({
       <Suspense fallback={null}>
         <RedirectBypass />
       </Suspense>
+      {/* Floating Ambient Glow Orbs */}
+      <div className="absolute top-1/4 -left-48 w-96 h-96 bg-primary/15 rounded-full blur-[100px] pointer-events-none animate-float-slow -z-10" />
+      <div className="absolute top-1/3 -right-48 w-96 h-96 bg-indigo-500/15 rounded-full blur-[100px] pointer-events-none animate-float-slow-delayed -z-10" />
+
       {/* Hero Section */}
-      <section className="relative pt-24 pb-32 lg:pt-36 lg:pb-48 flex items-center justify-center flex-col text-center px-4 z-10">
-        <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/10 via-background to-background"></div>
+      <section className="relative pt-24 pb-28 lg:pt-36 lg:pb-40 flex items-center justify-center flex-col text-center px-4 z-10">
+        <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/15 via-background to-background"></div>
         
-        <div className="plaiz-plaiz-pill plaiz-pill-neutral mb-8">
-          <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-          Now accepting beta users
+        {/* Status Pills */}
+        <div className="flex flex-wrap items-center justify-center gap-2.5 mb-8 animate-fade-slide-up [animation-delay:100ms]">
+          <div className="plaiz-pill plaiz-pill-neutral shadow-sm">
+            <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+            <span>Cloud Trade Replication</span>
+          </div>
+
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-xs font-mono font-semibold shadow-xs">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+            <span>&lt;1ms Execution Latency</span>
+          </div>
         </div>
         
-        <h1 className="text-5xl md:text-7xl font-extrabold tracking-tighter max-w-4xl leading-[1.1] mb-6">
+        <h1 className="text-5xl md:text-7xl font-extrabold tracking-tighter max-w-4xl leading-[1.1] mb-6 animate-fade-slide-up [animation-delay:200ms]">
           Institutional Trade Copying, <br className="hidden md:block"/>
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent-foreground">
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-indigo-400 to-accent-foreground animate-shimmer">
             Built for Scale.
           </span>
         </h1>
         
-        <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mb-10 leading-relaxed">
-          Plaiz Markets provides ultra-low latency trade execution, absolute risk control, and enterprise-grade VPS infrastructure for serious portfolio managers.
+        <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mb-10 leading-relaxed animate-fade-slide-up [animation-delay:300ms]">
+          Plaiz Markets provides ultra-low latency trade replication, automated risk guardrails, and enterprise-grade cloud VPS infrastructure for serious traders.
         </p>
         
-        <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-          <Link href="/dashboard" className="plaiz-btn plaiz-btn-primary text-base h-12 px-8 rounded-full shadow-lg shadow-primary/25">
-            Start Copying
-            <ChevronRight className="w-4 h-4 ml-1" />
+        <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto animate-fade-slide-up [animation-delay:400ms]">
+          <Link href="/dashboard" className="plaiz-btn plaiz-btn-primary text-base h-12 px-8 rounded-full shadow-xl shadow-primary/30 hover:scale-105 active:scale-95 transition-all group">
+            <span>Start Copying</span>
+            <ChevronRight className="w-4 h-4 ml-1 transition-transform group-hover:translate-x-1" />
           </Link>
-          <a href="#features" className="plaiz-btn plaiz-btn-secondary text-base h-12 px-8 rounded-full">
+          <a href="#features" className="plaiz-btn plaiz-btn-secondary text-base h-12 px-8 rounded-full hover:bg-black/5 dark:hover:bg-white/10 hover:border-border/80 transition-all">
             Explore Features
           </a>
         </div>
@@ -57,29 +69,29 @@ export default async function MarketingHomepage({
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
-            <div className="plaiz-card p-8 bg-card flex flex-col items-start text-left">
-              <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-6">
+            <div className="plaiz-card p-8 bg-card flex flex-col items-start text-left hover:-translate-y-2 hover:shadow-2xl hover:border-primary/40 transition-all duration-300 group">
+              <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-6 transition-transform duration-300 group-hover:scale-110 group-hover:bg-primary/20">
                 <Zap className="w-6 h-6" />
               </div>
-              <h3 className="text-xl font-bold mb-3">Sub-Millisecond Execution</h3>
+              <h3 className="text-xl font-bold mb-3 group-hover:text-primary transition-colors">Sub-Millisecond Execution</h3>
               <p className="text-muted-foreground leading-relaxed">
                 Our custom MQL5 gateway routes trades from Master to Sub accounts instantly, ensuring minimal slippage and identical entries.
               </p>
             </div>
-            <div className="plaiz-card p-8 bg-card flex flex-col items-start text-left">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 mb-6">
+            <div className="plaiz-card p-8 bg-card flex flex-col items-start text-left hover:-translate-y-2 hover:shadow-2xl hover:border-emerald-500/40 transition-all duration-300 group">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 mb-6 transition-transform duration-300 group-hover:scale-110 group-hover:bg-emerald-500/20">
                 <Shield className="w-6 h-6" />
               </div>
-              <h3 className="text-xl font-bold mb-3">Absolute Risk Control</h3>
+              <h3 className="text-xl font-bold mb-3 group-hover:text-emerald-400 transition-colors">Absolute Risk Control</h3>
               <p className="text-muted-foreground leading-relaxed">
                 Enforce daily drawdowns, custom multipliers, and mandatory stop-losses. The Risk Engine intercepts dangerous trades before they execute.
               </p>
             </div>
-            <div className="plaiz-card p-8 bg-card flex flex-col items-start text-left">
-              <div className="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-500 mb-6">
+            <div className="plaiz-card p-8 bg-card flex flex-col items-start text-left hover:-translate-y-2 hover:shadow-2xl hover:border-purple-500/40 transition-all duration-300 group">
+              <div className="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-500 mb-6 transition-transform duration-300 group-hover:scale-110 group-hover:bg-purple-500/20">
                 <Globe className="w-6 h-6" />
               </div>
-              <h3 className="text-xl font-bold mb-3">Multi-Broker Support</h3>
+              <h3 className="text-xl font-bold mb-3 group-hover:text-purple-400 transition-colors">Multi-Broker Support</h3>
               <p className="text-muted-foreground leading-relaxed">
                 Don't be locked into a single ecosystem. Plaiz Markets connects seamlessly to any MT5 terminal globally.
               </p>
@@ -91,9 +103,9 @@ export default async function MarketingHomepage({
       {/* Infrastructure CTA */}
       <section id="infrastructure" className="py-32 relative z-10 overflow-hidden">
         <div className="container mx-auto max-w-7xl px-4">
-          <div className="plaiz-card bg-[#09090b] border-[#27272a] text-white p-12 md:p-16 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-12 relative overflow-hidden shadow-2xl">
+          <div className="plaiz-card bg-[#09090b] border-[#27272a] text-white p-12 md:p-16 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-12 relative overflow-hidden shadow-2xl hover:border-primary/40 transition-all duration-300">
             {/* Background glowing orb */}
-            <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 bg-primary/20 rounded-full blur-3xl pointer-events-none"></div>
+            <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 bg-primary/20 rounded-full blur-3xl pointer-events-none animate-pulse-glow"></div>
             
             <div className="max-w-2xl z-10">
               <div className="flex items-center gap-2 mb-6 text-primary">
@@ -120,13 +132,13 @@ export default async function MarketingHomepage({
             
             <div className="hidden lg:block relative z-10 flex-shrink-0">
                {/* Decorative server graphic */}
-               <div className="w-64 h-80 bg-[#121214] rounded-2xl border border-[#27272a] shadow-2xl flex flex-col p-4 gap-4">
+               <div className="w-64 h-80 bg-[#121214] rounded-2xl border border-[#27272a] shadow-2xl flex flex-col p-4 gap-4 hover:border-primary/40 transition-all">
                  <div className="w-full h-8 bg-[#1f1f22] rounded-md flex items-center px-3">
                    <div className="w-2 h-2 rounded-full bg-emerald-500 mr-2 animate-pulse"></div>
                    <div className="h-2 w-24 bg-[#27272a] rounded"></div>
                  </div>
                  <div className="w-full h-8 bg-[#1f1f22] rounded-md flex items-center px-3">
-                   <div className="w-2 h-2 rounded-full bg-emerald-500 mr-2"></div>
+                   <div className="w-2 h-2 rounded-full bg-emerald-500 mr-2 animate-pulse"></div>
                    <div className="h-2 w-32 bg-[#27272a] rounded"></div>
                  </div>
                  <div className="w-full h-8 bg-[#1f1f22] rounded-md flex items-center px-3">

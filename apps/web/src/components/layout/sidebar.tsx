@@ -41,7 +41,7 @@ export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden lg:flex flex-col w-[260px] plaiz-card h-[calc(100vh-2rem)] sticky top-4 ml-4 rounded-[24px] z-40 shrink-0">
+    <aside id="tour-sidebar-nav" className="hidden lg:flex flex-col w-[260px] plaiz-card h-[calc(100vh-2rem)] sticky top-4 ml-4 rounded-[24px] z-40 shrink-0">
       <div className="h-[88px] flex items-center px-8">
         <Link href="/dashboard" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
           <img src="/plaiz-logo.png" alt="Plaiz Markets" className="h-6 w-auto" />
@@ -61,17 +61,17 @@ export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
                 key={item.name}
                 href={item.href}
                 className={cn(
-                  'flex items-center gap-3 px-4 py-3 rounded-xl text-[13px] font-medium transition-all duration-200 group relative',
+                  'flex items-center gap-3 px-4 py-3 rounded-xl text-[13px] font-medium transition-all duration-200 group relative active:scale-[0.98]',
                   isActive
                     ? 'bg-black/5 dark:bg-white/10 text-foreground font-semibold shadow-sm'
-                    : 'text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5 hover:text-foreground border border-transparent'
+                    : 'text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5 hover:text-foreground hover:translate-x-1 border border-transparent'
                 )}
               >
                 {isActive && (
-                   <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 bg-foreground rounded-r-full"></div>
+                   <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 bg-foreground rounded-r-full shadow-xs"></div>
                 )}
                 <item.icon className={cn(
-                  'w-[18px] h-[18px] transition-colors', 
+                  'w-[18px] h-[18px] transition-transform duration-200 group-hover:scale-110', 
                   isActive ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground'
                 )} />
                 {item.name}
