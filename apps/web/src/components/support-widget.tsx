@@ -22,7 +22,9 @@ import {
   FileText,
   Download,
   Eye,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Minus,
+  ChevronLeft
 } from 'lucide-react';
 import { 
   getUserSupportTickets, 
@@ -48,6 +50,32 @@ export function SupportWidget({
   const [submitting, setSubmitting] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
+
+  // Load minimized preference
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('plaiz_support_btn_minimized');
+      if (saved === 'true') {
+        setIsMinimized(true);
+      }
+    } catch {
+      // Ignore
+    }
+  }, []);
+
+  const toggleMinimize = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setIsMinimized((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('plaiz_support_btn_minimized', String(next));
+      } catch {
+        // Ignore
+      }
+      return next;
+    });
+  };
 
   // Attachment states
   const [pendingAttachment, setPendingAttachment] = useState<AttachmentPayload | null>(null);
@@ -357,18 +385,59 @@ export function SupportWidget({
 
   return (
     <>
-      {/* Floating Support Button */}
-      <aside id="tour-support" aria-label="Support Desk" className="fixed bottom-24 lg:bottom-6 right-4 sm:right-6 z-40">
-        <button
-          type="button"
-          onClick={() => setIsOpen(true)}
-          className="flex items-center gap-2.5 px-4 py-3 rounded-full bg-primary text-primary-foreground font-bold text-xs shadow-xl shadow-primary/25 hover:bg-primary/90 hover:scale-105 active:scale-95 transition-all"
-        >
-          <MessageSquare className="w-4 h-4 fill-current" />
-          <span className="hidden sm:inline">Support & Community</span>
-          <span className="sm:hidden">Support</span>
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-        </button>
+      {/* Floating Support Button (Minimisable) */}
+      <aside id="tour-support" aria-label="Support Desk" className="fixed bottom-24 lg:bottom-6 right-4 sm:right-6 z-40 transition-all duration-300">
+        {isMinimized ? (
+          <div className="relative group flex items-center">
+            {/* Tooltip on hover (desktop) */}
+            <div className="hidden sm:block absolute right-full mr-2 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity bg-card/95 backdrop-blur-md border border-border/50 text-[11px] font-semibold text-foreground px-2.5 py-1 rounded-xl shadow-lg whitespace-nowrap">
+              Support Desk
+            </div>
+
+            {/* Minimized round floating button */}
+            <button
+              type="button"
+              onClick={() => setIsOpen(true)}
+              className="w-11 h-11 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-xl shadow-primary/30 hover:scale-105 active:scale-95 transition-all border border-primary/20 relative cursor-pointer group-hover:ring-2 ring-primary/40"
+              title="Open Support Desk (Click to chat)"
+            >
+              <MessageSquare className="w-5 h-5 fill-current" />
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-primary absolute top-0.5 right-0.5 animate-pulse" />
+            </button>
+
+            {/* Expand toggle */}
+            <button
+              type="button"
+              onClick={toggleMinimize}
+              className="absolute -top-1.5 -left-1.5 w-5 h-5 rounded-full bg-card border border-border/60 text-muted-foreground hover:text-foreground hover:bg-black/10 dark:hover:bg-white/10 flex items-center justify-center text-[10px] shadow-sm transition-transform active:scale-90 cursor-pointer"
+              title="Expand support button"
+            >
+              <ChevronLeft className="w-3 h-3" />
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1 bg-primary text-primary-foreground p-1 rounded-full shadow-xl shadow-primary/25 border border-primary/20 transition-all duration-200">
+            <button
+              type="button"
+              onClick={() => setIsOpen(true)}
+              className="flex items-center gap-2 pl-3 pr-2 py-1.5 font-bold text-xs hover:opacity-90 active:scale-95 transition-all cursor-pointer"
+            >
+              <MessageSquare className="w-4 h-4 fill-current shrink-0" />
+              <span className="hidden sm:inline">Support & Community</span>
+              <span className="sm:hidden">Support</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+            </button>
+
+            <button
+              type="button"
+              onClick={toggleMinimize}
+              className="w-6 h-6 rounded-full bg-black/15 hover:bg-black/30 dark:bg-white/15 dark:hover:bg-white/30 flex items-center justify-center text-primary-foreground transition-all shrink-0 cursor-pointer"
+              title="Minimize to small icon"
+            >
+              <Minus className="w-3 h-3" />
+            </button>
+          </div>
+        )}
       </aside>
 
       {/* Support Drawer / Modal */}
