@@ -15,6 +15,7 @@ import psycopg2
 import psutil
 import requests
 import MetaTrader5 as mt5
+import win32gui
 from dotenv import load_dotenv
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 import psycopg2
@@ -68,6 +69,35 @@ KNOWN_BROKER_SERVERS = {
     'headway-demo': 'mt5.demo.trade-hw.online',
     'mt5.real.trade-hw.online:443': 'mt5.real.trade-hw.online',
     'mt5.demo.trade-hw.online:443': 'mt5.demo.trade-hw.online',
+    # JustMarkets servers mapped to exact MT5 cluster casing
+    'justmarkets-live 7': 'JustMarkets-LIVE7',
+    'justmarkets-live7': 'JustMarkets-LIVE7',
+    'justmarkets-live 6': 'JustMarkets-Live6',
+    'justmarkets-live6': 'JustMarkets-Live6',
+    'justmarkets-live 5': 'JustMarkets-Live5',
+    'justmarkets-live5': 'JustMarkets-Live5',
+    'justmarkets-live 4': 'JustMarkets-Live4',
+    'justmarkets-live4': 'JustMarkets-Live4',
+    'justmarkets-live 3': 'JustMarkets-Live3',
+    'justmarkets-live3': 'JustMarkets-Live3',
+    'justmarkets-live 2': 'JustMarkets-Live2',
+    'justmarkets-live2': 'JustMarkets-Live2',
+    'justmarkets-live': 'JustMarkets-Live',
+    'justmarkets-demo 6': 'JustMarkets-DEMO6',
+    'justmarkets-demo6': 'JustMarkets-DEMO6',
+    'justmarkets-demo 3': 'JustMarkets-Demo3',
+    'justmarkets-demo3': 'JustMarkets-Demo3',
+    'justmarkets-demo 2': 'JustMarkets-Demo2',
+    'justmarkets-demo2': 'JustMarkets-Demo2',
+    'justmarkets-demo': 'JustMarkets-Demo',
+    'justmarketscy-demo': 'JustMarketsCY-Demo',
+    'justmarketscy-live': 'JustMarketsCY-Live',
+    'justforex-live 3': 'JustForex-Live3',
+    'justforex-live3': 'JustForex-Live3',
+    'justforex-live 2': 'JustForex-Live2',
+    'justforex-live2': 'JustForex-Live2',
+    'justforex-live': 'JustForex-Live',
+    'justforex-demo': 'JustForex-Demo',
 }
 
 def resolve_server_name(server_str: str) -> str:
@@ -76,7 +106,86 @@ def resolve_server_name(server_str: str) -> str:
     cleaned = server_str.strip()
     if ':443' in cleaned:
         cleaned = cleaned.replace(':443', '')
-    return KNOWN_BROKER_SERVERS.get(cleaned.lower(), cleaned)
+    
+    # Check direct hostname dictionary
+    if cleaned.lower() in KNOWN_BROKER_SERVERS:
+        return KNOWN_BROKER_SERVERS[cleaned.lower()]
+
+    # Normalize broker server aliases that users or UI might enter with spaces
+    # MT5 server names typically do not have spaces before cluster numbers
+    normalized = re.sub(
+        r'^(JustMarkets-Live|JustMarkets-Demo|JustForex-Live|JustForex-Demo|Exness-MT5Real|Exness-MT5Trial)\s+(\d+)$',
+        r'\1\2',
+        cleaned,
+        flags=re.IGNORECASE
+    )
+    return KNOWN_BROKER_SERVERS.get(normalized.lower(), normalized)
+
+
+def check_terminal_online_status(account):
+    """
+    Checks if the MT5 terminal window title, terminal network logs, or EA telemetry
+    confirms an active, authenticated connection to the broker.
+    """
+    login_str = str(account.get('login', '')).strip()
+    if not login_str:
+        return False
+    
+    # 1. Check window titles (including minimized windows)
+    found_online = False
+    try:
+        def _enum_win_cb(hwnd, _):
+            nonlocal found_online
+            title = win32gui.GetWindowText(hwnd)
+            if login_str in title and ('-' in title or 'hedge' in title.lower() or 'netting' in title.lower()):
+                found_online = True
+                return False
+            return True
+        win32gui.EnumWindows(_enum_win_cb, None)
+    except Exception:
+        pass
+    if found_online:
+        return True
+
+    # 2. Check terminal logs for authorized/synchronized status
+    instance_dir = account.get('instance_dir') or account.get('data_path')
+    if not instance_dir:
+        acc_id = account.get('id')
+        if acc_id:
+            instance_dir = Path("C:/Users/Plaiz/MT5_Instances") / str(acc_id)
+
+    if instance_dir:
+        logs_dir = Path(instance_dir) / 'logs'
+        if logs_dir.exists():
+            log_files = sorted(logs_dir.glob('*.log'), key=lambda p: p.stat().st_mtime, reverse=True)
+            if log_files:
+                try:
+                    content = ''
+                    try:
+                        content = log_files[0].read_text(encoding='utf-16-le', errors='ignore')
+                    except Exception:
+                        content = log_files[0].read_text(encoding='utf-8', errors='ignore')
+                    
+                    for line in reversed(content.splitlines()[-50:]):
+                        line_lower = line.lower()
+                        if login_str in line and ('authorized on' in line_lower or 'terminal synchronized' in line_lower or 'trading has been enabled' in line_lower):
+                            return True
+                except Exception:
+                    pass
+
+        # 3. Check MQL5 debug files for successful EA telemetry
+        mql_files_dir = Path(instance_dir) / 'MQL5' / 'Files'
+        for log_name in ['master_debug.log', 'sub_debug.log']:
+            target_f = mql_files_dir / log_name
+            if target_f.exists():
+                try:
+                    txt = target_f.read_text(errors='ignore')
+                    if 'Telemetry sent successfully' in txt:
+                        return True
+                except Exception:
+                    pass
+
+    return False
 
 
 def get_broker_symbol(account):
@@ -89,11 +198,11 @@ def get_broker_symbol(account):
             return 'Volatility 75 Index'
         return 'EURUSD'
         
-    # JustMarkets standard accounts use '.m' suffix
+    # JustMarkets standard accounts use 'EURUSD' or '.m'
     if 'just' in broker:
         if 'pro' in server or 'raw' in server:
             return 'EURUSD'
-        return 'EURUSD.m'
+        return 'EURUSD'
         
     # Exness standard accounts use 'm' suffix
     if 'exness' in broker:
@@ -129,6 +238,7 @@ def launch_mt5_and_attach_ea(account):
     login = account['login']
     password = account.get('password')
     server = account['server']
+    resolved_server = resolve_server_name(server)
     broker = account['broker']
     ea_file = account.get('ea_file', 'SubCopier.mq5')  # MasterCopier.mq5 or SubCopier.mq5
     ea_base = ea_file.replace('.mq5', '')
@@ -185,11 +295,24 @@ def launch_mt5_and_attach_ea(account):
         if master_data and (master_data / 'config' / 'servers.dat').exists():
             master_servers_candidates.insert(0, master_data / 'config' / 'servers.dat')
 
-        for cand in master_servers_candidates:
-            if cand.exists() and cand.stat().st_size > 100000:
-                shutil.copy2(cand, config_dir / 'servers.dat')
-                logger.info(f"Synced master servers.dat ({cand.stat().st_size:,} bytes) into {instance_dir.name}")
-                break
+        # Select the candidate with the largest file size (contains the most broker server definitions)
+        valid_cands = [c for c in master_servers_candidates if c.exists() and c.stat().st_size > 100000]
+        if valid_cands:
+            best_cand = max(valid_cands, key=lambda c: c.stat().st_size)
+            shutil.copy2(best_cand, config_dir / 'servers.dat')
+            logger.info(f"Synced master servers.dat ({best_cand.stat().st_size:,} bytes from {best_cand.name}) into {instance_dir.name}")
+
+        # Sync master accounts.dat and bases directory for immediate broker access point resolution
+        if master_data and (master_data / 'config' / 'accounts.dat').exists():
+            try:
+                shutil.copy2(master_data / 'config' / 'accounts.dat', config_dir / 'accounts.dat')
+            except Exception:
+                pass
+        if master_data and (master_data / 'bases').exists():
+            try:
+                shutil.copytree(master_data / 'bases', instance_dir / 'bases', dirs_exist_ok=True)
+            except Exception:
+                pass
 
         # Block MetaQuotes LiveUpdate hijacking in portable instance
         try:
@@ -363,7 +486,6 @@ def launch_mt5_and_attach_ea(account):
         f.write(f"Login={clean_login}\n")
         f.write(f"Password={clean_password}\n")
         f.write(f"Server={clean_server}\n")
-        f.write(f"AutoConfiguration=true\n")
         f.write(f"EnableNews=false\n")
         f.write(f"CertInstall=0\n")
         f.write(f"ProfileLast=Default\n\n")
@@ -460,16 +582,30 @@ def kill_account_terminal(account_or_login):
     acc_id = str(account_or_login.get('id', '')) if isinstance(account_or_login, dict) else ''
     inst_dir = str(account_or_login.get('instance_dir', '')) if isinstance(account_or_login, dict) else ''
     
-    for proc in psutil.process_iter(['name', 'cmdline']):
+    if (not acc_id or not inst_dir) and login_str in active_terminals:
+        acc_dict = active_terminals[login_str]
+        acc_id = acc_id or str(acc_dict.get('id', ''))
+        inst_dir = inst_dir or str(acc_dict.get('instance_dir', ''))
+    
+    for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'exe']):
         try:
             if proc.info['name'] and 'terminal' in proc.info['name'].lower():
                 cmd = ' '.join(proc.info['cmdline'] or [])
-                if (
-                    (f"startup_{login_str}.ini" in cmd)
-                    or (acc_id and acc_id in cmd)
-                    or (inst_dir and Path(inst_dir).name in cmd)
-                ):
+                exe = proc.info.get('exe') or ''
+                match = False
+                if f"startup_{login_str}.ini" in cmd:
+                    match = True
+                elif acc_id and acc_id.lower() in (cmd + ' ' + exe).lower():
+                    match = True
+                elif inst_dir and Path(inst_dir).name.lower() in (cmd + ' ' + exe).lower():
+                    match = True
+                
+                if match:
                     proc.kill()
+                    try:
+                        proc.wait(timeout=3)
+                    except Exception:
+                        pass
                     logger.info(f"Terminated MT5 terminal process for {login_str}")
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             pass
@@ -490,6 +626,10 @@ def sweep_all_orphan_terminals(db_rows):
                 pid = proc.info['pid']
                 cmd = ' '.join(proc.info.get('cmdline') or [])
                 exe = proc.info.get('exe') or ''
+                
+                # Exclude base Program Files terminal (used for broker scanning/sync)
+                if 'program files' in exe.lower() and 'mt5_instances' not in cmd.lower():
+                    continue
                 
                 # Extract login from config filename
                 login_match = re.search(r'startup_(\d+)\.ini', cmd)
@@ -846,124 +986,33 @@ def poll_db_worker():
                     del active_terminals[login]
                     continue
 
-                # 2. Realtime Telemetry Bridge via MT5 Python IPC
-                # Queries live broker status, balance, equity directly from running terminal
-                last_tel = acc.get('last_telemetry_time', 0)
-                if current_time - last_tel >= 5:
-                    acc['last_telemetry_time'] = current_time
-                    instance_dir = acc.get('instance_dir') or acc.get('data_path')
-                    if instance_dir:
-                        terminal_exe = str(Path(instance_dir) / 'terminal64.exe')
-                        try:
-                            init_kwargs = {
-                                "path": terminal_exe,
-                                "portable": True,
-                                "timeout": 10000
-                            }
-                            # Connect to running terminal without re-logging in to prevent MT5 "automated trading disabled"
-                            connected = mt5.initialize(**init_kwargs)
-                            if not connected and acc.get('password') and acc.get('server'):
-                                try:
-                                    init_kwargs["login"] = int(login)
-                                    init_kwargs["password"] = acc.get('password')
-                                    srv_raw = acc.get('server', '')
-                                    init_kwargs["server"] = resolve_server_name(srv_raw)
-                                    connected = mt5.initialize(**init_kwargs)
-                                except Exception:
-                                    pass
-
-                            if connected:
-                                info = mt5.account_info()
-                                if info and str(info.login) == str(login):
-                                    telemetry_payload = {
-                                        "balance": float(info.balance),
-                                        "equity": float(info.equity),
-                                        "margin": float(info.margin),
-                                        "freeMargin": float(info.margin_free),
-                                        "floatingPl": float(info.profit),
-                                        "currency": str(info.currency)
-                                    }
-                                    
-                                    # 1. Update database directly with zero latency
-                                    execute_query(
-                                        'UPDATE "Mt5Account" SET "connectionStatus" = %s, "lastHeartbeatAt" = %s, balance = %s, equity = %s, margin = %s, "freeMargin" = %s, "floatingPl" = %s, currency = %s, "provisioningError" = NULL WHERE id = %s',
-                                        ('ONLINE', datetime.datetime.now(datetime.timezone.utc), info.balance, info.equity, info.margin, info.margin_free, info.profit, info.currency, acc['id'])
-                                    )
-                                    
-                                    # 2. Also notify the API for real-time WebSocket events if reachable
-                                    base_api = os.getenv('API_URL') or os.getenv('NEXT_PUBLIC_API_URL')
-                                    ea_token = acc.get('ea_token')
-                                    if base_api and ea_token:
-                                        try:
-                                            requests.post(
-                                                f"{base_api}/accounts/telemetry",
-                                                headers={"Authorization": f"Bearer {ea_token}"},
-                                                json=telemetry_payload,
-                                                timeout=5
-                                            )
-                                        except Exception as te:
-                                            logger.debug(f"Telemetry API post error for {login}: {te}")
-                                        
-                                    # 3. Synchronize closed deals and update TradeSignal / TradeCopy profit & close status
-                                    try:
-                                        deals_from = datetime.datetime.now() - datetime.timedelta(hours=24)
-                                        deals = mt5.history_deals_get(deals_from, datetime.datetime.now() + datetime.timedelta(hours=1))
-                                        if deals:
-                                            is_master = (acc.get('role') == 'MASTER')
-                                            for d in deals:
-                                                # entry == 1 is DEAL_ENTRY_OUT (exit deal)
-                                                if getattr(d, 'entry', 0) == 1 and getattr(d, 'position_id', 0) > 0:
-                                                    pos_id = int(d.position_id)
-                                                    d_profit = float(d.profit)
-                                                    d_price = float(d.price)
-                                                    d_vol = float(d.volume)
-                                                    if is_master:
-                                                        execute_query(
-                                                            'UPDATE "TradeSignal" SET profit = %s, "closePrice" = %s, "isClosed" = true WHERE ticket = %s AND ("isClosed" = false OR profit IS NULL)',
-                                                            (d_profit, d_price, pos_id)
-                                                        )
-                                                    else:
-                                                        execute_query(
-                                                            'UPDATE "TradeCopy" SET profit = %s, "closePrice" = %s, "closedVolume" = %s, "currentVolume" = 0, state = %s WHERE ("subPositionId" = %s OR "subOrderTicket" = %s) AND ("currentVolume" > 0 OR profit IS NULL)',
-                                                            (d_profit, d_price, d_vol, 'EXECUTED', pos_id, pos_id)
-                                                        )
-                                    except Exception as de:
-                                        logger.debug(f"Deals sync error for {login}: {de}")
-
-                                    # 4. Record periodic AccountSnapshot if none exists in last 30 minutes
-                                    try:
-                                        execute_query(
-                                            '''
-                                            INSERT INTO "AccountSnapshot" (id, "mt5AccountId", balance, equity, "floatingPl", timestamp, "createdAt")
-                                            SELECT gen_random_uuid(), %s, %s, %s, %s, NOW(), NOW()
-                                            WHERE NOT EXISTS (
-                                                SELECT 1 FROM "AccountSnapshot"
-                                                WHERE "mt5AccountId" = %s AND timestamp > NOW() - INTERVAL '30 minutes'
-                                            )
-                                            ''',
-                                            (acc['id'], float(info.balance), float(info.equity), float(info.profit), acc['id'])
-                                        )
-                                    except Exception as se:
-                                        logger.debug(f"Snapshot insert error for {login}: {se}")
-
-                                    if acc.get('connectionStatus') != 'ONLINE':
-                                        logger.info(f"Account {login} verified ONLINE on broker! Balance: {info.balance} {info.currency}")
-                                        acc['connectionStatus'] = 'ONLINE'
-                                mt5.shutdown()
-                        except Exception as ie:
-                            logger.debug(f"MT5 IPC telemetry poll error for {login}: {ie}")
-
-                # 3. Check for provisioning timeouts (120s without ONLINE status)
-                if acc.get('launch_time') and (current_time - acc['launch_time']) > 120:
+                # 2. Check online status via zero-latency Win32 terminal window inspection
+                if check_terminal_online_status(acc):
                     if acc.get('connectionStatus') != 'ONLINE':
-                        for row in rows:
-                            if str(row.get('login')) == login:
-                                if row.get('connectionStatus') == 'PROVISIONING':
-                                    logger.error(f"Timeout: EA {login} never sent heartbeat after 120s. Killing process.")
-                                    execute_query('UPDATE "Mt5Account" SET "connectionStatus" = %s, "provisioningError" = %s WHERE id = %s', ('FAILED', 'Connection timed out waiting for the broker chart to respond. Please check your MT5 login credentials and server name.', acc['id']))
-                                    kill_account_terminal(login)
-                                    del active_terminals[login]
-                                break
+                        acc['connectionStatus'] = 'ONLINE'
+                        logger.info(f"Terminal window for account {login} confirmed ONLINE on broker!")
+                        execute_query(
+                            'UPDATE "Mt5Account" SET "connectionStatus" = %s, "lastHeartbeatAt" = %s, "provisioningError" = NULL WHERE id = %s',
+                            ('ONLINE', datetime.datetime.now(datetime.timezone.utc), acc['id'])
+                        )
+
+                # 3. Check for provisioning timeouts (180s without ONLINE status)
+                if acc.get('launch_time') and (current_time - acc['launch_time']) > 180:
+                    if acc.get('connectionStatus') != 'ONLINE':
+                        # Final rescue check before failing: Verify if window title shows account is actually online
+                        if check_terminal_online_status(acc):
+                            logger.info(f"Rescued account {login}: Terminal window confirms connected to broker.")
+                            acc['connectionStatus'] = 'ONLINE'
+                            execute_query('UPDATE "Mt5Account" SET "connectionStatus" = %s, "lastHeartbeatAt" = %s, "provisioningError" = NULL WHERE id = %s', ('ONLINE', datetime.datetime.now(datetime.timezone.utc), acc['id']))
+                        else:
+                            for row in rows:
+                                if str(row.get('login')) == login:
+                                    if row.get('connectionStatus') == 'PROVISIONING':
+                                        logger.error(f"Timeout: EA {login} never sent heartbeat after 180s. Killing process.")
+                                        execute_query('UPDATE "Mt5Account" SET "connectionStatus" = %s, "provisioningError" = %s WHERE id = %s', ('FAILED', 'Connection timed out waiting for the broker chart to respond. Please check your MT5 login credentials and server name.', acc['id']))
+                                        kill_account_terminal(login)
+                                        del active_terminals[login]
+                                    break
             
             # Detect deleted accounts
             fetched_logins = set(str(row.get('login')) for row in rows)
