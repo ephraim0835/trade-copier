@@ -9,6 +9,7 @@ import { toggleAccountActive, deleteAccount, retryAccountConnection, getAccountC
 import { useRouter } from 'next/navigation';
 import { formatUserFriendlyError, getFriendlyErrorDetails } from '@/lib/error-formatter';
 import { ReconnectButton } from '@/components/accounts/reconnect-button';
+import { COMMON_BROKERS } from '@/components/broker-combobox';
 
 interface SubAccountCardProps {
   account: {
@@ -333,21 +334,30 @@ export function SubAccountCard({ account }: SubAccountCardProps) {
                   className="w-full bg-background border border-border/60 rounded-xl px-3 py-1.5 text-xs font-mono text-foreground focus:outline-none focus:border-primary"
                   placeholder="e.g. Headway-Real or Headway-Demo"
                 />
-                <div className="flex gap-1.5 mt-1.5">
-                  {['Headway-Real', 'Headway-Demo'].map(srv => (
-                    <button
-                      type="button"
-                      key={srv}
-                      onClick={() => setEditServer(srv)}
-                      className={`text-[9px] px-2 py-0.5 rounded-md border font-mono transition-colors ${
-                        editServer === srv 
-                          ? 'border-primary bg-primary/10 text-primary font-semibold' 
-                          : 'border-border/40 text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      {srv}
-                    </button>
-                  ))}
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {(() => {
+                    const normBroker = (accountData.broker || '').toLowerCase().replace(/[\s\-_.]/g, '');
+                    const matching = COMMON_BROKERS.find(b => {
+                      if (!normBroker) return false;
+                      const bNorm = b.broker.toLowerCase().replace(/[\s\-_.]/g, '');
+                      return bNorm.includes(normBroker) || b.aliases?.some(a => a.toLowerCase().replace(/[\s\-_.]/g, '').includes(normBroker));
+                    });
+                    const suggestions = matching ? matching.servers.slice(0, 6) : (accountData.server ? [accountData.server] : ['JustMarkets-Live', 'JustMarkets-Demo']);
+                    return suggestions.map(srv => (
+                      <button
+                        type="button"
+                        key={srv}
+                        onClick={() => setEditServer(srv)}
+                        className={`text-[9px] px-2 py-0.5 rounded-md border font-mono transition-colors ${
+                          editServer === srv 
+                            ? 'border-primary bg-primary/10 text-primary font-semibold' 
+                            : 'border-border/40 text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        {srv}
+                      </button>
+                    ));
+                  })()}
                 </div>
               </div>
 
