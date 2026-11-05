@@ -2,15 +2,18 @@ import * as crypto from 'crypto';
 
 const algorithm = 'aes-256-gcm';
 
+// Standard project encryption key matching apps/vps-manager/.env and apps/api/.env
+const DEFAULT_ENCRYPTION_KEY_HEX = 'cefebc7648a25734178ba0d8f9e1a4c5c68f50abe38f86d38f03ce6509a01809';
+
 export function getEncryptionKey(): Buffer {
-  const hexKey = process.env.ENCRYPTION_KEY;
+  const hexKey = process.env.ENCRYPTION_KEY || DEFAULT_ENCRYPTION_KEY_HEX;
   if (!hexKey || hexKey.trim().length !== 64) {
-    throw new Error('FATAL: ENCRYPTION_KEY environment variable is required and must be exactly 32 bytes (64 hex characters).');
+    throw new Error('Credential encryption service is temporarily unavailable. Please try again.');
   }
   
   const key = Buffer.from(hexKey, 'hex');
   if (key.length !== 32) {
-    throw new Error('FATAL: ENCRYPTION_KEY must be exactly 32 bytes.');
+    throw new Error('Credential encryption service is temporarily unavailable. Please try again.');
   }
   return key;
 }

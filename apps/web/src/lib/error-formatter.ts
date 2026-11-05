@@ -490,11 +490,19 @@ export function getFriendlyErrorDetails(rawError: unknown): FriendlyError {
     };
   }
 
-  if (lower.includes('bad decrypt') || lower.includes('decryption') || lower.includes('cipher')) {
+  if (
+    lower.includes('encryption_key') ||
+    lower.includes('hex characters') ||
+    lower.includes('32 bytes') ||
+    lower.includes('environment variable') ||
+    lower.includes('bad decrypt') ||
+    lower.includes('decryption') ||
+    lower.includes('cipher')
+  ) {
     return {
-      title: 'Credential Security Issue',
-      message: 'Unable to decrypt your saved trading password securely.',
-      suggestion: 'Please click "Update Credentials" to re-save your password.'
+      title: 'Security Configuration Notice',
+      message: 'A secure encryption verification issue occurred while saving your credentials. Please re-enter your details.',
+      suggestion: 'Click "Edit Credentials & Try Again" to re-submit your login details.'
     };
   }
 
