@@ -191,18 +191,40 @@ def check_terminal_online_status(account):
 def get_broker_symbol(account):
     broker = (account.get('broker') or '').lower()
     server = (account.get('server') or '').lower()
+    resolved_server = resolve_server_name(account.get('server') or '')
+
+    # 1. Dynamically inspect cached history folder in instance MT5 data
+    inst_dir = account.get('instance_dir') or account.get('data_path')
+    if not inst_dir and account.get('id'):
+        inst_dir = Path("C:/Users/Plaiz/MT5_Instances") / str(account['id'])
     
+    if inst_dir:
+        history_dir = Path(inst_dir) / 'bases' / resolved_server / 'history'
+        if history_dir.exists():
+            try:
+                dirs = [d.name for d in history_dir.iterdir() if d.is_dir() and 'eurusd' in d.name.lower()]
+                if dirs:
+                    # Prefer suffixed symbol over plain if broker uses suffixes (e.g. EURUSD.m, EURUSDm)
+                    suffixed = [d for d in dirs if len(d) > 6]
+                    if suffixed:
+                        logger.info(f"Auto-detected exact broker suffixed symbol '{suffixed[0]}' for {broker} ({resolved_server})")
+                        return suffixed[0]
+                    logger.info(f"Auto-detected exact broker symbol '{dirs[0]}' for {broker} ({resolved_server})")
+                    return dirs[0]
+            except Exception:
+                pass
+
     # Deriv synthetic servers use Volatility 75 Index
     if 'deriv' in broker:
         if 'synthetic' in server or 'server' in server:
             return 'Volatility 75 Index'
         return 'EURUSD'
         
-    # JustMarkets standard accounts use 'EURUSD' or '.m'
+    # JustMarkets standard accounts use '.m' suffix, Pro/Raw use standard EURUSD
     if 'just' in broker:
         if 'pro' in server or 'raw' in server:
             return 'EURUSD'
-        return 'EURUSD'
+        return 'EURUSD.m'
         
     # Exness standard accounts use 'm' suffix
     if 'exness' in broker:
@@ -310,7 +332,7 @@ def launch_mt5_and_attach_ea(account):
                 pass
         if master_data and (master_data / 'bases').exists():
             try:
-                shutil.copytree(master_data / 'bases', instance_dir / 'bases', dirs_exist_ok=True)
+                shutil.copytree(master_data / 'bases', instance_dir / 'bases', dirs_exist_ok=True, ignore=shutil.ignore_patterns('history'))
             except Exception:
                 pass
 
@@ -995,6 +1017,15 @@ def poll_db_worker():
                             'UPDATE "Mt5Account" SET "connectionStatus" = %s, "lastHeartbeatAt" = %s, "provisioningError" = NULL WHERE id = %s',
                             ('ONLINE', datetime.datetime.now(datetime.timezone.utc), acc['id'])
                         )
+                    else:
+                        # Keep DB heartbeat actively refreshed every 30s while terminal is running & online
+                        last_hb = acc.get('last_manager_hb', 0)
+                        if current_time - last_hb >= 30:
+                            acc['last_manager_hb'] = current_time
+                            execute_query(
+                                'UPDATE "Mt5Account" SET "lastHeartbeatAt" = %s WHERE id = %s',
+                                (datetime.datetime.now(datetime.timezone.utc), acc['id'])
+                            )
 
                 # 3. Check for provisioning timeouts (180s without ONLINE status)
                 if acc.get('launch_time') and (current_time - acc['launch_time']) > 180:
